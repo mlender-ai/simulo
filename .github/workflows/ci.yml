@@ -4,7 +4,7 @@ on:
   pull_request:
     branches: [main, develop]
   push:
-    branches: [develop]
+    branches: [main, develop]
 
 jobs:
   validate:
@@ -27,7 +27,7 @@ jobs:
       - name: Generate Prisma Client
         run: npx prisma generate
         env:
-          DATABASE_URL: ${{ secrets.DATABASE_URL }}
+          DATABASE_URL: ${{ secrets.DATABASE_URL || 'postgresql://ci:ci@localhost:5432/ci' }}
 
       - name: Run ESLint
         run: npm run lint
@@ -38,11 +38,9 @@ jobs:
       - name: Run build
         run: npm run build
         env:
-          ANTHROPIC_API_KEY: ${{ secrets.ANTHROPIC_API_KEY }}
-          DATABASE_URL: ${{ secrets.DATABASE_URL }}
-          ADMIN_PASSWORD: ${{ secrets.ADMIN_PASSWORD }}
-          NEXT_PUBLIC_SUPABASE_URL: ''
-          NEXT_PUBLIC_SUPABASE_ANON_KEY: ''
+          ANTHROPIC_API_KEY: ${{ secrets.ANTHROPIC_API_KEY || 'sk-ant-placeholder' }}
+          DATABASE_URL: ${{ secrets.DATABASE_URL || 'postgresql://ci:ci@localhost:5432/ci' }}
+          ADMIN_PASSWORD: ${{ secrets.ADMIN_PASSWORD || 'ci' }}
 
       - name: Build Figma Plugin
         run: |
