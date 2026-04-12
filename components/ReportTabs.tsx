@@ -22,6 +22,19 @@ const LIKELIHOOD_COLORS: Record<string, string> = {
   Low: "text-red-400",
 };
 
+const DESIRE_COLORS: Record<string, { bar: string; bg: string; text: string }> = {
+  utility: { bar: "#3b82f6", bg: "bg-blue-400/10", text: "text-blue-400" },
+  healthPride: { bar: "#a855f7", bg: "bg-purple-400/10", text: "text-purple-400" },
+  lossAversion: { bar: "#f97316", bg: "bg-orange-400/10", text: "text-orange-400" },
+};
+
+const DESIRE_TYPE_BADGE: Record<string, string> = {
+  utility: "text-blue-400 bg-blue-400/10 border-blue-400/20",
+  healthPride: "text-purple-400 bg-purple-400/10 border-purple-400/20",
+  lossAversion: "text-orange-400 bg-orange-400/10 border-orange-400/20",
+  general: "text-gray-400 bg-gray-400/10 border-gray-400/20",
+};
+
 const DROP_OFF_COLORS: Record<string, { text: string; border: string; bg: string }> = {
   High: { text: "text-red-400", border: "border-l-red-500", bg: "bg-red-400/5" },
   Medium: { text: "text-amber-400", border: "border-l-amber-500", bg: "bg-amber-400/5" },
@@ -192,6 +205,88 @@ export function ReportTabs({ data, locale }: { data: AnalysisResult; locale: Loc
             </div>
           )}
 
+          {/* Money Loop Stage */}
+          {data.moneyLoopStage && (
+            <div className="flex items-center gap-2">
+              <span className="text-xs text-[var(--muted)] uppercase tracking-wider">{t("moneyLoopStage", locale)}:</span>
+              <span className="text-sm px-3 py-1 rounded border border-[var(--border)] bg-white/5 font-medium">
+                {data.moneyLoopStage}
+              </span>
+            </div>
+          )}
+
+          {/* Desire Alignment */}
+          {data.desireAlignment && (
+            <div>
+              <h3 className="text-xs text-[var(--muted)] uppercase tracking-wider mb-3">{t("desireAlignment", locale)}</h3>
+              <div className="grid grid-cols-1 sm:grid-cols-3 gap-3">
+                {(["utility", "healthPride", "lossAversion"] as const).map((key) => {
+                  const desire = data.desireAlignment![key];
+                  const colors = DESIRE_COLORS[key];
+                  const nameKey = key === "utility" ? "desireUtility" : key === "healthPride" ? "desireHealthPride" : "desireLossAversion";
+                  const descKey = key === "utility" ? "desireUtilityDesc" : key === "healthPride" ? "desireHealthPrideDesc" : "desireLossAversionDesc";
+                  const pct = (desire.score / 10) * 100;
+                  return (
+                    <div key={key} className="p-3 rounded-lg border border-[var(--border)] bg-[var(--surface)]">
+                      <div className="flex items-center justify-between mb-1">
+                        <span className={`text-xs font-medium ${colors.text}`}>{t(nameKey, locale)}</span>
+                        <span className="text-sm font-bold mono">{desire.score}/10</span>
+                      </div>
+                      <p className="text-[11px] text-[var(--muted)] mb-2">{t(descKey, locale)}</p>
+                      <div className="h-1.5 rounded-full bg-white/10 overflow-hidden mb-2">
+                        <div className="h-full rounded-full transition-all" style={{ width: `${pct}%`, background: colors.bar }} />
+                      </div>
+                      <p style={{ fontSize: "12px", color: "#888", lineHeight: "1.4" }}>{desire.comment}</p>
+                    </div>
+                  );
+                })}
+              </div>
+            </div>
+          )}
+
+          {/* Retention Risk */}
+          {data.retentionRisk && (
+            <div>
+              <h3 className="text-xs text-[var(--muted)] uppercase tracking-wider mb-3">{t("retentionRisk", locale)}</h3>
+              <div className="p-4 rounded-lg border border-[var(--border)] bg-[var(--surface)]">
+                <div className="flex gap-6 mb-3">
+                  <div>
+                    <span className="text-xs text-[var(--muted)]">{t("d1Risk", locale)}</span>
+                    <div className={`text-sm font-medium ${
+                      data.retentionRisk.d1Risk === "High" || data.retentionRisk.d1Risk === "높음" ? "text-red-400" :
+                      data.retentionRisk.d1Risk === "Medium" || data.retentionRisk.d1Risk === "보통" ? "text-amber-400" : "text-emerald-400"
+                    }`}>{data.retentionRisk.d1Risk}</div>
+                  </div>
+                  <div>
+                    <span className="text-xs text-[var(--muted)]">{t("d7Risk", locale)}</span>
+                    <div className={`text-sm font-medium ${
+                      data.retentionRisk.d7Risk === "High" || data.retentionRisk.d7Risk === "높음" ? "text-red-400" :
+                      data.retentionRisk.d7Risk === "Medium" || data.retentionRisk.d7Risk === "보통" ? "text-amber-400" : "text-emerald-400"
+                    }`}>{data.retentionRisk.d7Risk}</div>
+                  </div>
+                </div>
+                <div>
+                  <span className="text-xs text-[var(--muted)]">{t("mainRiskReason", locale)}: </span>
+                  <span className="text-sm">{data.retentionRisk.mainRiskReason}</span>
+                </div>
+              </div>
+            </div>
+          )}
+
+          {/* Top Priorities */}
+          {data.topPriorities && data.topPriorities.length > 0 && (
+            <div>
+              <h3 className="text-xs text-[var(--muted)] uppercase tracking-wider mb-2">{t("topPrioritiesLabel", locale)}</h3>
+              <ol className="space-y-1.5">
+                {data.topPriorities.map((p, i) => (
+                  <li key={i} className="text-sm flex gap-2">
+                    <span className="text-[var(--muted)] shrink-0 mono">{i + 1}.</span>{p}
+                  </li>
+                ))}
+              </ol>
+            </div>
+          )}
+
           {hasThumbnails && (
             <div>
               <h3 className="text-xs text-[var(--muted)] uppercase tracking-wider mb-3">{t("analyzedScreens", locale)}</h3>
@@ -311,10 +406,20 @@ export function ReportTabs({ data, locale }: { data: AnalysisResult; locale: Loc
             const severityKey = issue.severity as "Critical" | "Medium" | "Low";
             return (
               <div key={i} className="p-4 rounded-lg border border-[var(--border)] bg-[var(--surface)]">
-                <div className="flex items-center gap-2 mb-2">
+                <div className="flex items-center gap-2 mb-2 flex-wrap">
                   <span className={`text-xs px-2 py-0.5 rounded border ${SEVERITY_COLORS[issue.severity] ?? ""}`}>
                     {t(severityKey, locale)}
                   </span>
+                  {issue.desireType && (
+                    <span className={`text-xs px-2 py-0.5 rounded border ${DESIRE_TYPE_BADGE[issue.desireType] ?? DESIRE_TYPE_BADGE.general}`}>
+                      {t("desireType", locale)}: {t(
+                        issue.desireType === "utility" ? "desireUtility" :
+                        issue.desireType === "healthPride" ? "desireHealthPride" :
+                        issue.desireType === "lossAversion" ? "desireLossAversion" : "desireType",
+                        locale
+                      )}
+                    </span>
+                  )}
                   <span className="text-xs text-[var(--muted)] mono">{issue.screen}</span>
                 </div>
                 <p className="text-sm mb-2">{issue.issue}</p>
@@ -322,6 +427,12 @@ export function ReportTabs({ data, locale }: { data: AnalysisResult; locale: Loc
                   <span className="text-xs uppercase tracking-wider">{t("recommendation", locale)}: </span>
                   {issue.recommendation}
                 </p>
+                {issue.retentionImpact && (
+                  <p className="text-sm text-orange-400/80 mt-2">
+                    <span className="text-xs uppercase tracking-wider">{t("retentionImpact", locale)}: </span>
+                    {issue.retentionImpact}
+                  </p>
+                )}
               </div>
             );
           })}

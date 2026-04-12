@@ -13,6 +13,23 @@ export interface FlowAnalysisEntry {
   reason: string;
 }
 
+export interface DesireScore {
+  score: number;
+  comment: string;
+}
+
+export interface DesireAlignment {
+  utility: DesireScore;
+  healthPride: DesireScore;
+  lossAversion: DesireScore;
+}
+
+export interface RetentionRisk {
+  d1Risk: string;
+  d7Risk: string;
+  mainRiskReason: string;
+}
+
 export interface ComparisonProductResult {
   productName: string;
   verdict: "Pass" | "Partial" | "Fail";
@@ -20,9 +37,11 @@ export interface ComparisonProductResult {
   summary: string;
   strengths: string[];
   weaknesses: string[];
+  desireAlignment?: DesireAlignment;
   thinkAloud: { screen: string; thought: string }[];
   issues: {
     screen: string;
+    desireType?: "utility" | "healthPride" | "lossAversion" | "general";
     severity: "Critical" | "Medium" | "Low";
     issue: string;
     recommendation: string;
@@ -57,9 +76,11 @@ export interface AnalysisResult {
   thinkAloud: { screen: string; thought: string }[];
   issues: {
     screen: string;
+    desireType?: "utility" | "healthPride" | "lossAversion" | "general";
     severity: "Critical" | "Medium" | "Low";
     issue: string;
     recommendation: string;
+    retentionImpact?: string;
   }[];
   thumbnailUrls: string[];
   flowSteps?: FlowStep[];
@@ -71,6 +92,10 @@ export interface AnalysisResult {
     efficiency: { score: number; reason: string };
   };
   verdictReason?: string;
+  moneyLoopStage?: string;
+  desireAlignment?: DesireAlignment;
+  retentionRisk?: RetentionRisk;
+  topPriorities?: string[];
   isComparison?: boolean;
   comparisonData?: ComparisonResult;
 }

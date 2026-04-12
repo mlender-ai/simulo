@@ -17,6 +17,19 @@ const SEVERITY_COLORS: Record<string, string> = {
   Low: "text-blue-400 bg-blue-400/10 border-blue-400/20",
 };
 
+const DESIRE_COLORS: Record<string, { bar: string; text: string }> = {
+  utility: { bar: "#3b82f6", text: "text-blue-400" },
+  healthPride: { bar: "#a855f7", text: "text-purple-400" },
+  lossAversion: { bar: "#f97316", text: "text-orange-400" },
+};
+
+const DESIRE_TYPE_BADGE: Record<string, string> = {
+  utility: "text-blue-400 bg-blue-400/10 border-blue-400/20",
+  healthPride: "text-purple-400 bg-purple-400/10 border-purple-400/20",
+  lossAversion: "text-orange-400 bg-orange-400/10 border-orange-400/20",
+  general: "text-gray-400 bg-gray-400/10 border-gray-400/20",
+};
+
 type Tab = "summary" | "details" | "sideBySide";
 
 interface ComparisonReportTabsProps {
@@ -332,6 +345,33 @@ function ProductDetailCard({
         )}
       </div>
 
+      {product.desireAlignment && (
+        <div className="mb-4">
+          <div className="text-[10px] uppercase tracking-wider text-[var(--muted)] mb-2">
+            {t("desireAlignment", locale)}
+          </div>
+          <div className="grid grid-cols-3 gap-2">
+            {(["utility", "healthPride", "lossAversion"] as const).map((key) => {
+              const desire = product.desireAlignment![key];
+              const colors = DESIRE_COLORS[key];
+              const nameKey = key === "utility" ? "desireUtility" : key === "healthPride" ? "desireHealthPride" : "desireLossAversion";
+              const pct = (desire.score / 10) * 100;
+              return (
+                <div key={key} className="p-2 rounded border border-[var(--border)]">
+                  <div className="flex items-center justify-between mb-1">
+                    <span className={`text-[10px] ${colors.text}`}>{t(nameKey, locale)}</span>
+                    <span className="text-xs mono">{desire.score}/10</span>
+                  </div>
+                  <div className="h-1 rounded-full bg-white/10 overflow-hidden">
+                    <div className="h-full rounded-full" style={{ width: `${pct}%`, background: colors.bar }} />
+                  </div>
+                </div>
+              );
+            })}
+          </div>
+        </div>
+      )}
+
       {product.issues && product.issues.length > 0 && (
         <div>
           <div className="text-[10px] uppercase tracking-wider text-[var(--muted)] mb-2">
@@ -343,7 +383,7 @@ function ProductDetailCard({
                 key={i}
                 className="p-3 rounded-md border border-[var(--border)] bg-white/[0.02]"
               >
-                <div className="flex items-center gap-2 mb-1">
+                <div className="flex items-center gap-2 mb-1 flex-wrap">
                   <span
                     className={`text-[10px] px-1.5 py-0.5 rounded border ${
                       SEVERITY_COLORS[issue.severity] ?? ""
@@ -351,6 +391,16 @@ function ProductDetailCard({
                   >
                     {t(issue.severity as "Critical" | "Medium" | "Low", locale)}
                   </span>
+                  {issue.desireType && (
+                    <span className={`text-[10px] px-1.5 py-0.5 rounded border ${DESIRE_TYPE_BADGE[issue.desireType] ?? DESIRE_TYPE_BADGE.general}`}>
+                      {t(
+                        issue.desireType === "utility" ? "desireUtility" :
+                        issue.desireType === "healthPride" ? "desireHealthPride" :
+                        issue.desireType === "lossAversion" ? "desireLossAversion" : "desireType",
+                        locale
+                      )}
+                    </span>
+                  )}
                   <span className="text-[10px] text-[var(--muted)] mono">
                     {issue.screen}
                   </span>

@@ -190,6 +190,23 @@ const translations = {
     comparisonLoadingStep1: "제품별 화면을 분석 중...",
     comparisonLoadingStep2: "동일 루브릭으로 비교 점수 산정 중...",
     comparisonLoadingStep3: "우선 개선 포인트를 도출 중...",
+
+    // Desire Map & Retention
+    desireAlignment: "욕망 매핑",
+    desireUtility: "효능감",
+    desireUtilityDesc: "가계 보탬의 효능감",
+    desireHealthPride: "건강 과시",
+    desireHealthPrideDesc: "건강 성취와 과시 욕구",
+    desireLossAversion: "손실 회피",
+    desireLossAversionDesc: "하루라도 빼먹으면 손해라는 인식",
+    moneyLoopStage: "Money Loop 단계",
+    retentionRisk: "리텐션 리스크",
+    d1Risk: "D1 리스크",
+    d7Risk: "D7 리스크",
+    mainRiskReason: "핵심 원인",
+    topPrioritiesLabel: "우선 개선 포인트",
+    desireType: "욕망 유형",
+    retentionImpact: "리텐션 영향",
   },
   en: {
     history: "History",
@@ -358,6 +375,23 @@ const translations = {
     comparisonLoadingStep1: "Analyzing screens per product...",
     comparisonLoadingStep2: "Scoring with a consistent rubric...",
     comparisonLoadingStep3: "Deriving top priorities...",
+
+    // Desire Map & Retention
+    desireAlignment: "Desire Mapping",
+    desireUtility: "Utility",
+    desireUtilityDesc: "Household budget efficacy",
+    desireHealthPride: "Health & Pride",
+    desireHealthPrideDesc: "Health achievement & social proof",
+    desireLossAversion: "Loss Aversion",
+    desireLossAversionDesc: "Fear of losing streak & progress",
+    moneyLoopStage: "Money Loop Stage",
+    retentionRisk: "Retention Risk",
+    d1Risk: "D1 Risk",
+    d7Risk: "D7 Risk",
+    mainRiskReason: "Main Cause",
+    topPrioritiesLabel: "Top Priorities",
+    desireType: "Desire Type",
+    retentionImpact: "Retention Impact",
   },
 } as const;
 
