@@ -1,0 +1,314 @@
+<!DOCTYPE html>
+<html>
+<head>
+  <meta charset="utf-8">
+  <style>
+    * { box-sizing: border-box; margin: 0; padding: 0; }
+    body {
+      font-family: 'Inter', -apple-system, BlinkMacSystemFont, sans-serif;
+      background: #0d0d0d;
+      color: #e5e5e5;
+      font-size: 13px;
+      line-height: 1.5;
+      -webkit-font-smoothing: antialiased;
+    }
+
+    .header {
+      padding: 14px 16px 12px;
+      border-bottom: 1px solid #1f1f1f;
+      display: flex;
+      align-items: center;
+      justify-content: space-between;
+    }
+    .logo { font-size: 15px; font-weight: 600; letter-spacing: -0.3px; }
+    .version { font-size: 11px; color: #555; font-family: monospace; }
+
+    .selection-bar {
+      padding: 10px 16px;
+      background: #111;
+      border-bottom: 1px solid #1a1a1a;
+      font-size: 12px;
+      color: #888;
+    }
+    .selection-bar.active { color: #a3e635; }
+
+    .form { padding: 16px; display: flex; flex-direction: column; gap: 14px; }
+    label {
+      font-size: 11px;
+      color: #666;
+      letter-spacing: 0.05em;
+      text-transform: uppercase;
+      margin-bottom: 5px;
+      display: block;
+    }
+    textarea, input {
+      width: 100%;
+      background: #111;
+      border: 1px solid #222;
+      border-radius: 6px;
+      color: #e5e5e5;
+      font-size: 13px;
+      padding: 10px 12px;
+      font-family: inherit;
+      resize: none;
+      outline: none;
+      transition: border-color 0.15s;
+    }
+    textarea:focus, input:focus { border-color: #444; }
+    textarea { height: 80px; line-height: 1.5; }
+
+    .btn-primary {
+      width: 100%;
+      padding: 11px;
+      background: #e5e5e5;
+      color: #0d0d0d;
+      border: none;
+      border-radius: 6px;
+      font-size: 13px;
+      font-weight: 600;
+      cursor: pointer;
+      transition: opacity 0.15s;
+    }
+    .btn-primary:hover { opacity: 0.9; }
+    .btn-primary:disabled { opacity: 0.3; cursor: not-allowed; }
+
+    .settings-section {
+      padding: 0 16px 16px;
+      border-bottom: 1px solid #1a1a1a;
+    }
+    .settings-toggle {
+      font-size: 12px;
+      color: #555;
+      cursor: pointer;
+      padding: 10px 0;
+      display: flex;
+      align-items: center;
+      gap: 6px;
+      user-select: none;
+    }
+    .settings-toggle:hover { color: #888; }
+    .settings-body { display: none; }
+    .settings-body.visible { display: block; }
+    .settings-hint { margin-top: 6px; font-size: 11px; color: #555; }
+
+    .loading {
+      display: none;
+      padding: 40px 16px;
+      text-align: center;
+      color: #666;
+      font-size: 13px;
+    }
+    .loading.visible { display: block; }
+    .loading-spin {
+      color: #555;
+      font-size: 20px;
+      animation: spin 1.2s linear infinite;
+      display: inline-block;
+    }
+    @keyframes spin { to { transform: rotate(360deg); } }
+    .loading-msg { margin-top: 10px; font-family: monospace; font-size: 12px; }
+
+    .report { display: none; padding: 16px; }
+    .report.visible { display: block; }
+
+    .score-row {
+      display: flex;
+      align-items: baseline;
+      gap: 12px;
+      margin-bottom: 12px;
+    }
+    .score-num { font-size: 36px; font-weight: 700; font-family: monospace; }
+    .verdict-badge {
+      font-size: 11px;
+      font-weight: 600;
+      padding: 3px 10px;
+      border-radius: 4px;
+      letter-spacing: 0.03em;
+    }
+    .verdict-pass { background: #14532d; color: #86efac; }
+    .verdict-partial { background: #431407; color: #fdba74; }
+    .verdict-fail { background: #450a0a; color: #fca5a5; }
+
+    .summary {
+      font-size: 13px;
+      color: #aaa;
+      line-height: 1.7;
+      margin-bottom: 16px;
+      padding: 12px;
+      background: #111;
+      border-radius: 6px;
+      border: 1px solid #1a1a1a;
+    }
+
+    .section-label {
+      font-size: 11px;
+      color: #555;
+      text-transform: uppercase;
+      letter-spacing: 0.05em;
+      margin-bottom: 8px;
+    }
+
+    .strength-item {
+      font-size: 12px;
+      color: #aaa;
+      padding: 6px 0;
+      border-bottom: 1px solid #1a1a1a;
+    }
+    .strength-item:last-child { border-bottom: none; }
+
+    .issue-item {
+      padding: 10px 12px;
+      background: #111;
+      border: 1px solid #1a1a1a;
+      border-radius: 6px;
+      margin-bottom: 8px;
+    }
+    .issue-severity {
+      font-size: 10px;
+      font-weight: 600;
+      padding: 2px 7px;
+      border-radius: 3px;
+      margin-bottom: 5px;
+      display: inline-block;
+    }
+    .sev-critical { background: #450a0a; color: #fca5a5; }
+    .sev-medium { background: #431407; color: #fdba74; }
+    .sev-low { background: #1a1a1a; color: #888; }
+    .issue-screen { font-size: 10px; color: #555; margin-left: 6px; font-family: monospace; }
+    .issue-text { font-size: 12px; color: #ccc; margin: 4px 0; }
+    .issue-rec { font-size: 11px; color: #666; }
+
+    .think-wrap { margin-bottom: 10px; }
+    .think-screen { font-size: 11px; color: #555; margin-bottom: 4px; }
+    .think-aloud {
+      font-size: 13px;
+      color: #999;
+      line-height: 1.7;
+      font-style: italic;
+      padding: 10px 12px;
+      background: #111;
+      border-left: 2px solid #333;
+      border-radius: 0 6px 6px 0;
+    }
+
+    .tab-bar {
+      display: flex;
+      gap: 0;
+      margin-bottom: 14px;
+      border-bottom: 1px solid #1a1a1a;
+    }
+    .tab {
+      padding: 8px 14px;
+      font-size: 12px;
+      color: #555;
+      cursor: pointer;
+      border-bottom: 2px solid transparent;
+      margin-bottom: -1px;
+      user-select: none;
+    }
+    .tab.active { color: #e5e5e5; border-bottom-color: #e5e5e5; }
+
+    .tab-content { display: none; }
+    .tab-content.active { display: block; }
+
+    .btn-secondary {
+      width: 100%;
+      padding: 9px;
+      background: transparent;
+      color: #666;
+      border: 1px solid #222;
+      border-radius: 6px;
+      font-size: 12px;
+      cursor: pointer;
+      margin-top: 12px;
+      font-family: inherit;
+    }
+    .btn-secondary:hover { color: #aaa; border-color: #333; }
+
+    .error-msg {
+      display: none;
+      padding: 10px 12px;
+      background: #1a0a0a;
+      border: 1px solid #3a1a1a;
+      border-radius: 6px;
+      color: #fca5a5;
+      font-size: 12px;
+      margin: 0 16px 16px;
+    }
+    .error-msg.visible { display: block; }
+
+    .empty { color: #555; font-size: 12px; padding: 8px 0; }
+  </style>
+</head>
+<body>
+  <div class="header">
+    <span class="logo">Simulo</span>
+    <span class="version">v1.0</span>
+  </div>
+
+  <div class="selection-bar" id="selectionBar">
+    프레임이나 레이어를 선택해주세요
+  </div>
+
+  <div class="error-msg" id="errorMsg"></div>
+
+  <div class="settings-section">
+    <div class="settings-toggle" id="settingsToggle">
+      ⚙ API 설정
+    </div>
+    <div class="settings-body" id="settingsPanel">
+      <label>Anthropic API Key</label>
+      <input type="password" id="apiKey" placeholder="sk-ant-api03-..." />
+      <div class="settings-hint">입력한 키는 이 기기에만 저장됩니다</div>
+    </div>
+  </div>
+
+  <div class="form" id="inputForm">
+    <div>
+      <label>가설</label>
+      <textarea id="hypothesis" placeholder="예: 신규 유저가 마일리지 적립 방법을 이해하고 첫 미션을 완료할 수 있는가?"></textarea>
+    </div>
+    <div>
+      <label>타깃 유저</label>
+      <input type="text" id="targetUser" placeholder="예: 야핏무브 신규 설치 유저, 30대 직장인" />
+    </div>
+    <button class="btn-primary" id="runBtn" disabled>
+      선택된 항목 없음
+    </button>
+  </div>
+
+  <div class="loading" id="loading">
+    <div class="loading-spin">⟳</div>
+    <div class="loading-msg" id="loadingMsg">화면을 분석하고 있습니다...</div>
+  </div>
+
+  <div class="report" id="report">
+    <div class="score-row">
+      <span class="score-num" id="reportScore">-</span>
+      <span class="verdict-badge" id="reportVerdict">-</span>
+    </div>
+    <div class="summary" id="reportSummary"></div>
+
+    <div class="tab-bar">
+      <div class="tab active" data-tab="overview">Overview</div>
+      <div class="tab" data-tab="think">Think Aloud</div>
+      <div class="tab" data-tab="issues">이슈</div>
+    </div>
+
+    <div class="tab-content active" id="tab-overview">
+      <div class="section-label">강점</div>
+      <div id="reportStrengths"></div>
+    </div>
+
+    <div class="tab-content" id="tab-think">
+      <div id="reportThinkAloud"></div>
+    </div>
+
+    <div class="tab-content" id="tab-issues">
+      <div id="reportIssues"></div>
+    </div>
+
+    <button class="btn-secondary" id="resetBtn">← 다시 분석</button>
+  </div>
+</body>
+</html>

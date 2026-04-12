@@ -1,101 +1,291 @@
-import Image from "next/image";
+"use client";
+
+import { useState, useEffect } from "react";
+import { useRouter } from "next/navigation";
+import {
+  InputSection,
+  type FlowStepInput,
+  type InputTab,
+  type FigmaState,
+  type ComparisonState,
+} from "@/components/InputSection";
+import { OnboardingBanner } from "@/components/OnboardingBanner";
+import { Tooltip } from "@/components/Tooltip";
+import { storage, type AnalysisResult } from "@/lib/storage";
+import { getLocale, t, type Locale } from "@/lib/i18n";
+
+const LOADING_STEP_KEYS = [
+  "loadingStep1",
+  "loadingStep2",
+  "loadingStep3",
+  "loadingStep4",
+] as const;
+
+const FLOW_LOADING_STEP_KEYS = [
+  "flowLoadingStep1",
+  "flowLoadingStep2",
+  "loadingStep3",
+  "loadingStep4",
+] as const;
+
+const COMPARISON_LOADING_STEP_KEYS = [
+  "comparisonLoadingStep1",
+  "comparisonLoadingStep2",
+  "comparisonLoadingStep3",
+  "loadingStep4",
+] as const;
 
 export default function Home() {
-  return (
-    <div className="grid grid-rows-[20px_1fr_20px] items-center justify-items-center min-h-screen p-8 pb-20 gap-16 sm:p-20 font-[family-name:var(--font-geist-sans)]">
-      <main className="flex flex-col gap-8 row-start-2 items-center sm:items-start">
-        <Image
-          className="dark:invert"
-          src="https://nextjs.org/icons/next.svg"
-          alt="Next.js logo"
-          width={180}
-          height={38}
-          priority
-        />
-        <ol className="list-inside list-decimal text-sm text-center sm:text-left font-[family-name:var(--font-geist-mono)]">
-          <li className="mb-2">
-            Get started by editing{" "}
-            <code className="bg-black/[.05] dark:bg-white/[.06] px-1 py-0.5 rounded font-semibold">
-              app/page.tsx
-            </code>
-            .
-          </li>
-          <li>Save and see your changes instantly.</li>
-        </ol>
+  const router = useRouter();
+  const [locale, setLocale] = useState<Locale>("ko");
+  const [images, setImages] = useState<string[]>([]);
+  const [hypothesis, setHypothesis] = useState("");
+  const [targetUser, setTargetUser] = useState("");
+  const [task, setTask] = useState("");
+  const [projectTag, setProjectTag] = useState("");
+  const [loading, setLoading] = useState(false);
+  const [loadingStep, setLoadingStep] = useState(0);
+  const [error, setError] = useState<string | null>(null);
+  const [activeTab, setActiveTab] = useState<InputTab>("image");
+  const [bannerOpen, setBannerOpen] = useState(false);
+  const [flowSteps, setFlowSteps] = useState<FlowStepInput[]>([
+    { stepNumber: 1, stepName: "", image: "" },
+    { stepNumber: 2, stepName: "", image: "" },
+  ]);
+  const [figma, setFigma] = useState<FigmaState>({
+    token: "",
+    url: "",
+    fileKey: "",
+    fileName: "",
+    frames: [],
+    selectedFrameIds: [],
+    status: "idle",
+    error: "",
+  });
+  const [comparison, setComparison] = useState<ComparisonState>({
+    ours: { productName: "", images: [] },
+    competitors: [{ productName: "", images: [] }],
+    focus: "",
+  });
 
-        <div className="flex gap-4 items-center flex-col sm:flex-row">
-          <a
-            className="rounded-full border border-solid border-transparent transition-colors flex items-center justify-center bg-foreground text-background gap-2 hover:bg-[#383838] dark:hover:bg-[#ccc] text-sm sm:text-base h-10 sm:h-12 px-4 sm:px-5"
-            href="https://vercel.com/new?utm_source=create-next-app&utm_medium=appdir-template-tw&utm_campaign=create-next-app"
-            target="_blank"
-            rel="noopener noreferrer"
-          >
-            <Image
-              className="dark:invert"
-              src="https://nextjs.org/icons/vercel.svg"
-              alt="Vercel logomark"
-              width={20}
-              height={20}
-            />
-            Deploy now
-          </a>
-          <a
-            className="rounded-full border border-solid border-black/[.08] dark:border-white/[.145] transition-colors flex items-center justify-center hover:bg-[#f2f2f2] dark:hover:bg-[#1a1a1a] hover:border-transparent text-sm sm:text-base h-10 sm:h-12 px-4 sm:px-5 sm:min-w-44"
-            href="https://nextjs.org/docs?utm_source=create-next-app&utm_medium=appdir-template-tw&utm_campaign=create-next-app"
-            target="_blank"
-            rel="noopener noreferrer"
-          >
-            Read our docs
-          </a>
+  useEffect(() => {
+    setLocale(getLocale());
+    const dismissed = localStorage.getItem("simulo_onboarding_dismissed");
+    setBannerOpen(!dismissed);
+
+    const handler = () => setBannerOpen(true);
+    window.addEventListener("simulo:open-guide", handler);
+    return () => window.removeEventListener("simulo:open-guide", handler);
+  }, []);
+
+  const isFlow = activeTab === "flow";
+  const isFigma = activeTab === "figma";
+  const isComparison = activeTab === "comparison";
+  const flowReady = isFlow && flowSteps.length >= 2 && flowSteps.every((s) => s.image !== "");
+  const figmaReady = isFigma && figma.status === "validated" && figma.selectedFrameIds.length > 0;
+  const comparisonReady =
+    isComparison &&
+    comparison.ours.productName.trim() !== "" &&
+    comparison.ours.images.length > 0 &&
+    comparison.competitors.length > 0 &&
+    comparison.competitors.every(
+      (c) => c.productName.trim() !== "" && c.images.length > 0
+    );
+  const imageReady = !isFlow && !isFigma && !isComparison && images.length > 0;
+  const canSubmit =
+    (imageReady || flowReady || figmaReady || comparisonReady) &&
+    hypothesis.trim() !== "" &&
+    targetUser.trim() !== "";
+
+  const loadingKeys = isComparison
+    ? COMPARISON_LOADING_STEP_KEYS
+    : isFlow
+      ? FLOW_LOADING_STEP_KEYS
+      : LOADING_STEP_KEYS;
+
+  const handleAnalyze = async () => {
+    if (!canSubmit) return;
+    setLoading(true);
+    setError(null);
+    setLoadingStep(0);
+
+    const stepInterval = setInterval(() => {
+      setLoadingStep((prev) =>
+        prev < loadingKeys.length - 1 ? prev + 1 : prev
+      );
+    }, 3000);
+
+    try {
+      const savedApiKey = localStorage.getItem("simulo_anthropic_key");
+      const savedModel = localStorage.getItem("simulo_model") || "haiku";
+
+      const body = isComparison
+        ? {
+            hypothesis,
+            targetUser,
+            task: task || undefined,
+            projectTag: projectTag || undefined,
+            inputType: "comparison",
+            locale,
+            apiKey: savedApiKey || undefined,
+            model: savedModel,
+            ours: comparison.ours,
+            competitors: comparison.competitors,
+            comparisonFocus: comparison.focus || undefined,
+          }
+        : isFlow
+          ? {
+              flowSteps,
+              hypothesis,
+              targetUser,
+              task: task || undefined,
+              projectTag: projectTag || undefined,
+              inputType: "flow",
+              locale,
+              apiKey: savedApiKey || undefined,
+              model: savedModel,
+            }
+          : isFigma
+            ? {
+                hypothesis,
+                targetUser,
+                task: task || undefined,
+                projectTag: projectTag || undefined,
+                inputType: "figma",
+                locale,
+                apiKey: savedApiKey || undefined,
+                model: savedModel,
+                figmaToken: figma.token,
+                figmaFileKey: figma.fileKey,
+                figmaFrameIds: figma.selectedFrameIds,
+              }
+            : {
+                images,
+                hypothesis,
+                targetUser,
+                task: task || undefined,
+                projectTag: projectTag || undefined,
+                inputType: "image",
+                locale,
+                apiKey: savedApiKey || undefined,
+                model: savedModel,
+              };
+
+      const response = await fetch("/api/analyze", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify(body),
+      });
+
+      if (!response.ok) {
+        const data = await response.json();
+        throw new Error(data.error || "Analysis failed");
+      }
+
+      const result: AnalysisResult = await response.json();
+      storage.save(result);
+      router.push(`/report/${result.id}`);
+    } catch (err) {
+      setError(err instanceof Error ? err.message : "Analysis failed");
+    } finally {
+      clearInterval(stepInterval);
+      setLoading(false);
+    }
+  };
+
+  if (loading) {
+    return (
+      <div className="flex items-center justify-center min-h-screen">
+        <div className="text-center space-y-6">
+          <div className="w-8 h-8 border-2 border-white/20 border-t-white rounded-full animate-spin mx-auto" />
+          <div className="space-y-2">
+            {loadingKeys.map((key, i) => (
+              <p
+                key={key}
+                className={`text-sm transition-opacity duration-500 ${
+                  i <= loadingStep
+                    ? "text-white opacity-100"
+                    : "text-[var(--muted)] opacity-30"
+                }`}
+              >
+                {i < loadingStep ? "✓" : i === loadingStep ? "→" : " "}{" "}
+                {t(key, locale)}
+              </p>
+            ))}
+          </div>
         </div>
-      </main>
-      <footer className="row-start-3 flex gap-6 flex-wrap items-center justify-center">
-        <a
-          className="flex items-center gap-2 hover:underline hover:underline-offset-4"
-          href="https://nextjs.org/learn?utm_source=create-next-app&utm_medium=appdir-template-tw&utm_campaign=create-next-app"
-          target="_blank"
-          rel="noopener noreferrer"
+      </div>
+    );
+  }
+
+  return (
+    <div className="flex items-center justify-center min-h-screen px-6">
+      <div className="w-full max-w-[720px]">
+        <OnboardingBanner
+          locale={locale}
+          open={bannerOpen}
+          onClose={() => {
+            localStorage.setItem("simulo_onboarding_dismissed", "1");
+            setBannerOpen(false);
+          }}
+        />
+
+        {/* Section header row: 분석 대상 label + Guide button */}
+        <div className="flex items-center justify-between mb-5">
+          <span className="flex items-center text-xs text-[var(--muted)] uppercase tracking-wider">
+            {t("analysisTarget", locale)}
+            <Tooltip content={t("tooltipAnalysisTarget", locale)} />
+          </span>
+          {!bannerOpen && (
+            <button
+              onClick={() => setBannerOpen(true)}
+              className="text-xs text-[var(--muted)] hover:text-white transition-colors"
+            >
+              Guide
+            </button>
+          )}
+        </div>
+
+        <InputSection
+          locale={locale}
+          images={images}
+          onImagesChange={setImages}
+          hypothesis={hypothesis}
+          onHypothesisChange={setHypothesis}
+          targetUser={targetUser}
+          onTargetUserChange={setTargetUser}
+          task={task}
+          onTaskChange={setTask}
+          projectTag={projectTag}
+          onProjectTagChange={setProjectTag}
+          activeTab={activeTab}
+          onActiveTabChange={setActiveTab}
+          flowSteps={flowSteps}
+          onFlowStepsChange={setFlowSteps}
+          figma={figma}
+          onFigmaChange={setFigma}
+          comparison={comparison}
+          onComparisonChange={setComparison}
+        />
+
+        {error && (
+          <div className="mt-4 p-3 rounded-md bg-red-400/10 border border-red-400/20 text-red-400 text-sm">
+            {error}
+          </div>
+        )}
+
+        <button
+          onClick={handleAnalyze}
+          disabled={!canSubmit}
+          className={`mt-6 w-full py-3 rounded-md text-sm font-medium transition-colors ${
+            canSubmit
+              ? "bg-white text-black hover:bg-white/90"
+              : "bg-white/10 text-[var(--muted)] cursor-not-allowed"
+          }`}
         >
-          <Image
-            aria-hidden
-            src="https://nextjs.org/icons/file.svg"
-            alt="File icon"
-            width={16}
-            height={16}
-          />
-          Learn
-        </a>
-        <a
-          className="flex items-center gap-2 hover:underline hover:underline-offset-4"
-          href="https://vercel.com/templates?framework=next.js&utm_source=create-next-app&utm_medium=appdir-template-tw&utm_campaign=create-next-app"
-          target="_blank"
-          rel="noopener noreferrer"
-        >
-          <Image
-            aria-hidden
-            src="https://nextjs.org/icons/window.svg"
-            alt="Window icon"
-            width={16}
-            height={16}
-          />
-          Examples
-        </a>
-        <a
-          className="flex items-center gap-2 hover:underline hover:underline-offset-4"
-          href="https://nextjs.org?utm_source=create-next-app&utm_medium=appdir-template-tw&utm_campaign=create-next-app"
-          target="_blank"
-          rel="noopener noreferrer"
-        >
-          <Image
-            aria-hidden
-            src="https://nextjs.org/icons/globe.svg"
-            alt="Globe icon"
-            width={16}
-            height={16}
-          />
-          Go to nextjs.org →
-        </a>
-      </footer>
+          {t("runAnalysis", locale)}
+        </button>
+      </div>
     </div>
   );
 }

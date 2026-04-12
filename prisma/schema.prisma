@@ -1,0 +1,33 @@
+generator client {
+  provider = "prisma-client-js"
+}
+
+datasource db {
+  provider = "postgresql"
+  url      = env("DATABASE_URL")
+}
+
+model Analysis {
+  id                    String   @id @default(uuid())
+  createdAt             DateTime @default(now())
+  hypothesis            String
+  targetUser            String
+  task                  String?
+  projectTag            String?
+  inputType             String   @default("image")
+  verdict               String
+  score                 Int
+  taskSuccessLikelihood String?
+  taskSuccessReason     String?
+  summary               String
+  strengths             String[]
+  thinkAloud            Json?
+  issues                Json?
+  thumbnailUrls         String[]
+  scoreBreakdown        Json?
+  verdictReason         String?
+  flowAnalysis          Json?
+  flowSteps             Json?
+  isComparison          Boolean  @default(false)
+  comparisonData        Json?
+}

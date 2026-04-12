@@ -26,7 +26,14 @@ yarn-debug.log*
 yarn-error.log*
 
 # local env files
+.env
+.env.local
+.env.production
 .env*.local
+
+# figma plugin
+/figma-plugin/node_modules
+/figma-plugin/dist
 
 # vercel
 .vercel
@@ -34,3 +41,15 @@ yarn-error.log*
 # typescript
 *.tsbuildinfo
 next-env.d.ts
+
+# Claude Code / AI assistant
+.claude/
+AGENTS.md
+AGENT_BIBLE.md
+CLAUDE.md
+GSTACK.md
+HARNESS.md
+MEMORY.md
+ORCHESTRATION.md
+SKILLS.md
+SPEC.md
