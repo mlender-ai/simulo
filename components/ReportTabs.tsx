@@ -220,10 +220,13 @@ export function ReportTabs({ data, locale }: { data: AnalysisResult; locale: Loc
   const verdictKey = data.verdict as "Pass" | "Partial" | "Fail";
   const likelihoodKey = data.taskSuccessLikelihood as "High" | "Medium" | "Low";
   const isFlow = data.inputType === "flow" && data.flowAnalysis && data.flowAnalysis.length > 0;
-  const hasThumbnails = data.thumbnailUrls && data.thumbnailUrls.length > 0;
 
   const safeIssues = data.issues ?? [];
-  const issuesByScreen = groupIssuesByScreen(safeIssues, data.thumbnailUrls ?? []);
+  const safeStrengths = data.strengths ?? [];
+  const safeThinkAloud = data.thinkAloud ?? [];
+  const safeThumbnailUrls = data.thumbnailUrls ?? [];
+  const hasThumbnails = safeThumbnailUrls.length > 0;
+  const issuesByScreen = groupIssuesByScreen(safeIssues, safeThumbnailUrls);
   const issueCountPerScreen = countIssuesPerScreen(safeIssues);
 
   const tabItems: { key: Tab; label: string }[] = [
@@ -334,11 +337,11 @@ export function ReportTabs({ data, locale }: { data: AnalysisResult; locale: Loc
             <p className="text-sm text-[var(--muted)] leading-relaxed">{data.taskSuccessReason}</p>
           </div>
 
-          {data.strengths.length > 0 && (
+          {safeStrengths.length > 0 && (
             <div>
               <h3 className="text-xs text-[var(--muted)] uppercase tracking-wider mb-2">{t("strengths", locale)}</h3>
               <ul className="space-y-1.5">
-                {data.strengths.map((s, i) => (
+                {safeStrengths.map((s, i) => (
                   <li key={i} className="text-sm flex gap-2">
                     <span className="text-emerald-400 shrink-0">+</span>{s}
                   </li>
@@ -440,7 +443,7 @@ export function ReportTabs({ data, locale }: { data: AnalysisResult; locale: Loc
             <div>
               <h3 className="text-xs text-[var(--muted)] uppercase tracking-wider mb-3">{t("analyzedScreens", locale)}</h3>
               <div style={{ display: "grid", gridTemplateColumns: "repeat(auto-fill, minmax(160px, 1fr))", gap: "12px" }}>
-                {data.thumbnailUrls.map((src, i) => {
+                {safeThumbnailUrls.map((src, i) => {
                   const counts = issueCountPerScreen.get(i);
                   return (
                     <div
@@ -498,7 +501,7 @@ export function ReportTabs({ data, locale }: { data: AnalysisResult; locale: Loc
       {/* Think Aloud */}
       {tab === "thinkAloud" && (
         <div className="space-y-4">
-          {data.thinkAloud.map((entry, i) => (
+          {safeThinkAloud.map((entry, i) => (
             <div key={i} className="p-4 rounded-lg border border-[var(--border)] bg-[var(--surface)]">
               <div className="text-xs text-[var(--muted)] mono mb-2">{entry.screen}</div>
               <p className="text-sm leading-relaxed italic">&ldquo;{entry.thought}&rdquo;</p>
@@ -548,7 +551,7 @@ export function ReportTabs({ data, locale }: { data: AnalysisResult; locale: Loc
                     </div>
 
                     {/* Thumbnail */}
-                    {hasThumbnails && data.thumbnailUrls[i] && (
+                    {hasThumbnails && safeThumbnailUrls[i] && (
                       <div
                         className="shrink-0 rounded overflow-hidden border border-[var(--border)] cursor-pointer"
                         style={{ width: 64, height: 48 }}
@@ -561,7 +564,7 @@ export function ReportTabs({ data, locale }: { data: AnalysisResult; locale: Loc
                           }
                         }}
                       >
-                        <img src={data.thumbnailUrls[i]} alt="" style={{ width: "100%", height: "100%", objectFit: "cover" }} />
+                        <img src={safeThumbnailUrls[i]} alt="" style={{ width: "100%", height: "100%", objectFit: "cover" }} />
                       </div>
                     )}
 
@@ -600,9 +603,9 @@ export function ReportTabs({ data, locale }: { data: AnalysisResult; locale: Loc
               {hasThumbnails && (
                 <div className="flex items-center justify-between mb-4">
                   {/* Screen selector tabs */}
-                  {data.thumbnailUrls.length > 1 && (
+                  {safeThumbnailUrls.length > 1 && (
                     <div className="flex gap-1 flex-wrap">
-                      {data.thumbnailUrls.map((_, i) => {
+                      {safeThumbnailUrls.map((_, i) => {
                         const screenCounts = issueCountPerScreen.get(i);
                         const label = isFlow && data.flowSteps?.[i]
                           ? `${t("stepLabel", locale)} ${i + 1}`
@@ -654,10 +657,10 @@ export function ReportTabs({ data, locale }: { data: AnalysisResult; locale: Loc
               )}
 
               {/* Heatmap view */}
-              {heatmapOn && hasThumbnails && data.thumbnailUrls[selectedScreen] && (
+              {heatmapOn && hasThumbnails && safeThumbnailUrls[selectedScreen] && (
                 <div className="mb-6">
                   <HeatmapViewer
-                    imageUrl={data.thumbnailUrls[selectedScreen]}
+                    imageUrl={safeThumbnailUrls[selectedScreen]}
                     imageName={
                       isFlow && data.flowSteps?.[selectedScreen]
                         ? `${t("stepLabel", locale)} ${selectedScreen + 1}: ${data.flowSteps[selectedScreen].stepName}`
@@ -746,11 +749,11 @@ export function ReportTabs({ data, locale }: { data: AnalysisResult; locale: Loc
       )}
 
       {lightboxIndex !== null && hasThumbnails && (
-        <Lightbox images={data.thumbnailUrls} initialIndex={lightboxIndex} onClose={() => setLightboxIndex(null)} />
+        <Lightbox images={safeThumbnailUrls} initialIndex={lightboxIndex} onClose={() => setLightboxIndex(null)} />
       )}
 
       {/* Flow heatmap modal */}
-      {flowHeatmapScreen !== null && hasThumbnails && data.thumbnailUrls[flowHeatmapScreen] && (
+      {flowHeatmapScreen !== null && hasThumbnails && safeThumbnailUrls[flowHeatmapScreen] && (
         <div
           className="fixed inset-0 z-50 flex items-center justify-center p-4"
           style={{ background: "rgba(0,0,0,0.85)" }}
@@ -768,7 +771,7 @@ export function ReportTabs({ data, locale }: { data: AnalysisResult; locale: Loc
               ✕
             </button>
             <HeatmapViewer
-              imageUrl={data.thumbnailUrls[flowHeatmapScreen]}
+              imageUrl={safeThumbnailUrls[flowHeatmapScreen]}
               imageName={
                 data.flowSteps?.[flowHeatmapScreen]
                   ? `${t("stepLabel", locale)} ${flowHeatmapScreen + 1}: ${data.flowSteps[flowHeatmapScreen].stepName}`
