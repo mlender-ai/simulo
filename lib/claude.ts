@@ -80,7 +80,20 @@ Respond in pure JSON only. No markdown, no code blocks, no backticks. Just the r
 {
   "verdict": "Pass" | "Partial" | "Fail",
   "score": 0-100,
+  "summary": "2-3 sentences",
+  "verdictReason": "Which desire is unmet and which element causes churn — be specific",
+  "taskSuccessLikelihood": "High" | "Medium" | "Low",
+  "taskSuccessReason": "Why, from the target user (40-50s women) perspective",
+  "strengths": ["Strength in terms of desire fulfillment"],
+  "thinkAloud": [{"screen": "Screen N", "thought": "First-person inner monologue expressing desire, expectation, satisfaction, or disappointment"}],
+  "issues": [{"screen": "Screen N", "screenIndex": 0, "desireType": "utility" | "healthPride" | "lossAversion" | "general", "severity": "Critical" | "Medium" | "Low", "issue": "Which desire is unmet and how", "recommendation": "How to fix so the desire reads better", "retentionImpact": "Impact on D1-D7 retention", "heatZone": {"x": 0-100, "y": 0-100, "width": 0-100, "height": 0-100, "label": "short region description (max 15 chars)"}  }],
   "moneyLoopStage": "Which Core Money Loop stage this screen belongs to",
+  "topPriorities": ["Most impactful change for retention 1", "2", "3"],
+  "retentionRisk": {
+    "d1Risk": "High" | "Medium" | "Low",
+    "d7Risk": "High" | "Medium" | "Low",
+    "mainRiskReason": "The single most critical cause of retention drop"
+  },
   "desireAlignment": {
     "utility": { "score": 0-10, "comment": "How well is the Utility desire fulfilled" },
     "healthPride": { "score": 0-10, "comment": "How well is the Health & Pride desire fulfilled" },
@@ -91,20 +104,7 @@ Respond in pure JSON only. No markdown, no code blocks, no backticks. Just the r
     "flow": { "score": 0-25, "reason": "string" },
     "feedback": { "score": 0-25, "reason": "string" },
     "efficiency": { "score": 0-25, "reason": "string" }
-  },
-  "verdictReason": "Which desire is unmet and which element causes churn — be specific",
-  "summary": "2-3 sentences",
-  "strengths": ["Strength in terms of desire fulfillment"],
-  "taskSuccessLikelihood": "High" | "Medium" | "Low",
-  "taskSuccessReason": "Why, from the target user (40-50s women) perspective",
-  "thinkAloud": [{"screen": "Screen N", "thought": "First-person inner monologue expressing desire, expectation, satisfaction, or disappointment"}],
-  "issues": [{"screen": "Screen N", "screenIndex": 0, "desireType": "utility" | "healthPride" | "lossAversion" | "general", "severity": "Critical" | "Medium" | "Low", "issue": "Which desire is unmet and how", "recommendation": "How to fix so the desire reads better", "retentionImpact": "Impact on D1-D7 retention", "heatZone": {"x": 0-100, "y": 0-100, "width": 0-100, "height": 0-100, "label": "short region description (max 15 chars)"} | null}],
-  "retentionRisk": {
-    "d1Risk": "High" | "Medium" | "Low",
-    "d7Risk": "High" | "Medium" | "Low",
-    "mainRiskReason": "The single most critical cause of retention drop"
-  },
-  "topPriorities": ["Most impactful change for retention 1", "2", "3"]
+  }
 }`;
 
 const SYSTEM_PROMPT_KO = `${YAFIT_CONTEXT}
@@ -124,7 +124,20 @@ JSON 키는 영문, 값은 한국어. 반드시 순수 JSON만 반환. 마크다
 {
   "verdict": "Pass" | "Partial" | "Fail",
   "score": 0-100,
+  "summary": "2-3문장 한국어",
+  "verdictReason": "어떤 욕망이 충족되지 않았고 어떤 요소가 이탈을 유발하는지 구체적으로",
+  "taskSuccessLikelihood": "High" | "Medium" | "Low",
+  "taskSuccessReason": "타깃 유저(4050 여성) 기준 태스크 성공 가능성 이유",
+  "strengths": ["욕망 충족 측면에서의 강점"],
+  "thinkAloud": [{"screen": "화면 N", "thought": "4050 여성의 1인칭 발화. 욕망·기대·충족·실망 중심 구어체"}],
+  "issues": [{"screen": "화면 N", "screenIndex": 0, "desireType": "utility" | "healthPride" | "lossAversion" | "general", "severity": "Critical" | "Medium" | "Low", "issue": "어떤 욕망이 어떻게 충족되지 않았는가", "recommendation": "어떻게 바꾸면 욕망이 더 잘 읽히고 이탈이 줄어드는가", "retentionImpact": "D1-D7 리텐션에 미치는 영향", "heatZone": {"x": 0-100, "y": 0-100, "width": 0-100, "height": 0-100, "label": "영역 설명 (최대 15자)"}  }],
   "moneyLoopStage": "이 화면이 속하는 Core Money Loop 단계명",
+  "topPriorities": ["지금 당장 바꾸면 리텐션에 가장 임팩트 있는 개선 1", "2", "3"],
+  "retentionRisk": {
+    "d1Risk": "High" | "Medium" | "Low",
+    "d7Risk": "High" | "Medium" | "Low",
+    "mainRiskReason": "리텐션 저하의 가장 핵심적인 원인"
+  },
   "desireAlignment": {
     "utility": { "score": 0-10, "comment": "효능감 욕망이 얼마나 충족되는가" },
     "healthPride": { "score": 0-10, "comment": "건강 성취/과시 욕망이 얼마나 충족되는가" },
@@ -135,20 +148,7 @@ JSON 키는 영문, 값은 한국어. 반드시 순수 JSON만 반환. 마크다
     "flow": { "score": 0-25, "reason": "한국어" },
     "feedback": { "score": 0-25, "reason": "한국어" },
     "efficiency": { "score": 0-25, "reason": "한국어" }
-  },
-  "verdictReason": "어떤 욕망이 충족되지 않았고 어떤 요소가 이탈을 유발하는지 구체적으로",
-  "summary": "2-3문장 한국어",
-  "strengths": ["욕망 충족 측면에서의 강점"],
-  "taskSuccessLikelihood": "High" | "Medium" | "Low",
-  "taskSuccessReason": "타깃 유저(4050 여성) 기준 태스크 성공 가능성 이유",
-  "thinkAloud": [{"screen": "화면 N", "thought": "4050 여성의 1인칭 발화. 욕망·기대·충족·실망 중심 구어체"}],
-  "issues": [{"screen": "화면 N", "screenIndex": 0, "desireType": "utility" | "healthPride" | "lossAversion" | "general", "severity": "Critical" | "Medium" | "Low", "issue": "어떤 욕망이 어떻게 충족되지 않았는가", "recommendation": "어떻게 바꾸면 욕망이 더 잘 읽히고 이탈이 줄어드는가", "retentionImpact": "D1-D7 리텐션에 미치는 영향", "heatZone": {"x": 0-100, "y": 0-100, "width": 0-100, "height": 0-100, "label": "영역 설명 (최대 15자)"} | null}],
-  "retentionRisk": {
-    "d1Risk": "High" | "Medium" | "Low",
-    "d7Risk": "High" | "Medium" | "Low",
-    "mainRiskReason": "리텐션 저하의 가장 핵심적인 원인"
-  },
-  "topPriorities": ["지금 당장 바꾸면 리텐션에 가장 임팩트 있는 개선 1", "2", "3"]
+  }
 }`;
 
 const FLOW_SYSTEM_PROMPT_EN = `${YAFIT_CONTEXT}
@@ -187,7 +187,21 @@ Respond in pure JSON only. No markdown, no code blocks, no backticks.
 {
   "verdict": "Pass" | "Partial" | "Fail",
   "score": 0-100,
+  "summary": "2-3 sentences",
+  "verdictReason": "string",
+  "taskSuccessLikelihood": "High" | "Medium" | "Low",
+  "taskSuccessReason": "string",
+  "strengths": ["string"],
+  "thinkAloud": [{"screen": "Step N: name", "thought": "First-person desire-based thought"}],
+  "issues": [{"screen": "Step N: name", "screenIndex": 0, "desireType": "utility" | "healthPride" | "lossAversion" | "general", "severity": "Critical" | "Medium" | "Low", "issue": "string", "recommendation": "string", "retentionImpact": "string", "heatZone": {"x": 0-100, "y": 0-100, "width": 0-100, "height": 0-100, "label": "short region description"}  }],
+  "flowAnalysis": [{"step": 1, "stepName": "string", "dropOffRisk": "High" | "Medium" | "Low", "reason": "string"}],
   "moneyLoopStage": "Overall flow's Money Loop stage",
+  "topPriorities": ["1", "2", "3"],
+  "retentionRisk": {
+    "d1Risk": "High" | "Medium" | "Low",
+    "d7Risk": "High" | "Medium" | "Low",
+    "mainRiskReason": "string"
+  },
   "desireAlignment": {
     "utility": { "score": 0-10, "comment": "string" },
     "healthPride": { "score": 0-10, "comment": "string" },
@@ -199,14 +213,6 @@ Respond in pure JSON only. No markdown, no code blocks, no backticks.
     "feedback": { "score": 0-25, "reason": "string" },
     "efficiency": { "score": 0-25, "reason": "string" }
   },
-  "verdictReason": "string",
-  "summary": "2-3 sentences",
-  "strengths": ["string"],
-  "taskSuccessLikelihood": "High" | "Medium" | "Low",
-  "taskSuccessReason": "string",
-  "thinkAloud": [{"screen": "Step N: name", "thought": "First-person desire-based thought"}],
-  "issues": [{"screen": "Step N: name", "screenIndex": 0, "desireType": "utility" | "healthPride" | "lossAversion" | "general", "severity": "Critical" | "Medium" | "Low", "issue": "string", "recommendation": "string", "retentionImpact": "string", "heatZone": {"x": 0-100, "y": 0-100, "width": 0-100, "height": 0-100, "label": "short region description"} | null}],
-  "flowAnalysis": [{"step": 1, "stepName": "string", "dropOffRisk": "High" | "Medium" | "Low", "reason": "string"}],
   "adFriction": {
     "adDensity": "How many ad exposures before first reward — cite specific steps",
     "rewardClarityBeforeAd": "Is reward amount shown before ad plays? Cite screen evidence",
@@ -215,13 +221,7 @@ Respond in pure JSON only. No markdown, no code blocks, no backticks.
     "cumulativeFatigue": "Description of how patience depletes across the session",
     "patienceFloorStep": "Step number and name where effort > reward perception occurs, or null if not reached",
     "patienceFloorReason": "Why this is the tipping point for 4050 users"
-  },
-  "retentionRisk": {
-    "d1Risk": "High" | "Medium" | "Low",
-    "d7Risk": "High" | "Medium" | "Low",
-    "mainRiskReason": "string"
-  },
-  "topPriorities": ["1", "2", "3"]
+  }
 }`;
 
 const FLOW_SYSTEM_PROMPT_KO = `${YAFIT_CONTEXT}
@@ -260,7 +260,21 @@ JSON 키는 영문, 값은 한국어. 반드시 순수 JSON만 반환. 마크다
 {
   "verdict": "Pass" | "Partial" | "Fail",
   "score": 0-100,
+  "summary": "2-3문장 한국어",
+  "verdictReason": "한국어",
+  "taskSuccessLikelihood": "High" | "Medium" | "Low",
+  "taskSuccessReason": "한국어",
+  "strengths": ["한국어"],
+  "thinkAloud": [{"screen": "단계 N: 이름", "thought": "4050 여성의 1인칭 욕망 기반 발화"}],
+  "issues": [{"screen": "단계 N: 이름", "screenIndex": 0, "desireType": "utility" | "healthPride" | "lossAversion" | "general", "severity": "Critical" | "Medium" | "Low", "issue": "한국어", "recommendation": "한국어", "retentionImpact": "한국어", "heatZone": {"x": 0-100, "y": 0-100, "width": 0-100, "height": 0-100, "label": "영역 설명"}  }],
+  "flowAnalysis": [{"step": 1, "stepName": "한국어", "dropOffRisk": "높음" | "보통" | "낮음", "reason": "한국어"}],
   "moneyLoopStage": "전체 플로우가 속하는 Core Money Loop 단계",
+  "topPriorities": ["한국어 1", "2", "3"],
+  "retentionRisk": {
+    "d1Risk": "높음" | "보통" | "낮음",
+    "d7Risk": "높음" | "보통" | "낮음",
+    "mainRiskReason": "한국어"
+  },
   "desireAlignment": {
     "utility": { "score": 0-10, "comment": "한국어" },
     "healthPride": { "score": 0-10, "comment": "한국어" },
@@ -272,14 +286,6 @@ JSON 키는 영문, 값은 한국어. 반드시 순수 JSON만 반환. 마크다
     "feedback": { "score": 0-25, "reason": "한국어" },
     "efficiency": { "score": 0-25, "reason": "한국어" }
   },
-  "verdictReason": "한국어",
-  "summary": "2-3문장 한국어",
-  "strengths": ["한국어"],
-  "taskSuccessLikelihood": "High" | "Medium" | "Low",
-  "taskSuccessReason": "한국어",
-  "thinkAloud": [{"screen": "단계 N: 이름", "thought": "4050 여성의 1인칭 욕망 기반 발화"}],
-  "issues": [{"screen": "단계 N: 이름", "screenIndex": 0, "desireType": "utility" | "healthPride" | "lossAversion" | "general", "severity": "Critical" | "Medium" | "Low", "issue": "한국어", "recommendation": "한국어", "retentionImpact": "한국어", "heatZone": {"x": 0-100, "y": 0-100, "width": 0-100, "height": 0-100, "label": "영역 설명"} | null}],
-  "flowAnalysis": [{"step": 1, "stepName": "한국어", "dropOffRisk": "높음" | "보통" | "낮음", "reason": "한국어"}],
   "adFriction": {
     "adDensity": "첫 보상 전 광고 노출 횟수 — 해당 단계 명시",
     "rewardClarityBeforeAd": "광고 전 보상 금액 표시 여부 — 화면 근거 제시",
@@ -288,13 +294,7 @@ JSON 키는 영문, 값은 한국어. 반드시 순수 JSON만 반환. 마크다
     "cumulativeFatigue": "세션 전반에 걸친 인내심 소진 패턴 설명",
     "patienceFloorStep": "노력 > 보상 인식이 발생하는 단계 번호와 이름, 없으면 null",
     "patienceFloorReason": "4050 유저 기준 이 지점이 티핑 포인트인 이유"
-  },
-  "retentionRisk": {
-    "d1Risk": "높음" | "보통" | "낮음",
-    "d7Risk": "높음" | "보통" | "낮음",
-    "mainRiskReason": "한국어"
-  },
-  "topPriorities": ["한국어 1", "2", "3"]
+  }
 }`;
 
 const COMPARISON_SYSTEM_PROMPT_EN = `${YAFIT_CONTEXT}
@@ -522,7 +522,14 @@ function cleanAndParse(raw: string, stopReason?: string | null) {
     // Always attempt recovery — truncation can happen with max_tokens or
     // when Claude emits malformed JSON regardless of stop_reason
     console.warn("[claude] JSON parse failed (stop_reason:", stopReason, "). Attempting recovery...");
-    console.warn("[claude] Parse error:", (e as Error).message);
+    const parseErr = e as Error & { message: string };
+    console.warn("[claude] Parse error:", parseErr.message);
+    // Log 100 chars around the error position for debugging
+    const posMatch = parseErr.message.match(/position (\d+)/);
+    if (posMatch) {
+      const pos = parseInt(posMatch[1]);
+      console.warn("[claude] Context around error:", JSON.stringify(cleaned.slice(Math.max(0, pos - 40), pos + 60)));
+    }
     const recovered = recoverTruncatedJson(cleaned);
     if (recovered) {
       console.log("[claude] JSON recovery succeeded");
