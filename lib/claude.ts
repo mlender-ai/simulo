@@ -424,16 +424,14 @@ function cleanAndParse(raw: string, stopReason?: string | null) {
   try {
     parsed = JSON.parse(cleaned);
   } catch (e) {
-    // If response was truncated (max_tokens), attempt to recover valid JSON
-    if (stopReason === "max_tokens") {
-      console.warn("[claude] Response truncated (max_tokens). Attempting JSON recovery...");
-      const recovered = recoverTruncatedJson(cleaned);
-      if (recovered) {
-        console.log("[claude] JSON recovery succeeded");
-        parsed = recovered as Record<string, unknown>;
-      } else {
-        throw e;
-      }
+    // Always attempt recovery — truncation can happen with max_tokens or
+    // when Claude emits malformed JSON regardless of stop_reason
+    console.warn("[claude] JSON parse failed (stop_reason:", stopReason, "). Attempting recovery...");
+    console.warn("[claude] Parse error:", (e as Error).message);
+    const recovered = recoverTruncatedJson(cleaned);
+    if (recovered) {
+      console.log("[claude] JSON recovery succeeded");
+      parsed = recovered as Record<string, unknown>;
     } else {
       throw e;
     }
@@ -442,15 +440,29 @@ function cleanAndParse(raw: string, stopReason?: string | null) {
   // Ensure required array/object fields exist with safe defaults
   // so the UI never crashes even if Claude's response was truncated or missing fields
   if (parsed && typeof parsed === "object" && !Array.isArray(parsed)) {
-    if (!Array.isArray(parsed.strengths)) parsed.strengths = [];
-    if (!Array.isArray(parsed.thinkAloud)) parsed.thinkAloud = [];
-    if (!Array.isArray(parsed.issues)) parsed.issues = [];
-    if (!Array.isArray(parsed.topPriorities)) parsed.topPriorities = [];
+    // Standard analysis fields
+    if (!Array.isArray(parsed.strengths)) parsed.strengths = parsed.strengths ?? [];
+    if (!Array.isArray(parsed.thinkAloud)) parsed.thinkAloud = parsed.thinkAloud ?? [];
+    if (!Array.isArray(parsed.issues)) parsed.issues = parsed.issues ?? [];
+    if (!Array.isArray(parsed.topPriorities)) parsed.topPriorities = parsed.topPriorities ?? [];
+
+    // Comparison analysis: backfill each product's arrays
+    if (Array.isArray(parsed.products)) {
+      for (const product of parsed.products as Record<string, unknown>[]) {
+        if (!Array.isArray(product.strengths)) product.strengths = [];
+        if (!Array.isArray(product.weaknesses)) product.weaknesses = [];
+        if (!Array.isArray(product.thinkAloud)) product.thinkAloud = [];
+        if (!Array.isArray(product.issues)) product.issues = [];
+      }
+    }
+    if (!parsed.comparison && Array.isArray(parsed.products)) {
+      parsed.comparison = { winner: "", winnerReason: "", ourProductPosition: "", keyDifferences: [], topPriorities: [] };
+    }
 
     const missingFields = [];
-    if ((parsed.strengths as unknown[]).length === 0) missingFields.push("strengths");
-    if ((parsed.thinkAloud as unknown[]).length === 0) missingFields.push("thinkAloud");
-    if ((parsed.issues as unknown[]).length === 0) missingFields.push("issues");
+    if ((parsed.strengths as unknown[]).length === 0 && !parsed.products) missingFields.push("strengths");
+    if ((parsed.thinkAloud as unknown[]).length === 0 && !parsed.products) missingFields.push("thinkAloud");
+    if ((parsed.issues as unknown[]).length === 0 && !parsed.products) missingFields.push("issues");
     if (missingFields.length > 0) {
       console.warn("[claude] Missing or empty fields after parse:", missingFields.join(", "));
     }
@@ -460,83 +472,76 @@ function cleanAndParse(raw: string, stopReason?: string | null) {
 }
 
 /**
- * Attempt to recover a truncated JSON object by closing unclosed brackets/braces
- * and trimming incomplete trailing values.
+ * Attempt to recover a truncated JSON object by closing unclosed brackets/braces.
+ * Tries progressively more aggressive truncation until a valid parse succeeds.
  */
 function recoverTruncatedJson(text: string): unknown | null {
-  // Remove trailing incomplete string/value (after last complete comma or bracket)
-  let trimmed = text;
+  // Helper: scan text, close any open strings/brackets/braces, and try to parse
+  function tryClose(input: string): unknown | null {
+    let s = input;
+    // Track JSON state
+    let inStr = false;
+    let esc = false;
+    const stack: string[] = []; // tracks open { and [
 
-  // Remove trailing incomplete string literal
-  const lastQuoteIdx = trimmed.lastIndexOf('"');
-  if (lastQuoteIdx > 0) {
-    // Check if this quote is inside an unclosed string
-    const afterQuote = trimmed.slice(lastQuoteIdx + 1);
-    // If what follows the last quote doesn't look like valid JSON continuation,
-    // the string might be truncated
-    if (!/^\s*[,}\]:]/.test(afterQuote) && afterQuote.trim().length > 0) {
-      // Truncated mid-string — close it and remove from last comma
-      trimmed = trimmed.slice(0, lastQuoteIdx + 1);
+    for (const ch of s) {
+      if (esc) { esc = false; continue; }
+      if (ch === "\\" && inStr) { esc = true; continue; }
+      if (ch === '"') { inStr = !inStr; continue; }
+      if (inStr) continue;
+      if (ch === "{") stack.push("}");
+      else if (ch === "[") stack.push("]");
+      else if (ch === "}" || ch === "]") stack.pop();
+    }
+
+    // Close open string
+    if (inStr) s += '"';
+    // Remove trailing comma or colon (incomplete key-value)
+    s = s.replace(/[,:\s]+$/, "");
+    // Close all open brackets/braces in reverse order
+    while (stack.length) s += stack.pop();
+
+    try {
+      return JSON.parse(s);
+    } catch {
+      return null;
     }
   }
 
-  // Count unclosed brackets/braces and close them
-  let openBraces = 0;
-  let openBrackets = 0;
-  let inString = false;
-  let escape = false;
+  // Attempt 1: close as-is
+  let result = tryClose(text);
+  if (result) return result;
 
-  for (const ch of trimmed) {
-    if (escape) { escape = false; continue; }
-    if (ch === "\\") { escape = true; continue; }
-    if (ch === '"') { inString = !inString; continue; }
-    if (inString) continue;
-    if (ch === "{") openBraces++;
-    if (ch === "}") openBraces--;
-    if (ch === "[") openBrackets++;
-    if (ch === "]") openBrackets--;
+  // Attempt 2: truncate at the last comma outside a string and close
+  // Find last comma outside strings by scanning
+  let lastSafeComma = -1;
+  let inStr = false;
+  let esc = false;
+  for (let i = 0; i < text.length; i++) {
+    const ch = text[i];
+    if (esc) { esc = false; continue; }
+    if (ch === "\\" && inStr) { esc = true; continue; }
+    if (ch === '"') { inStr = !inStr; continue; }
+    if (inStr) continue;
+    if (ch === ",") lastSafeComma = i;
   }
 
-  // If we're still inside a string, close it
-  if (inString) trimmed += '"';
+  if (lastSafeComma > 0) {
+    result = tryClose(text.slice(0, lastSafeComma));
+    if (result) return result;
+  }
 
-  // Remove trailing comma if present
-  trimmed = trimmed.replace(/,\s*$/, "");
-
-  // Close all unclosed brackets/braces
-  for (let i = 0; i < openBrackets; i++) trimmed += "]";
-  for (let i = 0; i < openBraces; i++) trimmed += "}";
-
-  try {
-    return JSON.parse(trimmed);
-  } catch {
-    // Second attempt: truncate to last valid comma and close
-    const lastComma = trimmed.lastIndexOf(",");
-    if (lastComma > 0) {
-      let fallback = trimmed.slice(0, lastComma);
-      // Recount and close
-      openBraces = 0; openBrackets = 0; inString = false; escape = false;
-      for (const ch of fallback) {
-        if (escape) { escape = false; continue; }
-        if (ch === "\\") { escape = true; continue; }
-        if (ch === '"') { inString = !inString; continue; }
-        if (inString) continue;
-        if (ch === "{") openBraces++;
-        if (ch === "}") openBraces--;
-        if (ch === "[") openBrackets++;
-        if (ch === "]") openBrackets--;
-      }
-      if (inString) fallback += '"';
-      for (let i = 0; i < openBrackets; i++) fallback += "]";
-      for (let i = 0; i < openBraces; i++) fallback += "}";
-      try {
-        return JSON.parse(fallback);
-      } catch {
-        return null;
-      }
+  // Attempt 3: find the last complete key-value pair by looking for last "}," or "],"
+  for (const pattern of ["},", "],", "}"]) {
+    const idx = text.lastIndexOf(pattern);
+    if (idx > 0) {
+      result = tryClose(text.slice(0, idx + 1));
+      if (result) return result;
     }
-    return null;
   }
+
+  console.error("[claude] JSON recovery failed after all attempts");
+  return null;
 }
 
 export async function analyzeWithClaude(params: AnalyzeParams) {
@@ -728,17 +733,19 @@ Compare our product (${params.ours.productName}) vs competitors (${params.compet
 
   const response = await client.messages.create({
     model: modelId,
-    max_tokens: 8192,
+    max_tokens: 16384,
     system: isKo ? COMPARISON_SYSTEM_PROMPT_KO : COMPARISON_SYSTEM_PROMPT_EN,
     messages: [{ role: "user", content }],
   });
 
-  console.log("[claude] Comparison API response received. Stop reason:", response.stop_reason);
+  console.log("[claude] Comparison API response received. Stop reason:", response.stop_reason, "| usage:", JSON.stringify(response.usage));
 
   const textBlock = response.content.find((b) => b.type === "text");
   if (!textBlock || textBlock.type !== "text") {
     throw new Error("No text response from Claude");
   }
+
+  console.log("[claude] Comparison raw response (last 200 chars):", textBlock.text.slice(-200));
 
   return cleanAndParse(textBlock.text, response.stop_reason);
 }
