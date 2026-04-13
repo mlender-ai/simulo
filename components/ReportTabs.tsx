@@ -151,11 +151,11 @@ function Lightbox({
 
 // Helper: group issues by screenIndex
 function groupIssuesByScreen(
-  issues: AnalysisResult["issues"],
+  issues: AnalysisResult["issues"] | undefined,
   thumbnailUrls: string[]
 ): Map<number, HeatmapIssue[]> {
   const map = new Map<number, HeatmapIssue[]>();
-  issues.forEach((issue, i) => {
+  (issues ?? []).forEach((issue, i) => {
     const screenIdx = typeof issue.screenIndex === "number" ? issue.screenIndex : 0;
     if (!map.has(screenIdx)) map.set(screenIdx, []);
     map.get(screenIdx)!.push({
@@ -176,9 +176,9 @@ function groupIssuesByScreen(
 }
 
 // Count issues per screen for overview badges
-function countIssuesPerScreen(issues: AnalysisResult["issues"]): Map<number, { total: number; critical: number }> {
+function countIssuesPerScreen(issues: AnalysisResult["issues"] | undefined): Map<number, { total: number; critical: number }> {
   const map = new Map<number, { total: number; critical: number }>();
-  issues.forEach((issue) => {
+  (issues ?? []).forEach((issue) => {
     const idx = typeof issue.screenIndex === "number" ? issue.screenIndex : 0;
     if (!map.has(idx)) map.set(idx, { total: 0, critical: 0 });
     const entry = map.get(idx)!;
@@ -222,14 +222,15 @@ export function ReportTabs({ data, locale }: { data: AnalysisResult; locale: Loc
   const isFlow = data.inputType === "flow" && data.flowAnalysis && data.flowAnalysis.length > 0;
   const hasThumbnails = data.thumbnailUrls && data.thumbnailUrls.length > 0;
 
-  const issuesByScreen = groupIssuesByScreen(data.issues, data.thumbnailUrls);
-  const issueCountPerScreen = countIssuesPerScreen(data.issues);
+  const safeIssues = data.issues ?? [];
+  const issuesByScreen = groupIssuesByScreen(safeIssues, data.thumbnailUrls ?? []);
+  const issueCountPerScreen = countIssuesPerScreen(safeIssues);
 
   const tabItems: { key: Tab; label: string }[] = [
     { key: "overview", label: t("overview", locale) },
     { key: "thinkAloud", label: t("thinkAloud", locale) },
     ...(isFlow ? [{ key: "flow" as Tab, label: t("flowTab", locale) }] : []),
-    { key: "issues", label: `${t("issues", locale)} (${data.issues.length})` },
+    { key: "issues", label: `${t("issues", locale)} (${safeIssues.length})` },
   ];
 
   const highRiskCount = isFlow
@@ -591,7 +592,7 @@ export function ReportTabs({ data, locale }: { data: AnalysisResult; locale: Loc
       {/* Issues */}
       {tab === "issues" && (
         <div>
-          {data.issues.length === 0 ? (
+          {safeIssues.length === 0 ? (
             <p className="text-sm text-[var(--muted)]">{t("noIssues", locale)}</p>
           ) : (
             <>
@@ -686,7 +687,7 @@ export function ReportTabs({ data, locale }: { data: AnalysisResult; locale: Loc
 
               {/* Issue list */}
               <div className="space-y-3">
-                {data.issues.map((issue, i) => {
+                {safeIssues.map((issue, i) => {
                   const severityKey = issue.severity as "Critical" | "Medium" | "Low";
                   const screenIdx = typeof issue.screenIndex === "number" ? issue.screenIndex : 0;
                   // In heatmap mode, only show issues for the selected screen
