@@ -3,6 +3,7 @@
 
 import { useEffect, useState } from "react";
 import Link from "next/link";
+import { STRIPPED_IMAGE } from "@/lib/storage";
 import { storage, type AnalysisResult } from "@/lib/storage";
 import { getLocale, t, type Locale } from "@/lib/i18n";
 
@@ -86,7 +87,7 @@ export default function HistoryPage() {
               className="block p-4 rounded-lg border border-[var(--border)] bg-[var(--surface)] hover:border-white/20 transition-colors"
             >
               <div className="flex items-center gap-3">
-                {analysis.thumbnailUrls?.[0] && (
+                {analysis.thumbnailUrls?.[0] && analysis.thumbnailUrls[0] !== STRIPPED_IMAGE && (
                   <div
                     className="shrink-0 rounded overflow-hidden border border-[var(--border)]"
                     style={{ width: 48, height: 48 }}

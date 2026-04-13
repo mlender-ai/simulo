@@ -3,6 +3,7 @@
 
 import { useState, useEffect, useCallback } from "react";
 import type { AnalysisResult } from "@/lib/storage";
+import { STRIPPED_IMAGE } from "@/lib/storage";
 import { t, type Locale } from "@/lib/i18n";
 import { HeatmapViewer, HeatmapIssueDetail, type HeatmapIssue } from "@/components/HeatmapViewer";
 
@@ -226,7 +227,9 @@ export function ReportTabs({ data, locale }: { data: AnalysisResult; locale: Loc
   const safeStrengths = data.strengths ?? [];
   const safeThinkAloud = data.thinkAloud ?? [];
   const safeThumbnailUrls = data.thumbnailUrls ?? [];
-  const hasThumbnails = safeThumbnailUrls.length > 0;
+  // Treat stripped-image sentinels as "no image available"
+  const hasRealThumbnails = safeThumbnailUrls.some((u) => u !== STRIPPED_IMAGE);
+  const hasThumbnails = hasRealThumbnails;
   const issuesByScreen = groupIssuesByScreen(safeIssues, safeThumbnailUrls);
   const issueCountPerScreen = countIssuesPerScreen(safeIssues);
 
@@ -461,7 +464,13 @@ export function ReportTabs({ data, locale }: { data: AnalysisResult; locale: Loc
                         style={{ border: "1px solid #2a2a2a", borderRadius: "6px", overflow: "hidden", height: "120px", position: "relative" }}
                         className="group-hover:border-white/20 transition-colors"
                       >
-                        <img src={src} alt={`${t("screenLabel", locale)} ${i + 1}`} style={{ width: "100%", height: "100%", objectFit: "cover" }} />
+                        {src === STRIPPED_IMAGE ? (
+                          <div style={{ width: "100%", height: "100%", background: "#1a1a1a", display: "flex", alignItems: "center", justifyContent: "center" }}>
+                            <span style={{ fontSize: 11, color: "#555" }}>{i + 1}</span>
+                          </div>
+                        ) : (
+                          <img src={src} alt={`${t("screenLabel", locale)} ${i + 1}`} style={{ width: "100%", height: "100%", objectFit: "cover" }} />
+                        )}
                         {counts && counts.total > 0 && (
                           <div
                             style={{
@@ -552,7 +561,7 @@ export function ReportTabs({ data, locale }: { data: AnalysisResult; locale: Loc
                     </div>
 
                     {/* Thumbnail */}
-                    {hasThumbnails && safeThumbnailUrls[i] && (
+                    {hasThumbnails && safeThumbnailUrls[i] && safeThumbnailUrls[i] !== STRIPPED_IMAGE && (
                       <div
                         className="shrink-0 rounded overflow-hidden border border-[var(--border)] cursor-pointer"
                         style={{ width: 64, height: 48 }}
@@ -658,7 +667,7 @@ export function ReportTabs({ data, locale }: { data: AnalysisResult; locale: Loc
               )}
 
               {/* Heatmap view */}
-              {heatmapOn && hasThumbnails && safeThumbnailUrls[selectedScreen] && (
+              {heatmapOn && hasThumbnails && safeThumbnailUrls[selectedScreen] && safeThumbnailUrls[selectedScreen] !== STRIPPED_IMAGE && (
                 <div className="mb-6">
                   <HeatmapViewer
                     imageUrl={safeThumbnailUrls[selectedScreen]}
@@ -750,11 +759,15 @@ export function ReportTabs({ data, locale }: { data: AnalysisResult; locale: Loc
       )}
 
       {lightboxIndex !== null && hasThumbnails && (
-        <Lightbox images={safeThumbnailUrls} initialIndex={lightboxIndex} onClose={() => setLightboxIndex(null)} />
+        <Lightbox
+          images={safeThumbnailUrls.filter((u) => u !== STRIPPED_IMAGE)}
+          initialIndex={lightboxIndex}
+          onClose={() => setLightboxIndex(null)}
+        />
       )}
 
       {/* Flow heatmap modal */}
-      {flowHeatmapScreen !== null && hasThumbnails && safeThumbnailUrls[flowHeatmapScreen] && (
+      {flowHeatmapScreen !== null && hasThumbnails && safeThumbnailUrls[flowHeatmapScreen] && safeThumbnailUrls[flowHeatmapScreen] !== STRIPPED_IMAGE && (
         <div
           className="fixed inset-0 z-50 flex items-center justify-center p-4"
           style={{ background: "rgba(0,0,0,0.85)" }}

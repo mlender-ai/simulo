@@ -130,18 +130,75 @@ export interface AnalysisResult {
 }
 
 const STORAGE_KEY = "simulo_analyses";
+// Sentinel stored in place of stripped base64 image data
+export const STRIPPED_IMAGE = "__stripped__";
+
+/**
+ * Remove base64 image data before persisting to localStorage.
+ * thumbnailUrls and issues[].thumbnailUrl hold full data: URLs which can
+ * be several MB each — far exceeding the 5 MB localStorage quota on flows
+ * with multiple steps. We replace them with a sentinel so the UI knows
+ * the image is unavailable rather than crashing.
+ */
+function stripImages(analysis: AnalysisResult): AnalysisResult {
+  return {
+    ...analysis,
+    thumbnailUrls: analysis.thumbnailUrls.map((url) =>
+      url.startsWith("data:") ? STRIPPED_IMAGE : url
+    ),
+    issues: analysis.issues.map((issue) => ({
+      ...issue,
+      thumbnailUrl:
+        issue.thumbnailUrl && issue.thumbnailUrl.startsWith("data:")
+          ? STRIPPED_IMAGE
+          : issue.thumbnailUrl,
+    })),
+  };
+}
 
 function getAll(): AnalysisResult[] {
   if (typeof window === "undefined") return [];
   const raw = localStorage.getItem(STORAGE_KEY);
   if (!raw) return [];
-  return JSON.parse(raw) as AnalysisResult[];
+  try {
+    return JSON.parse(raw) as AnalysisResult[];
+  } catch {
+    return [];
+  }
 }
 
 function save(analysis: AnalysisResult): void {
+  const stripped = stripImages(analysis);
   const all = getAll();
-  all.unshift(analysis);
-  localStorage.setItem(STORAGE_KEY, JSON.stringify(all));
+  all.unshift(stripped);
+
+  // Try to persist, evicting oldest entries if quota is exceeded
+  let payload = JSON.stringify(all);
+  let attempts = 0;
+  while (attempts < all.length) {
+    try {
+      localStorage.setItem(STORAGE_KEY, payload);
+      return; // success
+    } catch (e) {
+      if (
+        e instanceof DOMException &&
+        (e.name === "QuotaExceededError" || e.name === "NS_ERROR_DOM_QUOTA_REACHED")
+      ) {
+        // Drop the oldest entry and retry
+        all.pop();
+        payload = JSON.stringify(all);
+        attempts++;
+      } else {
+        throw e;
+      }
+    }
+  }
+  // If we still can't save (e.g. single entry too large), store only the latest
+  try {
+    localStorage.setItem(STORAGE_KEY, JSON.stringify([stripped]));
+  } catch {
+    console.error("[storage] Unable to persist analysis — localStorage quota exceeded even for single item.");
+  }
 }
 
 function getById(id: string): AnalysisResult | null {
