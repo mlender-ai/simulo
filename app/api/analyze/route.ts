@@ -2,6 +2,7 @@ import { NextRequest, NextResponse } from "next/server";
 import { analyzeWithClaude, analyzeFlowWithClaude, analyzeComparisonWithClaude } from "@/lib/claude";
 import type { ComparisonProduct } from "@/lib/claude";
 import { v4 as uuidv4 } from "uuid";
+import { Prisma } from "@prisma/client";
 
 console.log("[analyze] ENV ANTHROPIC_API_KEY prefix:", process.env.ANTHROPIC_API_KEY?.slice(0, 8) || "(not set)");
 
@@ -188,44 +189,48 @@ export async function POST(request: NextRequest) {
       adFriction?: unknown;
     };
 
+    // Cast to a loose shape so field access is typed throughout this block
+    const r = result as Record<string, unknown>;
+
     if (isComparison) {
-      const products = (result.products || []) as Array<{
+      const products = (Array.isArray(r.products) ? r.products : []) as Array<{
         productName: string;
         verdict: string;
         score: number;
         summary?: string;
       }>;
+      const comparison = (r.comparison ?? {}) as { winnerReason?: string };
       const ourProduct = products[0] || { productName: "", verdict: "Partial", score: 0, summary: "" };
       topLevel = {
-        verdict: ourProduct.verdict,
-        score: ourProduct.score,
-        summary: result.comparison?.winnerReason || ourProduct.summary || "",
+        verdict: String(ourProduct.verdict ?? "Partial"),
+        score: Number(ourProduct.score ?? 0),
+        summary: comparison.winnerReason || String(ourProduct.summary ?? ""),
       };
     } else {
       // Map each issue's screenIndex to the corresponding thumbnail URL
-      const issuesWithImages = Array.isArray(result.issues)
-        ? result.issues.map((issue: { screenIndex?: number; [key: string]: unknown }) => ({
+      const issuesWithImages = Array.isArray(r.issues)
+        ? (r.issues as Array<{ screenIndex?: number; [key: string]: unknown }>).map((issue) => ({
             ...issue,
             thumbnailUrl:
               typeof issue.screenIndex === "number" && thumbnailUrls[issue.screenIndex]
                 ? thumbnailUrls[issue.screenIndex]
                 : null,
           }))
-        : result.issues;
+        : (r.issues as unknown[]);
 
       topLevel = {
-        verdict: result.verdict,
-        score: result.score,
-        taskSuccessLikelihood: result.taskSuccessLikelihood,
-        taskSuccessReason: result.taskSuccessReason,
-        summary: result.summary,
-        strengths: result.strengths,
-        thinkAloud: result.thinkAloud,
+        verdict: String(r.verdict ?? "Partial"),
+        score: Number(r.score ?? 0),
+        taskSuccessLikelihood: r.taskSuccessLikelihood as string | undefined,
+        taskSuccessReason: r.taskSuccessReason as string | undefined,
+        summary: String(r.summary ?? ""),
+        strengths: r.strengths as string[] | undefined,
+        thinkAloud: r.thinkAloud as unknown[] | undefined,
         issues: issuesWithImages,
-        scoreBreakdown: result.scoreBreakdown,
-        verdictReason: result.verdictReason,
-        flowAnalysis: result.flowAnalysis,
-        adFriction: result.adFriction,
+        scoreBreakdown: r.scoreBreakdown,
+        verdictReason: r.verdictReason as string | undefined,
+        flowAnalysis: r.flowAnalysis,
+        adFriction: r.adFriction,
       };
     }
 
@@ -276,9 +281,9 @@ export async function POST(request: NextRequest) {
             thinkAloud: (analysis.thinkAloud as object[] | undefined) ?? [],
             issues: (analysis.issues as object[] | undefined) ?? [],
             thumbnailUrls: analysis.thumbnailUrls,
-            scoreBreakdown: isComparison ? null : (result.scoreBreakdown ?? null),
-            verdictReason: isComparison ? null : (result.verdictReason ?? null),
-            flowAnalysis: isComparison ? null : (result.flowAnalysis ?? null),
+            scoreBreakdown: isComparison ? Prisma.JsonNull : ((r.scoreBreakdown as Prisma.InputJsonValue) ?? Prisma.JsonNull),
+            verdictReason: isComparison ? null : ((r.verdictReason as string) ?? null),
+            flowAnalysis: isComparison ? Prisma.JsonNull : ((r.flowAnalysis as Prisma.InputJsonValue) ?? Prisma.JsonNull),
             flowSteps: savedFlowSteps ?? null,
             isComparison,
             comparisonData: (comparisonData as object) ?? null,
