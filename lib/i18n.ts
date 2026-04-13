@@ -46,10 +46,14 @@ const translations = {
 
     // Score breakdown
     scoreBreakdown: "점수 근거",
-    clarity: "명확성",
-    flowScore: "흐름",
-    feedbackScore: "피드백",
-    efficiency: "효율성",
+    clarity: "정보 명확성",
+    clarityDesc: "보상과 행동이 얼마나 명확한가",
+    flowScore: "참여 흐름",
+    flowScoreDesc: "다음 행동으로 자연스럽게 이어지는가",
+    feedbackScore: "보상 피드백",
+    feedbackScoreDesc: "적립/성취 피드백이 충분한가",
+    efficiency: "목표 효율",
+    efficiencyDesc: "마일리지 획득까지 마찰이 적은가",
     verdictReasonLabel: "판정 근거",
 
     // Report
@@ -192,21 +196,29 @@ const translations = {
     comparisonLoadingStep3: "우선 개선 포인트를 도출 중...",
 
     // Desire Map & Retention
-    desireAlignment: "욕망 매핑",
+    desireAlignment: "욕망 충족도",
+    desireAlignmentSub: "야핏무브 핵심 유저(4050 여성)의 3가지 욕망 기준",
     desireUtility: "효능감",
-    desireUtilityDesc: "가계 보탬의 효능감",
-    desireHealthPride: "건강 과시",
-    desireHealthPrideDesc: "건강 성취와 과시 욕구",
+    desireUtilityDesc: "보상이 명확하게 인식되는가",
+    desireHealthPride: "성취 & 과시",
+    desireHealthPrideDesc: "성취감이 전달되고 공유 욕구가 자극되는가",
     desireLossAversion: "손실 회피",
-    desireLossAversionDesc: "하루라도 빼먹으면 손해라는 인식",
-    moneyLoopStage: "Money Loop 단계",
+    desireLossAversionDesc: "오늘 안 하면 손해라는 인식이 작동하는가",
+    moneyLoopStage: "분석 화면 단계",
     retentionRisk: "리텐션 리스크",
     d1Risk: "D1 리스크",
     d7Risk: "D7 리스크",
     mainRiskReason: "핵심 원인",
-    topPrioritiesLabel: "우선 개선 포인트",
+    mainRiskReasonLabel: "주요 리스크 요인",
+    topPrioritiesLabel: "지금 당장 바꿔야 할 것",
+    topPrioritiesSub: "리텐션 임팩트 기준 우선순위",
     desireType: "욕망 유형",
     retentionImpact: "리텐션 영향",
+
+    // Heatmap
+    heatmapOn: "🔥 히트맵 보기",
+    heatmapOff: "🔥 히트맵 끄기",
+    noLocation: "위치 미특정",
   },
   en: {
     history: "History",
@@ -234,10 +246,14 @@ const translations = {
 
     // Score breakdown
     scoreBreakdown: "Score Breakdown",
-    clarity: "Clarity",
-    flowScore: "Flow",
-    feedbackScore: "Feedback",
-    efficiency: "Efficiency",
+    clarity: "Info Clarity",
+    clarityDesc: "How clear are rewards and actions?",
+    flowScore: "Engagement Flow",
+    flowScoreDesc: "Does it naturally lead to the next action?",
+    feedbackScore: "Reward Feedback",
+    feedbackScoreDesc: "Is reward/achievement feedback sufficient?",
+    efficiency: "Goal Efficiency",
+    efficiencyDesc: "Is there minimal friction to earn mileage?",
     verdictReasonLabel: "Verdict Reason",
 
     loadingStep1: "Analyzing screens...",
@@ -377,21 +393,29 @@ const translations = {
     comparisonLoadingStep3: "Deriving top priorities...",
 
     // Desire Map & Retention
-    desireAlignment: "Desire Mapping",
+    desireAlignment: "Desire Fulfillment",
+    desireAlignmentSub: "Based on 3 core desires of YafitMove's primary user (40-50s women)",
     desireUtility: "Utility",
-    desireUtilityDesc: "Household budget efficacy",
-    desireHealthPride: "Health & Pride",
-    desireHealthPrideDesc: "Health achievement & social proof",
+    desireUtilityDesc: "Is the reward clearly perceived?",
+    desireHealthPride: "Achievement & Pride",
+    desireHealthPrideDesc: "Is achievement conveyed and sharing desire stimulated?",
     desireLossAversion: "Loss Aversion",
-    desireLossAversionDesc: "Fear of losing streak & progress",
-    moneyLoopStage: "Money Loop Stage",
+    desireLossAversionDesc: "Does 'skip today = lose out' perception work?",
+    moneyLoopStage: "Screen Stage",
     retentionRisk: "Retention Risk",
     d1Risk: "D1 Risk",
     d7Risk: "D7 Risk",
     mainRiskReason: "Main Cause",
-    topPrioritiesLabel: "Top Priorities",
+    mainRiskReasonLabel: "Main Risk Factor",
+    topPrioritiesLabel: "Must-Fix Now",
+    topPrioritiesSub: "Prioritized by retention impact",
     desireType: "Desire Type",
     retentionImpact: "Retention Impact",
+
+    // Heatmap
+    heatmapOn: "🔥 Heatmap",
+    heatmapOff: "🔥 Heatmap Off",
+    noLocation: "No location",
   },
 } as const;
 

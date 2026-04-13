@@ -46,7 +46,22 @@ const SCORE_CRITERIA = `Score breakdown criteria:
 - feedback (0-25): Does the interface provide clear reward/achievement feedback?
 - efficiency (0-25): Can the user reach their goal with minimal steps and cognitive load?
 The total score must equal the sum of the four breakdown scores.
-verdictReason must state specifically which desire is unmet and which element causes churn. Name the exact screen element or step.`;
+verdictReason must state specifically which desire is unmet and which element causes churn. Name the exact screen element or step.
+
+## Desire Alignment Evidence Rule
+When scoring desireAlignment, you MUST cite a specific UI element or screen text as evidence for each score.
+Do not assign scores based on assumption — every comment must reference what you actually see on screen (e.g. "마일리지 잔액 '1,230원' 텍스트가 상단에 노출됨" or "적립 내역 없음 — 보상 피드백 부재").
+If evidence is insufficient to judge a desire, score 0 and explain why evidence is missing.
+The comment field must follow the format: "[Evidence] specific UI element or text seen → [Judgment] how it fulfills or fails the desire."
+
+## Issue Heat Zone Coordinates
+For each issue, identify the specific region of the screen where the problem occurs.
+Return heatZone as percentage-based coordinates (0-100) relative to the image dimensions.
+x=0, y=0 is top-left corner. x=100, y=100 is bottom-right corner.
+Be as precise as possible — pinpoint the exact UI element causing the issue.
+If the issue spans the full width, set x=0, width=100.
+If you cannot identify a specific region, set heatZone to null.
+screenIndex must be the 0-based index of the image the issue refers to.`;
 
 const SYSTEM_PROMPT_EN = `${YAFIT_CONTEXT}
 
@@ -83,7 +98,7 @@ Respond in pure JSON only. No markdown, no code blocks, no backticks. Just the r
   "taskSuccessLikelihood": "High" | "Medium" | "Low",
   "taskSuccessReason": "Why, from the target user (40-50s women) perspective",
   "thinkAloud": [{"screen": "Screen N", "thought": "First-person inner monologue expressing desire, expectation, satisfaction, or disappointment"}],
-  "issues": [{"screen": "Screen N", "desireType": "utility" | "healthPride" | "lossAversion" | "general", "severity": "Critical" | "Medium" | "Low", "issue": "Which desire is unmet and how", "recommendation": "How to fix so the desire reads better", "retentionImpact": "Impact on D1-D7 retention"}],
+  "issues": [{"screen": "Screen N", "screenIndex": 0, "desireType": "utility" | "healthPride" | "lossAversion" | "general", "severity": "Critical" | "Medium" | "Low", "issue": "Which desire is unmet and how", "recommendation": "How to fix so the desire reads better", "retentionImpact": "Impact on D1-D7 retention", "heatZone": {"x": 0-100, "y": 0-100, "width": 0-100, "height": 0-100, "label": "short region description (max 15 chars)"} | null}],
   "retentionRisk": {
     "d1Risk": "High" | "Medium" | "Low",
     "d7Risk": "High" | "Medium" | "Low",
@@ -127,7 +142,7 @@ JSON 키는 영문, 값은 한국어. 반드시 순수 JSON만 반환. 마크다
   "taskSuccessLikelihood": "High" | "Medium" | "Low",
   "taskSuccessReason": "타깃 유저(4050 여성) 기준 태스크 성공 가능성 이유",
   "thinkAloud": [{"screen": "화면 N", "thought": "4050 여성의 1인칭 발화. 욕망·기대·충족·실망 중심 구어체"}],
-  "issues": [{"screen": "화면 N", "desireType": "utility" | "healthPride" | "lossAversion" | "general", "severity": "Critical" | "Medium" | "Low", "issue": "어떤 욕망이 어떻게 충족되지 않았는가", "recommendation": "어떻게 바꾸면 욕망이 더 잘 읽히고 이탈이 줄어드는가", "retentionImpact": "D1-D7 리텐션에 미치는 영향"}],
+  "issues": [{"screen": "화면 N", "screenIndex": 0, "desireType": "utility" | "healthPride" | "lossAversion" | "general", "severity": "Critical" | "Medium" | "Low", "issue": "어떤 욕망이 어떻게 충족되지 않았는가", "recommendation": "어떻게 바꾸면 욕망이 더 잘 읽히고 이탈이 줄어드는가", "retentionImpact": "D1-D7 리텐션에 미치는 영향", "heatZone": {"x": 0-100, "y": 0-100, "width": 0-100, "height": 0-100, "label": "영역 설명 (최대 15자)"} | null}],
   "retentionRisk": {
     "d1Risk": "High" | "Medium" | "Low",
     "d7Risk": "High" | "Medium" | "Low",
@@ -176,7 +191,7 @@ Respond in pure JSON only. No markdown, no code blocks, no backticks.
   "taskSuccessLikelihood": "High" | "Medium" | "Low",
   "taskSuccessReason": "string",
   "thinkAloud": [{"screen": "Step N: name", "thought": "First-person desire-based thought"}],
-  "issues": [{"screen": "Step N: name", "desireType": "utility" | "healthPride" | "lossAversion" | "general", "severity": "Critical" | "Medium" | "Low", "issue": "string", "recommendation": "string", "retentionImpact": "string"}],
+  "issues": [{"screen": "Step N: name", "screenIndex": 0, "desireType": "utility" | "healthPride" | "lossAversion" | "general", "severity": "Critical" | "Medium" | "Low", "issue": "string", "recommendation": "string", "retentionImpact": "string", "heatZone": {"x": 0-100, "y": 0-100, "width": 0-100, "height": 0-100, "label": "short region description"} | null}],
   "flowAnalysis": [{"step": 1, "stepName": "string", "dropOffRisk": "High" | "Medium" | "Low", "reason": "string"}],
   "retentionRisk": {
     "d1Risk": "High" | "Medium" | "Low",
@@ -226,7 +241,7 @@ JSON 키는 영문, 값은 한국어. 반드시 순수 JSON만 반환. 마크다
   "taskSuccessLikelihood": "High" | "Medium" | "Low",
   "taskSuccessReason": "한국어",
   "thinkAloud": [{"screen": "단계 N: 이름", "thought": "4050 여성의 1인칭 욕망 기반 발화"}],
-  "issues": [{"screen": "단계 N: 이름", "desireType": "utility" | "healthPride" | "lossAversion" | "general", "severity": "Critical" | "Medium" | "Low", "issue": "한국어", "recommendation": "한국어", "retentionImpact": "한국어"}],
+  "issues": [{"screen": "단계 N: 이름", "screenIndex": 0, "desireType": "utility" | "healthPride" | "lossAversion" | "general", "severity": "Critical" | "Medium" | "Low", "issue": "한국어", "recommendation": "한국어", "retentionImpact": "한국어", "heatZone": {"x": 0-100, "y": 0-100, "width": 0-100, "height": 0-100, "label": "영역 설명"} | null}],
   "flowAnalysis": [{"step": 1, "stepName": "한국어", "dropOffRisk": "높음" | "보통" | "낮음", "reason": "한국어"}],
   "retentionRisk": {
     "d1Risk": "높음" | "보통" | "낮음",

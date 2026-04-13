@@ -201,6 +201,17 @@ export async function POST(request: NextRequest) {
         summary: result.comparison?.winnerReason || ourProduct.summary || "",
       };
     } else {
+      // Map each issue's screenIndex to the corresponding thumbnail URL
+      const issuesWithImages = Array.isArray(result.issues)
+        ? result.issues.map((issue: { screenIndex?: number; [key: string]: unknown }) => ({
+            ...issue,
+            thumbnailUrl:
+              typeof issue.screenIndex === "number" && thumbnailUrls[issue.screenIndex]
+                ? thumbnailUrls[issue.screenIndex]
+                : null,
+          }))
+        : result.issues;
+
       topLevel = {
         verdict: result.verdict,
         score: result.score,
@@ -209,7 +220,7 @@ export async function POST(request: NextRequest) {
         summary: result.summary,
         strengths: result.strengths,
         thinkAloud: result.thinkAloud,
-        issues: result.issues,
+        issues: issuesWithImages,
         scoreBreakdown: result.scoreBreakdown,
         verdictReason: result.verdictReason,
         flowAnalysis: result.flowAnalysis,

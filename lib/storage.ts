@@ -24,6 +24,14 @@ export interface DesireAlignment {
   lossAversion: DesireScore;
 }
 
+export interface HeatZone {
+  x: number;
+  y: number;
+  width: number;
+  height: number;
+  label: string;
+}
+
 export interface RetentionRisk {
   d1Risk: string;
   d7Risk: string;
@@ -76,11 +84,14 @@ export interface AnalysisResult {
   thinkAloud: { screen: string; thought: string }[];
   issues: {
     screen: string;
+    screenIndex?: number;
     desireType?: "utility" | "healthPride" | "lossAversion" | "general";
     severity: "Critical" | "Medium" | "Low";
     issue: string;
     recommendation: string;
     retentionImpact?: string;
+    heatZone?: HeatZone | null;
+    thumbnailUrl?: string | null;
   }[];
   thumbnailUrls: string[];
   flowSteps?: FlowStep[];
