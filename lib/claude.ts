@@ -508,6 +508,9 @@ function cleanAndParse(raw: string, stopReason?: string | null) {
   // Extract just the JSON object — strips any trailing prose Claude may have added
   cleaned = extractJsonObject(cleaned);
 
+  // Sanitize common LLM output issues (unescaped control chars, schema pipe literals)
+  cleaned = sanitizeJsonText(cleaned);
+
   console.log("[claude] Cleaned response (first 100 chars):", cleaned.slice(0, 100));
   console.log("[claude] Response length:", cleaned.length, "| stop_reason:", stopReason);
 
@@ -570,10 +573,45 @@ function cleanAndParse(raw: string, stopReason?: string | null) {
 }
 
 /**
+ * Sanitize a JSON string to fix common issues from LLM output:
+ * - Unescaped control characters (newlines, tabs) inside string values
+ * - Pipe-separated type annotations copied verbatim from the schema
+ *   e.g. "dropOffRisk": "High" | "Medium" | "Low"  →  "High"
+ */
+function sanitizeJsonText(text: string): string {
+  // Replace unescaped control characters inside JSON strings
+  let result = "";
+  let inStr = false;
+  let esc = false;
+  for (let i = 0; i < text.length; i++) {
+    const ch = text[i];
+    if (esc) { esc = false; result += ch; continue; }
+    if (ch === "\\" && inStr) { esc = true; result += ch; continue; }
+    if (ch === '"') { inStr = !inStr; result += ch; continue; }
+    if (inStr) {
+      // Escape raw control characters that break JSON parsing
+      if (ch === "\n") { result += "\\n"; continue; }
+      if (ch === "\r") { result += "\\r"; continue; }
+      if (ch === "\t") { result += "\\t"; continue; }
+    }
+    result += ch;
+  }
+
+  // Fix schema literals leaked into values: "value" | "other" | "another"
+  // Replace: "SomeValue" | "OtherValue" with just "SomeValue"
+  result = result.replace(/"([^"]+)"\s*\|\s*"[^"]+(?:"\s*\|\s*"[^"]+)*"/g, '"$1"');
+
+  return result;
+}
+
+/**
  * Attempt to recover a truncated JSON object by closing unclosed brackets/braces.
  * Tries progressively more aggressive truncation until a valid parse succeeds.
  */
 function recoverTruncatedJson(text: string): unknown | null {
+  // Pre-sanitize before any recovery attempts
+  const sanitized = sanitizeJsonText(text);
+
   // Helper: scan text, close any open strings/brackets/braces, and try to parse
   function tryClose(input: string): unknown | null {
     let s = input;
@@ -606,17 +644,16 @@ function recoverTruncatedJson(text: string): unknown | null {
     }
   }
 
-  // Attempt 1: close as-is
-  let result = tryClose(text);
+  // Attempt 1: sanitized, close as-is
+  let result = tryClose(sanitized);
   if (result) return result;
 
   // Attempt 2: truncate at the last comma outside a string and close
-  // Find last comma outside strings by scanning
   let lastSafeComma = -1;
   let inStr = false;
   let esc = false;
-  for (let i = 0; i < text.length; i++) {
-    const ch = text[i];
+  for (let i = 0; i < sanitized.length; i++) {
+    const ch = sanitized[i];
     if (esc) { esc = false; continue; }
     if (ch === "\\" && inStr) { esc = true; continue; }
     if (ch === '"') { inStr = !inStr; continue; }
@@ -625,15 +662,15 @@ function recoverTruncatedJson(text: string): unknown | null {
   }
 
   if (lastSafeComma > 0) {
-    result = tryClose(text.slice(0, lastSafeComma));
+    result = tryClose(sanitized.slice(0, lastSafeComma));
     if (result) return result;
   }
 
   // Attempt 3: find the last complete key-value pair by looking for last "}," or "],"
   for (const pattern of ["},", "],", "}"]) {
-    const idx = text.lastIndexOf(pattern);
+    const idx = sanitized.lastIndexOf(pattern);
     if (idx > 0) {
-      result = tryClose(text.slice(0, idx + 1));
+      result = tryClose(sanitized.slice(0, idx + 1));
       if (result) return result;
     }
   }
@@ -733,7 +770,7 @@ Analyze the ${params.flowSteps.length}-step user flow above and return JSON.`;
 
   const response = await client.messages.create({
     model: modelId,
-    max_tokens: 8192,
+    max_tokens: 16384,
     system: isKo ? FLOW_SYSTEM_PROMPT_KO : FLOW_SYSTEM_PROMPT_EN,
     messages: [{ role: "user", content }],
   });
