@@ -382,10 +382,105 @@ function getClient(apiKey?: string) {
   return { client: new Anthropic({ apiKey: key }), key };
 }
 
-function cleanAndParse(raw: string) {
+function cleanAndParse(raw: string, stopReason?: string | null) {
   const cleaned = raw.replace(/```json\n?/g, "").replace(/```\n?/g, "").trim();
   console.log("[claude] Cleaned response (first 100 chars):", cleaned.slice(0, 100));
-  return JSON.parse(cleaned);
+  console.log("[claude] Response length:", cleaned.length, "| stop_reason:", stopReason);
+
+  try {
+    return JSON.parse(cleaned);
+  } catch (e) {
+    // If response was truncated (max_tokens), attempt to recover valid JSON
+    if (stopReason === "max_tokens") {
+      console.warn("[claude] Response truncated (max_tokens). Attempting JSON recovery...");
+      const recovered = recoverTruncatedJson(cleaned);
+      if (recovered) {
+        console.log("[claude] JSON recovery succeeded");
+        return recovered;
+      }
+    }
+    throw e;
+  }
+}
+
+/**
+ * Attempt to recover a truncated JSON object by closing unclosed brackets/braces
+ * and trimming incomplete trailing values.
+ */
+function recoverTruncatedJson(text: string): unknown | null {
+  // Remove trailing incomplete string/value (after last complete comma or bracket)
+  let trimmed = text;
+
+  // Remove trailing incomplete string literal
+  const lastQuoteIdx = trimmed.lastIndexOf('"');
+  if (lastQuoteIdx > 0) {
+    // Check if this quote is inside an unclosed string
+    const afterQuote = trimmed.slice(lastQuoteIdx + 1);
+    // If what follows the last quote doesn't look like valid JSON continuation,
+    // the string might be truncated
+    if (!/^\s*[,}\]:]/.test(afterQuote) && afterQuote.trim().length > 0) {
+      // Truncated mid-string — close it and remove from last comma
+      trimmed = trimmed.slice(0, lastQuoteIdx + 1);
+    }
+  }
+
+  // Count unclosed brackets/braces and close them
+  let openBraces = 0;
+  let openBrackets = 0;
+  let inString = false;
+  let escape = false;
+
+  for (const ch of trimmed) {
+    if (escape) { escape = false; continue; }
+    if (ch === "\\") { escape = true; continue; }
+    if (ch === '"') { inString = !inString; continue; }
+    if (inString) continue;
+    if (ch === "{") openBraces++;
+    if (ch === "}") openBraces--;
+    if (ch === "[") openBrackets++;
+    if (ch === "]") openBrackets--;
+  }
+
+  // If we're still inside a string, close it
+  if (inString) trimmed += '"';
+
+  // Remove trailing comma if present
+  trimmed = trimmed.replace(/,\s*$/, "");
+
+  // Close all unclosed brackets/braces
+  for (let i = 0; i < openBrackets; i++) trimmed += "]";
+  for (let i = 0; i < openBraces; i++) trimmed += "}";
+
+  try {
+    return JSON.parse(trimmed);
+  } catch {
+    // Second attempt: truncate to last valid comma and close
+    const lastComma = trimmed.lastIndexOf(",");
+    if (lastComma > 0) {
+      let fallback = trimmed.slice(0, lastComma);
+      // Recount and close
+      openBraces = 0; openBrackets = 0; inString = false; escape = false;
+      for (const ch of fallback) {
+        if (escape) { escape = false; continue; }
+        if (ch === "\\") { escape = true; continue; }
+        if (ch === '"') { inString = !inString; continue; }
+        if (inString) continue;
+        if (ch === "{") openBraces++;
+        if (ch === "}") openBraces--;
+        if (ch === "[") openBrackets++;
+        if (ch === "]") openBrackets--;
+      }
+      if (inString) fallback += '"';
+      for (let i = 0; i < openBrackets; i++) fallback += "]";
+      for (let i = 0; i < openBraces; i++) fallback += "}";
+      try {
+        return JSON.parse(fallback);
+      } catch {
+        return null;
+      }
+    }
+    return null;
+  }
 }
 
 export async function analyzeWithClaude(params: AnalyzeParams) {
@@ -418,7 +513,7 @@ Analyze ${params.images.length} screen(s), return JSON.`;
 
   const response = await client.messages.create({
     model: modelId,
-    max_tokens: 2048,
+    max_tokens: 4096,
     system: isKo ? SYSTEM_PROMPT_KO : SYSTEM_PROMPT_EN,
     messages: [
       {
@@ -435,7 +530,7 @@ Analyze ${params.images.length} screen(s), return JSON.`;
     throw new Error("No text response from Claude");
   }
 
-  return cleanAndParse(textBlock.text);
+  return cleanAndParse(textBlock.text, response.stop_reason);
 }
 
 export async function analyzeFlowWithClaude(params: FlowAnalyzeParams) {
@@ -477,7 +572,7 @@ Analyze the ${params.flowSteps.length}-step user flow above and return JSON.`;
 
   const response = await client.messages.create({
     model: modelId,
-    max_tokens: 3072,
+    max_tokens: 8192,
     system: isKo ? FLOW_SYSTEM_PROMPT_KO : FLOW_SYSTEM_PROMPT_EN,
     messages: [{ role: "user", content }],
   });
@@ -489,7 +584,7 @@ Analyze the ${params.flowSteps.length}-step user flow above and return JSON.`;
     throw new Error("No text response from Claude");
   }
 
-  return cleanAndParse(textBlock.text);
+  return cleanAndParse(textBlock.text, response.stop_reason);
 }
 
 export async function analyzeComparisonWithClaude(params: ComparisonAnalyzeParams) {
@@ -575,7 +670,7 @@ Compare our product (${params.ours.productName}) vs competitors (${params.compet
 
   const response = await client.messages.create({
     model: modelId,
-    max_tokens: 4096,
+    max_tokens: 8192,
     system: isKo ? COMPARISON_SYSTEM_PROMPT_KO : COMPARISON_SYSTEM_PROMPT_EN,
     messages: [{ role: "user", content }],
   });
@@ -587,5 +682,5 @@ Compare our product (${params.ours.productName}) vs competitors (${params.compet
     throw new Error("No text response from Claude");
   }
 
-  return cleanAndParse(textBlock.text);
+  return cleanAndParse(textBlock.text, response.stop_reason);
 }

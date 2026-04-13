@@ -10,7 +10,7 @@ interface TooltipProps {
 export function Tooltip({ content, position = "top" }: TooltipProps) {
   const [visible, setVisible] = useState(false);
   const [adjustedPosition, setAdjustedPosition] = useState(position);
-  const iconRef = useRef<HTMLButtonElement>(null);
+  const iconRef = useRef<HTMLSpanElement>(null);
   const tooltipRef = useRef<HTMLDivElement>(null);
 
   useEffect(() => {
@@ -50,13 +50,15 @@ export function Tooltip({ content, position = "top" }: TooltipProps) {
 
   return (
     <span className="relative inline-flex items-center ml-1.5">
-      <button
+      <span
         ref={iconRef}
-        type="button"
+        role="button"
+        tabIndex={0}
         onMouseEnter={() => setVisible(true)}
         onMouseLeave={() => setVisible(false)}
         onClick={() => setVisible((v) => !v)}
-        className="text-[#666] hover:text-[#999] transition-colors leading-none focus:outline-none"
+        onKeyDown={(e) => { if (e.key === "Enter" || e.key === " ") { e.preventDefault(); setVisible((v) => !v); } }}
+        className="text-[#666] hover:text-[#999] transition-colors leading-none focus:outline-none cursor-pointer"
         aria-label="도움말"
       >
         <svg width="14" height="14" viewBox="0 0 14 14" fill="none">
@@ -73,7 +75,7 @@ export function Tooltip({ content, position = "top" }: TooltipProps) {
             i
           </text>
         </svg>
-      </button>
+      </span>
 
       {visible && (
         <div
