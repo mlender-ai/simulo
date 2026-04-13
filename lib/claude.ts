@@ -419,8 +419,10 @@ function cleanAndParse(raw: string, stopReason?: string | null) {
   console.log("[claude] Cleaned response (first 100 chars):", cleaned.slice(0, 100));
   console.log("[claude] Response length:", cleaned.length, "| stop_reason:", stopReason);
 
+  let parsed: Record<string, unknown>;
+
   try {
-    return JSON.parse(cleaned);
+    parsed = JSON.parse(cleaned);
   } catch (e) {
     // If response was truncated (max_tokens), attempt to recover valid JSON
     if (stopReason === "max_tokens") {
@@ -428,11 +430,33 @@ function cleanAndParse(raw: string, stopReason?: string | null) {
       const recovered = recoverTruncatedJson(cleaned);
       if (recovered) {
         console.log("[claude] JSON recovery succeeded");
-        return recovered;
+        parsed = recovered as Record<string, unknown>;
+      } else {
+        throw e;
       }
+    } else {
+      throw e;
     }
-    throw e;
   }
+
+  // Ensure required array/object fields exist with safe defaults
+  // so the UI never crashes even if Claude's response was truncated or missing fields
+  if (parsed && typeof parsed === "object" && !Array.isArray(parsed)) {
+    if (!Array.isArray(parsed.strengths)) parsed.strengths = [];
+    if (!Array.isArray(parsed.thinkAloud)) parsed.thinkAloud = [];
+    if (!Array.isArray(parsed.issues)) parsed.issues = [];
+    if (!Array.isArray(parsed.topPriorities)) parsed.topPriorities = [];
+
+    const missingFields = [];
+    if ((parsed.strengths as unknown[]).length === 0) missingFields.push("strengths");
+    if ((parsed.thinkAloud as unknown[]).length === 0) missingFields.push("thinkAloud");
+    if ((parsed.issues as unknown[]).length === 0) missingFields.push("issues");
+    if (missingFields.length > 0) {
+      console.warn("[claude] Missing or empty fields after parse:", missingFields.join(", "));
+    }
+  }
+
+  return parsed;
 }
 
 /**
@@ -545,7 +569,7 @@ Analyze ${params.images.length} screen(s), return JSON.`;
 
   const response = await client.messages.create({
     model: modelId,
-    max_tokens: 4096,
+    max_tokens: 8192,
     system: isKo ? SYSTEM_PROMPT_KO : SYSTEM_PROMPT_EN,
     messages: [
       {
@@ -555,12 +579,14 @@ Analyze ${params.images.length} screen(s), return JSON.`;
     ],
   });
 
-  console.log("[claude] API response received. Stop reason:", response.stop_reason);
+  console.log("[claude] API response received. Stop reason:", response.stop_reason, "| usage:", JSON.stringify(response.usage));
 
   const textBlock = response.content.find((b) => b.type === "text");
   if (!textBlock || textBlock.type !== "text") {
     throw new Error("No text response from Claude");
   }
+
+  console.log("[claude] Raw response (last 200 chars):", textBlock.text.slice(-200));
 
   return cleanAndParse(textBlock.text, response.stop_reason);
 }
