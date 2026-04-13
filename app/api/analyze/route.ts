@@ -185,6 +185,7 @@ export async function POST(request: NextRequest) {
       scoreBreakdown?: unknown;
       verdictReason?: string;
       flowAnalysis?: unknown;
+      adFriction?: unknown;
     };
 
     if (isComparison) {
@@ -224,6 +225,7 @@ export async function POST(request: NextRequest) {
         scoreBreakdown: result.scoreBreakdown,
         verdictReason: result.verdictReason,
         flowAnalysis: result.flowAnalysis,
+        adFriction: result.adFriction,
       };
     }
 
@@ -247,6 +249,7 @@ export async function POST(request: NextRequest) {
       ...(topLevel.scoreBreakdown ? { scoreBreakdown: topLevel.scoreBreakdown } : {}),
       ...(topLevel.verdictReason ? { verdictReason: topLevel.verdictReason } : {}),
       ...(topLevel.flowAnalysis ? { flowAnalysis: topLevel.flowAnalysis } : {}),
+      ...(topLevel.adFriction ? { adFriction: topLevel.adFriction } : {}),
       ...(savedFlowSteps ? { flowSteps: savedFlowSteps } : {}),
       ...(isComparison ? { isComparison: true, comparisonData } : {}),
     };

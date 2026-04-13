@@ -168,6 +168,20 @@ Add a flowAnalysis array with drop-off risk per step.
 
 ${SCORE_CRITERIA}
 
+## Advertising Friction Analysis for 4050 Users
+Analyze the ad experience across the full flow as a patience depletion curve.
+For each step that involves an ad or leads to one, evaluate:
+
+- Ad density: How many ad exposures occur before the user receives their first reward?
+- Ad length tolerance: Is a skip option available? At what point (e.g. after 5s)?
+- Reward clarity: Is the reward amount shown BEFORE the ad plays, so the user knows what they're earning?
+- Recovery time: After the ad ends, how many taps/steps until the user is back to their core task?
+- Cumulative fatigue: Does the session structure let patience recover between ads, or does it compound?
+
+Identify the "patience floor" — the exact step where the user's perception shifts to "effort > reward."
+This is the most critical churn point in an ad-monetized app for 4050 users.
+Mark this step explicitly in adFriction.patienceFloorStep.
+
 Respond in pure JSON only. No markdown, no code blocks, no backticks.
 
 {
@@ -193,6 +207,15 @@ Respond in pure JSON only. No markdown, no code blocks, no backticks.
   "thinkAloud": [{"screen": "Step N: name", "thought": "First-person desire-based thought"}],
   "issues": [{"screen": "Step N: name", "screenIndex": 0, "desireType": "utility" | "healthPride" | "lossAversion" | "general", "severity": "Critical" | "Medium" | "Low", "issue": "string", "recommendation": "string", "retentionImpact": "string", "heatZone": {"x": 0-100, "y": 0-100, "width": 0-100, "height": 0-100, "label": "short region description"} | null}],
   "flowAnalysis": [{"step": 1, "stepName": "string", "dropOffRisk": "High" | "Medium" | "Low", "reason": "string"}],
+  "adFriction": {
+    "adDensity": "How many ad exposures before first reward — cite specific steps",
+    "rewardClarityBeforeAd": "Is reward amount shown before ad plays? Cite screen evidence",
+    "skipAvailability": "Is skip available and when? Cite evidence or 'not observed'",
+    "recoverySteps": "Number of steps to return to core task after ad — cite the path",
+    "cumulativeFatigue": "Description of how patience depletes across the session",
+    "patienceFloorStep": "Step number and name where effort > reward perception occurs, or null if not reached",
+    "patienceFloorReason": "Why this is the tipping point for 4050 users"
+  },
   "retentionRisk": {
     "d1Risk": "High" | "Medium" | "Low",
     "d7Risk": "High" | "Medium" | "Low",
@@ -217,6 +240,20 @@ issues에서 desireType과 retentionImpact를 포함.
 flowAnalysis 배열을 응답에 추가.
 
 ${SCORE_CRITERIA}
+
+## 4050 광고 마찰 분석
+전체 플로우에 걸쳐 광고 경험을 인내심 소진 곡선으로 분석합니다.
+광고가 포함되거나 광고로 이어지는 단계마다 다음을 평가:
+
+- 광고 밀도: 첫 보상을 받기 전까지 광고 노출이 몇 번 발생하는가? 어느 단계인지 명시
+- 보상 선공개 여부: 광고 재생 전에 보상 금액이 표시되는가? 화면 근거 제시
+- 스킵 가능 여부: 스킵 옵션이 있는가? 몇 초 후인가? 근거 제시 또는 '미확인'
+- 복귀 단계 수: 광고 종료 후 본래 과제로 돌아오기까지 몇 탭이 필요한가? 경로 제시
+- 누적 피로도: 세션 구조상 광고 사이에 인내심이 회복되는가, 아니면 누적되는가?
+
+"인내심 바닥 지점" 을 찾아야 합니다 — 유저가 "이 노력이 보상보다 크다"고 느끼는 정확한 단계.
+이것이 광고 수익 앱에서 4050 유저의 가장 핵심적인 이탈 포인트입니다.
+adFriction.patienceFloorStep에 해당 단계 번호와 이름을 명시하세요.
 
 JSON 키는 영문, 값은 한국어. 반드시 순수 JSON만 반환. 마크다운, 코드블록, 백틱 절대 사용 금지.
 
@@ -243,6 +280,15 @@ JSON 키는 영문, 값은 한국어. 반드시 순수 JSON만 반환. 마크다
   "thinkAloud": [{"screen": "단계 N: 이름", "thought": "4050 여성의 1인칭 욕망 기반 발화"}],
   "issues": [{"screen": "단계 N: 이름", "screenIndex": 0, "desireType": "utility" | "healthPride" | "lossAversion" | "general", "severity": "Critical" | "Medium" | "Low", "issue": "한국어", "recommendation": "한국어", "retentionImpact": "한국어", "heatZone": {"x": 0-100, "y": 0-100, "width": 0-100, "height": 0-100, "label": "영역 설명"} | null}],
   "flowAnalysis": [{"step": 1, "stepName": "한국어", "dropOffRisk": "높음" | "보통" | "낮음", "reason": "한국어"}],
+  "adFriction": {
+    "adDensity": "첫 보상 전 광고 노출 횟수 — 해당 단계 명시",
+    "rewardClarityBeforeAd": "광고 전 보상 금액 표시 여부 — 화면 근거 제시",
+    "skipAvailability": "스킵 옵션 및 시점 — 근거 제시 또는 '미확인'",
+    "recoverySteps": "광고 후 본 과제 복귀까지 탭 수 — 경로 명시",
+    "cumulativeFatigue": "세션 전반에 걸친 인내심 소진 패턴 설명",
+    "patienceFloorStep": "노력 > 보상 인식이 발생하는 단계 번호와 이름, 없으면 null",
+    "patienceFloorReason": "4050 유저 기준 이 지점이 티핑 포인트인 이유"
+  },
   "retentionRisk": {
     "d1Risk": "높음" | "보통" | "낮음",
     "d7Risk": "높음" | "보통" | "낮음",
@@ -260,6 +306,24 @@ Scoring MUST be consistent across products — same rubric for direct comparison
 
 ${SCORE_CRITERIA}
 
+## 4050 Female Accessibility Evaluation
+For each product, additionally evaluate two accessibility dimensions specific to 4050 female users.
+Score each 0-10 and cite specific UI elements as evidence.
+
+Visual Friendliness (시각 친화성):
+- Font size adequacy (min 16px standard for 4050 — flag anything smaller)
+- Color contrast and readability against background
+- Button size and touch target generosity (min 44px touch target)
+- Visual complexity vs simplicity — does the layout feel overwhelming?
+- Whether reward/achievement is visually celebrated (large, prominent feedback)
+
+Linguistic Friendliness (언어 친화성):
+- Use of familiar vs unfamiliar terminology (avoid app jargon)
+- Sentence length and complexity — short imperative vs long compound sentences
+- Tone — commanding ("입력하세요") vs inviting ("적어볼까요?")
+- Whether the app 'talks down' to users or treats them as capable adults
+- Presence of unexplained tech terms (e.g. "푸시 알림", "NFC", "OAuth")
+
 Respond in pure JSON only. No markdown, no code blocks, no backticks.
 
 {
@@ -273,6 +337,10 @@ Respond in pure JSON only. No markdown, no code blocks, no backticks.
         "healthPride": { "score": 0-10, "comment": "string" },
         "lossAversion": { "score": 0-10, "comment": "string" }
       },
+      "accessibility4050": {
+        "visualFriendliness": { "score": 0-10, "evidence": "Cite specific UI elements — font sizes, button sizes, contrast issues, celebration elements seen" },
+        "linguisticFriendliness": { "score": 0-10, "evidence": "Cite specific text, labels, CTAs — tone, jargon, sentence complexity observed" }
+      },
       "summary": "2 sentences",
       "strengths": ["string"],
       "weaknesses": ["string"],
@@ -284,6 +352,7 @@ Respond in pure JSON only. No markdown, no code blocks, no backticks.
     "winner": "productName with highest score",
     "winnerReason": "2 sentences — which desires does the winner fulfill best?",
     "ourProductPosition": "Our product's position from the desire fulfillment perspective",
+    "accessibilityGap": "How do the products compare on visual and linguistic friendliness for 4050 users?",
     "keyDifferences": [
       { "aspect": "comparison angle", "ours": "our assessment", "competitor": "competitor: assessment" }
     ],
@@ -300,6 +369,24 @@ const COMPARISON_SYSTEM_PROMPT_KO = `${YAFIT_CONTEXT}
 
 ${SCORE_CRITERIA}
 
+## 4050 여성 접근성 평가
+각 제품에 대해 4050 여성 타깃 특화 접근성 두 가지 차원을 추가로 평가합니다.
+각 항목 0-10점, 반드시 화면에서 실제로 확인한 UI 요소를 근거로 제시.
+
+시각 친화성 (Visual Friendliness):
+- 폰트 크기 적절성 (4050 기준 최소 16px — 더 작으면 명시)
+- 배경 대비 텍스트 색상 가독성
+- 버튼 크기와 터치 타깃 여유 (최소 44px 터치 영역)
+- 레이아웃 복잡도 vs 단순성 — 화면이 압도적으로 느껴지는가?
+- 보상/성취가 시각적으로 축하받는 느낌인가 (크고 눈에 띄는 피드백 요소)
+
+언어 친화성 (Linguistic Friendliness):
+- 친숙한 vs 낯선 용어 사용 (앱 전문 용어 회피 여부)
+- 문장 길이와 복잡도 — 짧은 명령형 vs 긴 복합 문장
+- 어조 — 명령형("입력하세요") vs 초대형("적어볼까요?")
+- 앱이 사용자를 아래로 보는가, 아니면 능력 있는 어른으로 대하는가
+- 설명 없이 쓰인 기술 용어 (예: "푸시 알림", "NFC", "OAuth")
+
 JSON 키는 영문, 값은 한국어. 반드시 순수 JSON만 반환. 마크다운, 코드블록, 백틱 절대 사용 금지.
 
 {
@@ -313,6 +400,10 @@ JSON 키는 영문, 값은 한국어. 반드시 순수 JSON만 반환. 마크다
         "healthPride": { "score": 0-10, "comment": "한국어" },
         "lossAversion": { "score": 0-10, "comment": "한국어" }
       },
+      "accessibility4050": {
+        "visualFriendliness": { "score": 0-10, "evidence": "확인한 UI 요소 근거 — 폰트 크기, 버튼 크기, 대비 문제, 보상 표현 요소 등" },
+        "linguisticFriendliness": { "score": 0-10, "evidence": "확인한 텍스트, 레이블, CTA 근거 — 어조, 전문용어, 문장 복잡도 등" }
+      },
       "summary": "2문장 한국어",
       "strengths": ["한국어"],
       "weaknesses": ["한국어"],
@@ -324,6 +415,7 @@ JSON 키는 영문, 값은 한국어. 반드시 순수 JSON만 반환. 마크다
     "winner": "가장 높은 점수의 제품명",
     "winnerReason": "어떤 욕망을 가장 잘 충족하기에 1위인지 2문장 한국어",
     "ourProductPosition": "욕망 충족 관점에서 자사 제품의 상대적 포지션",
+    "accessibilityGap": "4050 사용자 대상 시각/언어 친화성에서 제품 간 차이 비교",
     "keyDifferences": [
       { "aspect": "비교 관점", "ours": "자사 평가", "competitor": "경쟁사명: 평가" }
     ],
@@ -446,17 +538,23 @@ function cleanAndParse(raw: string, stopReason?: string | null) {
     if (!Array.isArray(parsed.issues)) parsed.issues = parsed.issues ?? [];
     if (!Array.isArray(parsed.topPriorities)) parsed.topPriorities = parsed.topPriorities ?? [];
 
-    // Comparison analysis: backfill each product's arrays
+    // Comparison analysis: backfill each product's arrays and objects
     if (Array.isArray(parsed.products)) {
       for (const product of parsed.products as Record<string, unknown>[]) {
         if (!Array.isArray(product.strengths)) product.strengths = [];
         if (!Array.isArray(product.weaknesses)) product.weaknesses = [];
         if (!Array.isArray(product.thinkAloud)) product.thinkAloud = [];
         if (!Array.isArray(product.issues)) product.issues = [];
+        if (!product.accessibility4050 || typeof product.accessibility4050 !== "object") {
+          product.accessibility4050 = {
+            visualFriendliness: { score: 0, evidence: "" },
+            linguisticFriendliness: { score: 0, evidence: "" },
+          };
+        }
       }
     }
     if (!parsed.comparison && Array.isArray(parsed.products)) {
-      parsed.comparison = { winner: "", winnerReason: "", ourProductPosition: "", keyDifferences: [], topPriorities: [] };
+      parsed.comparison = { winner: "", winnerReason: "", ourProductPosition: "", accessibilityGap: "", keyDifferences: [], topPriorities: [] };
     }
 
     const missingFields = [];

@@ -38,6 +38,21 @@ export interface RetentionRisk {
   mainRiskReason: string;
 }
 
+export interface Accessibility4050 {
+  visualFriendliness: { score: number; evidence: string };
+  linguisticFriendliness: { score: number; evidence: string };
+}
+
+export interface AdFriction {
+  adDensity: string;
+  rewardClarityBeforeAd: string;
+  skipAvailability: string;
+  recoverySteps: string;
+  cumulativeFatigue: string;
+  patienceFloorStep: string | null;
+  patienceFloorReason: string;
+}
+
 export interface ComparisonProductResult {
   productName: string;
   verdict: "Pass" | "Partial" | "Fail";
@@ -46,6 +61,7 @@ export interface ComparisonProductResult {
   strengths: string[];
   weaknesses: string[];
   desireAlignment?: DesireAlignment;
+  accessibility4050?: Accessibility4050;
   thinkAloud: { screen: string; thought: string }[];
   issues: {
     screen: string;
@@ -62,6 +78,7 @@ export interface ComparisonResult {
     winner: string;
     winnerReason: string;
     ourProductPosition: string;
+    accessibilityGap?: string;
     keyDifferences: { aspect: string; ours: string; competitor: string }[];
     topPriorities: string[];
   };
@@ -107,6 +124,7 @@ export interface AnalysisResult {
   desireAlignment?: DesireAlignment;
   retentionRisk?: RetentionRisk;
   topPriorities?: string[];
+  adFriction?: AdFriction;
   isComparison?: boolean;
   comparisonData?: ComparisonResult;
 }
