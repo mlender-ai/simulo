@@ -382,8 +382,40 @@ function getClient(apiKey?: string) {
   return { client: new Anthropic({ apiKey: key }), key };
 }
 
+function extractJsonObject(text: string): string {
+  // Find the first { or [ and extract everything up to its matching closing bracket
+  const start = text.search(/[{[]/);
+  if (start === -1) return text;
+
+  const opener = text[start];
+  const closer = opener === "{" ? "}" : "]";
+  let depth = 0;
+  let inString = false;
+  let escape = false;
+
+  for (let i = start; i < text.length; i++) {
+    const ch = text[i];
+    if (escape) { escape = false; continue; }
+    if (ch === "\\" && inString) { escape = true; continue; }
+    if (ch === '"') { inString = !inString; continue; }
+    if (inString) continue;
+    if (ch === opener) depth++;
+    if (ch === closer) {
+      depth--;
+      if (depth === 0) return text.slice(start, i + 1);
+    }
+  }
+  // No matching close found — return from start to end (truncated case)
+  return text.slice(start);
+}
+
 function cleanAndParse(raw: string, stopReason?: string | null) {
-  const cleaned = raw.replace(/```json\n?/g, "").replace(/```\n?/g, "").trim();
+  // Strip markdown code fences
+  let cleaned = raw.replace(/```json\n?/g, "").replace(/```\n?/g, "").trim();
+
+  // Extract just the JSON object — strips any trailing prose Claude may have added
+  cleaned = extractJsonObject(cleaned);
+
   console.log("[claude] Cleaned response (first 100 chars):", cleaned.slice(0, 100));
   console.log("[claude] Response length:", cleaned.length, "| stop_reason:", stopReason);
 
