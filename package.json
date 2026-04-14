@@ -10,6 +10,9 @@
     "lint": "next lint",
     "lint:fix": "next lint --fix",
     "type-check": "tsc --noEmit",
+    "test": "npx playwright test",
+    "test:ui": "npx playwright test --ui",
+    "test:headed": "npx playwright test --headed",
     "validate": "npm run lint && npm run type-check && npm run build",
     "postinstall": "prisma generate",
     "db:check": "npx ts-node scripts/check-db.ts"
@@ -25,6 +28,7 @@
     "uuid": "^13.0.0"
   },
   "devDependencies": {
+    "@playwright/test": "^1.59.1",
     "@types/node": "^20",
     "@types/react": "^18",
     "@types/react-dom": "^18",
