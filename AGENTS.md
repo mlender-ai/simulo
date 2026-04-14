@@ -22,7 +22,8 @@
      ├── 리팩토링 → refactor-cleaner
      ├── 문서화 → doc-updater
      ├── DB 쿼리 → database-reviewer
-     └── 자동 QA → auto-qa
+     ├── 자동 QA → auto-qa
+     └── 제품 아이디어 → idea-generator
 ```
 
 ---
@@ -376,6 +377,9 @@ IF DB 쿼리 성능 문제
 
 IF 배포 전 QA / PR 검증
   → /auto-qa (auto-qa)
+
+IF 제품 개선 아이디어 필요
+  → idea-generator에 위임 (수동 또는 주기적 실행)
 ```
 
 ---
