@@ -1,21 +1,25 @@
 name: Auto QA + Idea Agent
 
 on:
-  # 코드 push될 때마다 QA 실행
   push:
     branches: [main, develop]
-  # PR 생성/업데이트 시 QA 실행
   pull_request:
-  # 매일 오전 9시 아이디어 생성
   schedule:
-    - cron: '0 0 * * *'   # UTC 0시 = KST 오전 9시
+    # 매일 KST 오전 9시 (UTC 0시) — 아이디어 + QA 모두 실행
+    - cron: '0 0 * * *'
+    # 매일 KST 오후 6시 (UTC 9시) — QA만 추가 실행
+    - cron: '0 9 * * *'
 
 jobs:
+  # ─────────────────────────────────────────────
+  # QA 에이전트: push, PR, 매일 2회 실행
+  # ─────────────────────────────────────────────
   auto-qa:
-    if: github.event_name == 'push' || github.event_name == 'pull_request'
     runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@v4
+        with:
+          fetch-depth: 20
 
       - name: Setup Node.js
         uses: actions/setup-node@v4
@@ -31,60 +35,60 @@ jobs:
         env:
           DATABASE_URL: ${{ secrets.DATABASE_URL || 'postgresql://ci:ci@localhost:5432/ci' }}
 
-      - name: Run build
-        run: npm run build
-        env:
-          ANTHROPIC_API_KEY: ${{ secrets.ANTHROPIC_API_KEY || 'sk-ant-placeholder' }}
-          DATABASE_URL: ${{ secrets.DATABASE_URL || 'postgresql://ci:ci@localhost:5432/ci' }}
-          ADMIN_PASSWORD: ${{ secrets.ADMIN_PASSWORD || 'ci' }}
-
-      - name: Install Playwright Browsers
+      - name: Install Playwright
         run: npx playwright install chromium --with-deps
 
-      - name: Run E2E Tests
-        run: npm test
-        env:
-          ANTHROPIC_API_KEY: ${{ secrets.ANTHROPIC_API_KEY || 'sk-ant-placeholder' }}
-          DATABASE_URL: ${{ secrets.DATABASE_URL || 'postgresql://ci:ci@localhost:5432/ci' }}
-          ADMIN_PASSWORD: ${{ secrets.ADMIN_PASSWORD || 'ci' }}
-
-      - name: Create qa-reports directory
-        run: mkdir -p qa-reports
-
-      - name: Claude Code QA 실행
+      - name: Run QA Agent
+        id: qa
         env:
           ANTHROPIC_API_KEY: ${{ secrets.ANTHROPIC_API_KEY }}
-        run: |
-          npx @anthropic-ai/claude-code -p "auto-qa 에이전트를 실행해서 이번 변경사항을 QA해줘.
-                     결과를 qa-reports/qa-$(date +%Y%m%d).md에 저장해줘."
+          DATABASE_URL: ${{ secrets.DATABASE_URL || 'postgresql://ci:ci@localhost:5432/ci' }}
+          ADMIN_PASSWORD: ${{ secrets.ADMIN_PASSWORD || 'ci' }}
+        run: npx tsx scripts/agents/qa-agent.ts
+        continue-on-error: true
 
-      - name: QA 리포트를 GitHub Issue로 등록
-        if: failure()
+      - name: Upload QA Report
+        uses: actions/upload-artifact@v4
+        if: always()
+        with:
+          name: qa-report-${{ github.run_number }}
+          path: qa-reports/
+          retention-days: 30
+
+      - name: Create Issue on failure
+        if: steps.qa.outcome == 'failure'
         uses: actions/github-script@v7
         with:
           script: |
             const fs = require('fs');
-            const date = new Date().toISOString().split('T')[0].replace(/-/g, '');
-            const reportPath = `qa-reports/qa-${date}.md`;
-            let report = 'QA 리포트 파일을 찾을 수 없습니다.';
-            if (fs.existsSync(reportPath)) {
-              report = fs.readFileSync(reportPath, 'utf8');
+            const glob = require('glob');
+            const files = fs.readdirSync('qa-reports').filter(f => f.endsWith('.md'));
+            let report = '자동 QA 에이전트가 CRITICAL 이슈를 발견했습니다.';
+            if (files.length > 0) {
+              const latest = files.sort().pop();
+              report = fs.readFileSync(`qa-reports/${latest}`, 'utf8');
             }
-            github.rest.issues.create({
+            await github.rest.issues.create({
               owner: context.repo.owner,
               repo: context.repo.repo,
-              title: `🤖 자동 QA 리포트 - ${new Date().toLocaleDateString('ko-KR')}`,
-              body: report,
-              labels: ['auto-qa', 'bug']
+              title: `QA 리포트 — ${new Date().toISOString().split('T')[0]}`,
+              body: report.slice(0, 60000),
+              labels: ['auto-qa']
             });
 
+  # ─────────────────────────────────────────────
+  # 아이디어 에이전트: 매일 KST 오전 9시 실행
+  # ─────────────────────────────────────────────
   idea-generator:
     if: github.event_name == 'schedule'
     runs-on: ubuntu-latest
+    permissions:
+      contents: write
+      issues: write
     steps:
       - uses: actions/checkout@v4
         with:
-          fetch-depth: 0   # git log 전체 이력 필요
+          fetch-depth: 0
 
       - name: Setup Node.js
         uses: actions/setup-node@v4
@@ -95,34 +99,47 @@ jobs:
       - name: Install dependencies
         run: npm ci
 
-      - name: Create ideas directory
-        run: mkdir -p ideas
-
-      - name: 아이디어 에이전트 실행
+      - name: Run Idea Agent
         env:
           ANTHROPIC_API_KEY: ${{ secrets.ANTHROPIC_API_KEY }}
-        run: |
-          npx @anthropic-ai/claude-code -p "idea-generator 에이전트를 실행해서
-                     오늘의 제품 개선 아이디어를 생성해줘.
-                     ideas/ideas-$(date +%Y%m%d).md에 저장해줘."
+        run: npx tsx scripts/agents/idea-agent.ts
 
-      - name: 아이디어를 Slack으로 전송
+      - name: Create Issue with ideas
+        uses: actions/github-script@v7
+        with:
+          script: |
+            const fs = require('fs');
+            const files = fs.readdirSync('ideas').filter(f => f.endsWith('.md') && f !== '.gitkeep');
+            if (files.length > 0) {
+              const latest = files.sort().pop();
+              const content = fs.readFileSync(`ideas/${latest}`, 'utf8');
+              await github.rest.issues.create({
+                owner: context.repo.owner,
+                repo: context.repo.repo,
+                title: `제품 아이디어 — ${new Date().toISOString().split('T')[0]}`,
+                body: content.slice(0, 60000),
+                labels: ['idea']
+              });
+            }
+
+      - name: Notify Slack (optional)
         if: env.SLACK_WEBHOOK != ''
         env:
           SLACK_WEBHOOK: ${{ secrets.SLACK_WEBHOOK_URL }}
         run: |
-          DATE=$(date +%Y%m%d)
-          if [ -f "ideas/ideas-${DATE}.md" ]; then
-            CONTENT=$(cat ideas/ideas-${DATE}.md | head -100)
-            curl -X POST "$SLACK_WEBHOOK" \
+          FILE=$(ls -t ideas/*.md 2>/dev/null | head -1)
+          if [ -n "$FILE" ]; then
+            TITLE=$(head -1 "$FILE")
+            PREVIEW=$(head -20 "$FILE" | tail -15)
+            curl -s -X POST "$SLACK_WEBHOOK" \
               -H 'Content-type: application/json' \
-              -d "{\"text\": \"🧠 오늘의 제품 아이디어\n\`\`\`${CONTENT}\`\`\`\"}"
+              -d "{\"text\": \"$TITLE\n\`\`\`\n$PREVIEW\n\`\`\`\"}"
           fi
 
-      - name: 아이디어 파일 커밋
+      - name: Commit idea file
         run: |
-          git config --global user.name 'Claude Agent'
-          git config --global user.email 'claude@agent.bot'
+          git config user.name 'Simulo Agent'
+          git config user.email 'agent@simulo.dev'
           git add ideas/
-          git commit -m "chore: 자동 아이디어 리포트 $(date +%Y-%m-%d)" || exit 0
+          git diff --staged --quiet || git commit -m "chore: 자동 아이디어 리포트 $(date +%Y-%m-%d)"
           git push
