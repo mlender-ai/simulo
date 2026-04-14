@@ -20,3 +20,27 @@ body {
 .mono {
   font-family: var(--font-geist-mono), 'SF Mono', 'Fira Code', monospace;
 }
+
+/* React Flow overrides for dark theme */
+.react-flow__node {
+  cursor: grab;
+}
+.react-flow__node:active {
+  cursor: grabbing;
+}
+.react-flow__edge-path {
+  stroke-linecap: round;
+}
+.react-flow__handle {
+  transition: background-color 0.15s ease, transform 0.15s ease;
+}
+.react-flow__handle:hover {
+  transform: scale(1.4);
+  background-color: rgba(255, 255, 255, 0.7) !important;
+}
+.react-flow__minimap {
+  background: #111 !important;
+}
+.react-flow__panel {
+  margin: 8px !important;
+}

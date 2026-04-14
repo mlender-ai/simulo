@@ -115,6 +115,7 @@ export function InputSection({
   onComparisonChange,
 }: InputSectionProps) {
   const [isDragging, setIsDragging] = useState(false);
+  const [draggingZone, setDraggingZone] = useState<string | null>(null);
   const [showAdvanced, setShowAdvanced] = useState(false);
 
   // Auto-fill Figma token from settings
@@ -540,8 +541,19 @@ export function InputSection({
                   </div>
                 ) : (
                   <div
-                    className="border border-dashed border-[var(--border)] rounded-md p-4 text-center cursor-pointer hover:border-white/20 transition-colors"
+                    className={`border border-dashed rounded-md p-4 text-center cursor-pointer transition-colors ${
+                      draggingZone === `flow-${i}`
+                        ? "border-white/40 bg-white/5"
+                        : "border-[var(--border)] hover:border-white/20"
+                    }`}
                     onClick={() => document.getElementById(`flow-file-${i}`)?.click()}
+                    onDragOver={(e) => { e.preventDefault(); setDraggingZone(`flow-${i}`); }}
+                    onDragLeave={() => setDraggingZone(null)}
+                    onDrop={(e) => {
+                      e.preventDefault();
+                      setDraggingZone(null);
+                      if (e.dataTransfer.files.length > 0) handleFlowStepImage(i, e.dataTransfer.files);
+                    }}
                   >
                     <p className="text-xs text-[var(--muted)]">{t("dropImages", locale)}</p>
                     <input
@@ -589,8 +601,19 @@ export function InputSection({
               className="w-full px-4 py-2.5 bg-white/[0.03] border border-[var(--border)] rounded-md text-sm focus:outline-none focus:border-white/30 mb-3"
             />
             <div
-              className="border border-dashed border-[var(--border)] rounded-md p-4 text-center cursor-pointer hover:border-white/20 transition-colors"
+              className={`border border-dashed rounded-md p-4 text-center cursor-pointer transition-colors ${
+                draggingZone === "cmp-ours"
+                  ? "border-white/40 bg-white/5"
+                  : "border-[var(--border)] hover:border-white/20"
+              }`}
               onClick={() => document.getElementById("cmp-ours-file")?.click()}
+              onDragOver={(e) => { e.preventDefault(); setDraggingZone("cmp-ours"); }}
+              onDragLeave={() => setDraggingZone(null)}
+              onDrop={(e) => {
+                e.preventDefault();
+                setDraggingZone(null);
+                if (e.dataTransfer.files.length > 0) handleOursImages(e.dataTransfer.files);
+              }}
             >
               <p className="text-xs text-[var(--muted)]">{t("dropImages", locale)}</p>
               <p className="text-xs text-[var(--muted)] mt-1">
@@ -655,8 +678,19 @@ export function InputSection({
                 className="w-full px-4 py-2.5 bg-white/[0.03] border border-[var(--border)] rounded-md text-sm focus:outline-none focus:border-white/30 mb-3"
               />
               <div
-                className="border border-dashed border-[var(--border)] rounded-md p-4 text-center cursor-pointer hover:border-white/20 transition-colors"
+                className={`border border-dashed rounded-md p-4 text-center cursor-pointer transition-colors ${
+                  draggingZone === `cmp-comp-${i}`
+                    ? "border-white/40 bg-white/5"
+                    : "border-[var(--border)] hover:border-white/20"
+                }`}
                 onClick={() => document.getElementById(`cmp-comp-file-${i}`)?.click()}
+                onDragOver={(e) => { e.preventDefault(); setDraggingZone(`cmp-comp-${i}`); }}
+                onDragLeave={() => setDraggingZone(null)}
+                onDrop={(e) => {
+                  e.preventDefault();
+                  setDraggingZone(null);
+                  if (e.dataTransfer.files.length > 0) handleCompetitorImages(i, e.dataTransfer.files);
+                }}
               >
                 <p className="text-xs text-[var(--muted)]">{t("dropImages", locale)}</p>
                 <p className="text-xs text-[var(--muted)] mt-1">{comp.images.length}/4</p>

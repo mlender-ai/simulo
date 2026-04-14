@@ -31,3 +31,13 @@ model Analysis {
   isComparison          Boolean  @default(false)
   comparisonData        Json?
 }
+
+model FlowAnalysis {
+  id         String   @id @default(uuid())
+  createdAt  DateTime @default(now())
+  hypothesis String
+  targetUser String
+  flowData   Json
+  result     Json
+  projectTag String?
+}
