@@ -202,10 +202,11 @@ async function deleteImages(id: string): Promise<void> {
 function stripImages(analysis: AnalysisResult): AnalysisResult {
   return {
     ...analysis,
-    thumbnailUrls: analysis.thumbnailUrls.map((url) =>
+    // Guard against undefined — comparison analyses don't populate these fields
+    thumbnailUrls: (analysis.thumbnailUrls ?? []).map((url) =>
       url.startsWith("data:") ? STRIPPED_IMAGE : url
     ),
-    issues: analysis.issues.map((issue) => ({
+    issues: (analysis.issues ?? []).map((issue) => ({
       ...issue,
       thumbnailUrl:
         issue.thumbnailUrl && issue.thumbnailUrl.startsWith("data:")
@@ -227,13 +228,24 @@ function getAll(): AnalysisResult[] {
 }
 
 function save(analysis: AnalysisResult): void {
+  // Defensive normalisation: ensure array fields are never undefined.
+  // Comparison analyses intentionally omit top-level issues/strengths/thinkAloud —
+  // normalise here so stripImages and any future consumer can always call .map() safely.
+  const normalised: AnalysisResult = {
+    ...analysis,
+    thumbnailUrls: analysis.thumbnailUrls ?? [],
+    issues: analysis.issues ?? [],
+    strengths: analysis.strengths ?? [],
+    thinkAloud: analysis.thinkAloud ?? [],
+  };
+
   // 1. Store images in IndexedDB (async, fire-and-forget)
-  if (analysis.thumbnailUrls?.some((u) => u.startsWith("data:"))) {
-    saveImages(analysis.id, analysis.thumbnailUrls);
+  if (normalised.thumbnailUrls.some((u) => u.startsWith("data:"))) {
+    saveImages(normalised.id, normalised.thumbnailUrls);
   }
 
   // 2. Strip images and persist text data to localStorage
-  const stripped = stripImages(analysis);
+  const stripped = stripImages(normalised);
   const all = getAll();
   all.unshift(stripped);
 

@@ -205,6 +205,11 @@ export async function POST(request: NextRequest) {
         verdict: String(ourProduct.verdict ?? "Partial"),
         score: Number(ourProduct.score ?? 0),
         summary: comparison.winnerReason || String(ourProduct.summary ?? ""),
+        // Comparison analyses don't have top-level issues/strengths/thinkAloud —
+        // always set to empty arrays so storage.save() never crashes on .map()
+        strengths: [],
+        thinkAloud: [],
+        issues: [],
       };
     } else {
       // Map each issue's screenIndex to the corresponding thumbnail URL
