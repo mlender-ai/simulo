@@ -133,13 +133,72 @@ const STORAGE_KEY = "simulo_analyses";
 // Sentinel stored in place of stripped base64 image data
 export const STRIPPED_IMAGE = "__stripped__";
 
-/**
- * Remove base64 image data before persisting to localStorage.
- * thumbnailUrls and issues[].thumbnailUrl hold full data: URLs which can
- * be several MB each — far exceeding the 5 MB localStorage quota on flows
- * with multiple steps. We replace them with a sentinel so the UI knows
- * the image is unavailable rather than crashing.
- */
+// ─── IndexedDB image store ───────────────────────────────────────────
+// Images are stored separately in IndexedDB (quota ~hundreds of MB)
+// so localStorage only holds lightweight text data.
+
+const IDB_NAME = "simulo_images";
+const IDB_STORE = "thumbnails";
+const IDB_VERSION = 1;
+
+function openImageDB(): Promise<IDBDatabase> {
+  return new Promise((resolve, reject) => {
+    const req = indexedDB.open(IDB_NAME, IDB_VERSION);
+    req.onupgradeneeded = () => {
+      const db = req.result;
+      if (!db.objectStoreNames.contains(IDB_STORE)) {
+        db.createObjectStore(IDB_STORE);
+      }
+    };
+    req.onsuccess = () => resolve(req.result);
+    req.onerror = () => reject(req.error);
+  });
+}
+
+/** Save thumbnail URLs to IndexedDB, keyed by analysis id */
+async function saveImages(id: string, thumbnailUrls: string[]): Promise<void> {
+  try {
+    const db = await openImageDB();
+    const tx = db.transaction(IDB_STORE, "readwrite");
+    tx.objectStore(IDB_STORE).put(thumbnailUrls, id);
+    await new Promise<void>((resolve, reject) => {
+      tx.oncomplete = () => resolve();
+      tx.onerror = () => reject(tx.error);
+    });
+  } catch (e) {
+    console.warn("[storage] IndexedDB saveImages failed:", e);
+  }
+}
+
+/** Load thumbnail URLs from IndexedDB */
+async function loadImages(id: string): Promise<string[] | null> {
+  try {
+    const db = await openImageDB();
+    const tx = db.transaction(IDB_STORE, "readonly");
+    const req = tx.objectStore(IDB_STORE).get(id);
+    return new Promise((resolve, reject) => {
+      req.onsuccess = () => resolve(req.result ?? null);
+      req.onerror = () => reject(req.error);
+    });
+  } catch (e) {
+    console.warn("[storage] IndexedDB loadImages failed:", e);
+    return null;
+  }
+}
+
+/** Delete image data when analysis is removed */
+async function deleteImages(id: string): Promise<void> {
+  try {
+    const db = await openImageDB();
+    const tx = db.transaction(IDB_STORE, "readwrite");
+    tx.objectStore(IDB_STORE).delete(id);
+  } catch {
+    // non-critical
+  }
+}
+
+// ─── localStorage helpers ────────────────────────────────────────────
+
 function stripImages(analysis: AnalysisResult): AnalysisResult {
   return {
     ...analysis,
@@ -168,23 +227,27 @@ function getAll(): AnalysisResult[] {
 }
 
 function save(analysis: AnalysisResult): void {
+  // 1. Store images in IndexedDB (async, fire-and-forget)
+  if (analysis.thumbnailUrls?.some((u) => u.startsWith("data:"))) {
+    saveImages(analysis.id, analysis.thumbnailUrls);
+  }
+
+  // 2. Strip images and persist text data to localStorage
   const stripped = stripImages(analysis);
   const all = getAll();
   all.unshift(stripped);
 
-  // Try to persist, evicting oldest entries if quota is exceeded
   let payload = JSON.stringify(all);
   let attempts = 0;
   while (attempts < all.length) {
     try {
       localStorage.setItem(STORAGE_KEY, payload);
-      return; // success
+      return;
     } catch (e) {
       if (
         e instanceof DOMException &&
         (e.name === "QuotaExceededError" || e.name === "NS_ERROR_DOM_QUOTA_REACHED")
       ) {
-        // Drop the oldest entry and retry
         all.pop();
         payload = JSON.stringify(all);
         attempts++;
@@ -193,11 +256,10 @@ function save(analysis: AnalysisResult): void {
       }
     }
   }
-  // If we still can't save (e.g. single entry too large), store only the latest
   try {
     localStorage.setItem(STORAGE_KEY, JSON.stringify([stripped]));
   } catch {
-    console.error("[storage] Unable to persist analysis — localStorage quota exceeded even for single item.");
+    console.error("[storage] Unable to persist analysis — localStorage quota exceeded.");
   }
 }
 
@@ -205,8 +267,34 @@ function getById(id: string): AnalysisResult | null {
   return getAll().find((a) => a.id === id) ?? null;
 }
 
+/**
+ * Load analysis by ID with images hydrated from IndexedDB.
+ * Call this instead of getById when you need thumbnails.
+ */
+async function getByIdWithImages(id: string): Promise<AnalysisResult | null> {
+  const analysis = getById(id);
+  if (!analysis) return null;
+
+  // Hydrate images from IndexedDB
+  const images = await loadImages(id);
+  if (images && images.length > 0) {
+    analysis.thumbnailUrls = images;
+    // Also restore issue thumbnailUrls
+    if (analysis.issues) {
+      analysis.issues = analysis.issues.map((issue) => {
+        if (issue.thumbnailUrl === STRIPPED_IMAGE && typeof issue.screenIndex === "number" && images[issue.screenIndex]) {
+          return { ...issue, thumbnailUrl: images[issue.screenIndex] };
+        }
+        return issue;
+      });
+    }
+  }
+
+  return analysis;
+}
+
 function generateId(): string {
   return uuidv4();
 }
 
-export const storage = { getAll, save, getById, generateId };
+export const storage = { getAll, save, getById, getByIdWithImages, generateId, deleteImages };

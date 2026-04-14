@@ -25,17 +25,17 @@ export default function ReportPage() {
         if (!r.ok) return null;
         return r.json();
       })
-      .then((d) => {
+      .then(async (d) => {
         if (d) {
           setData(d as AnalysisResult);
         } else {
-          const local = storage.getById(id);
+          const local = await storage.getByIdWithImages(id);
           if (local) setData(local);
           else setNotFound(true);
         }
       })
-      .catch(() => {
-        const local = storage.getById(id);
+      .catch(async () => {
+        const local = await storage.getByIdWithImages(id);
         if (local) setData(local);
         else setNotFound(true);
       });
