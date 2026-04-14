@@ -1,0 +1,111 @@
+name: Auto QA + Idea Agent
+
+on:
+  # 코드 push될 때마다 QA 실행
+  push:
+    branches: [main, develop]
+  # PR 생성/업데이트 시 QA 실행
+  pull_request:
+  # 매일 오전 9시 아이디어 생성
+  schedule:
+    - cron: '0 0 * * *'   # UTC 0시 = KST 오전 9시
+
+jobs:
+  auto-qa:
+    if: github.event_name == 'push' || github.event_name == 'pull_request'
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Setup Node.js
+        uses: actions/setup-node@v4
+        with:
+          node-version: '20'
+          cache: 'npm'
+
+      - name: Install dependencies
+        run: npm ci
+
+      - name: Generate Prisma Client
+        run: npx prisma generate
+        env:
+          DATABASE_URL: ${{ secrets.DATABASE_URL || 'postgresql://ci:ci@localhost:5432/ci' }}
+
+      - name: Create qa-reports directory
+        run: mkdir -p qa-reports
+
+      - name: Claude Code QA 실행
+        env:
+          ANTHROPIC_API_KEY: ${{ secrets.ANTHROPIC_API_KEY }}
+        run: |
+          npx @anthropic-ai/claude-code -p "auto-qa 에이전트를 실행해서 이번 변경사항을 QA해줘.
+                     결과를 qa-reports/qa-$(date +%Y%m%d).md에 저장해줘."
+
+      - name: QA 리포트를 GitHub Issue로 등록
+        if: failure()
+        uses: actions/github-script@v7
+        with:
+          script: |
+            const fs = require('fs');
+            const date = new Date().toISOString().split('T')[0].replace(/-/g, '');
+            const reportPath = `qa-reports/qa-${date}.md`;
+            let report = 'QA 리포트 파일을 찾을 수 없습니다.';
+            if (fs.existsSync(reportPath)) {
+              report = fs.readFileSync(reportPath, 'utf8');
+            }
+            github.rest.issues.create({
+              owner: context.repo.owner,
+              repo: context.repo.repo,
+              title: `🤖 자동 QA 리포트 - ${new Date().toLocaleDateString('ko-KR')}`,
+              body: report,
+              labels: ['auto-qa', 'bug']
+            });
+
+  idea-generator:
+    if: github.event_name == 'schedule'
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          fetch-depth: 0   # git log 전체 이력 필요
+
+      - name: Setup Node.js
+        uses: actions/setup-node@v4
+        with:
+          node-version: '20'
+          cache: 'npm'
+
+      - name: Install dependencies
+        run: npm ci
+
+      - name: Create ideas directory
+        run: mkdir -p ideas
+
+      - name: 아이디어 에이전트 실행
+        env:
+          ANTHROPIC_API_KEY: ${{ secrets.ANTHROPIC_API_KEY }}
+        run: |
+          npx @anthropic-ai/claude-code -p "idea-generator 에이전트를 실행해서
+                     오늘의 제품 개선 아이디어를 생성해줘.
+                     ideas/ideas-$(date +%Y%m%d).md에 저장해줘."
+
+      - name: 아이디어를 Slack으로 전송
+        if: env.SLACK_WEBHOOK != ''
+        env:
+          SLACK_WEBHOOK: ${{ secrets.SLACK_WEBHOOK_URL }}
+        run: |
+          DATE=$(date +%Y%m%d)
+          if [ -f "ideas/ideas-${DATE}.md" ]; then
+            CONTENT=$(cat ideas/ideas-${DATE}.md | head -100)
+            curl -X POST "$SLACK_WEBHOOK" \
+              -H 'Content-type: application/json' \
+              -d "{\"text\": \"🧠 오늘의 제품 아이디어\n\`\`\`${CONTENT}\`\`\`\"}"
+          fi
+
+      - name: 아이디어 파일 커밋
+        run: |
+          git config --global user.name 'Claude Agent'
+          git config --global user.email 'claude@agent.bot'
+          git add ideas/
+          git commit -m "chore: 자동 아이디어 리포트 $(date +%Y-%m-%d)" || exit 0
+          git push
