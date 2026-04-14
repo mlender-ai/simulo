@@ -1,0 +1,19 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 128 128" width="128" height="128">
+  <!-- Background circle -->
+  <circle cx="64" cy="64" r="60" fill="#D97757"/>
+  <!-- Face -->
+  <circle cx="64" cy="64" r="48" fill="#F5E6D3"/>
+  <!-- Left eye -->
+  <ellipse cx="48" cy="56" rx="6" ry="7" fill="#2D1B0E"/>
+  <!-- Right eye -->
+  <ellipse cx="80" cy="56" rx="6" ry="7" fill="#2D1B0E"/>
+  <!-- Smile -->
+  <path d="M 44 72 Q 64 88 84 72" stroke="#2D1B0E" stroke-width="3" fill="none" stroke-linecap="round"/>
+  <!-- Blush left -->
+  <ellipse cx="38" cy="68" rx="8" ry="5" fill="#E8A87C" opacity="0.5"/>
+  <!-- Blush right -->
+  <ellipse cx="90" cy="68" rx="8" ry="5" fill="#E8A87C" opacity="0.5"/>
+  <!-- Antenna -->
+  <line x1="64" y1="16" x2="64" y2="4" stroke="#D97757" stroke-width="3" stroke-linecap="round"/>
+  <circle cx="64" cy="2" r="4" fill="#D97757"/>
+</svg>

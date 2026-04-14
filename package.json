@@ -15,7 +15,12 @@
     "test:headed": "npx playwright test --headed",
     "validate": "npm run lint && npm run type-check && npm run build",
     "postinstall": "prisma generate",
-    "db:check": "npx ts-node scripts/check-db.ts"
+    "db:check": "npx ts-node scripts/check-db.ts",
+    "agent:idea": "npx tsx scripts/agents/idea-agent.ts",
+    "agent:qa": "npx tsx scripts/agents/qa-agent.ts",
+    "agent:notify": "npx tsx scripts/notifier/notify.ts",
+    "agent:watcher": "npx tsx scripts/notifier/watcher.ts",
+    "agent:install": "bash scripts/notifier/setup-watcher.sh"
   },
   "dependencies": {
     "@anthropic-ai/sdk": "^0.82.0",

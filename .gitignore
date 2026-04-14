@@ -53,3 +53,7 @@ SPEC.md
 /playwright-report/
 /blob-report/
 /playwright/.cache/
+
+# Agent watcher
+/logs/
+scripts/notifier/.watcher-state.json
