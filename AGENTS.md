@@ -21,7 +21,8 @@
      ├── E2E 테스트 → e2e-runner
      ├── 리팩토링 → refactor-cleaner
      ├── 문서화 → doc-updater
-     └── DB 쿼리 → database-reviewer
+     ├── DB 쿼리 → database-reviewer
+     └── 자동 QA → auto-qa
 ```
 
 ---
@@ -372,6 +373,9 @@ IF 프로덕션 배포 전
 
 IF DB 쿼리 성능 문제
   → database-reviewer에 위임 (자동)
+
+IF 배포 전 QA / PR 검증
+  → /auto-qa (auto-qa)
 ```
 
 ---
