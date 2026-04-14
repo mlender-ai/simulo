@@ -42,14 +42,8 @@ yarn-error.log*
 *.tsbuildinfo
 next-env.d.ts
 
-# Claude Code / AI assistant
-.claude/
-AGENTS.md
-AGENT_BIBLE.md
-CLAUDE.md
-GSTACK.md
-HARNESS.md
-MEMORY.md
-ORCHESTRATION.md
-SKILLS.md
+# Claude Code / AI assistant — 개인 로컬 메모리만 제외
+.claude/memory/
+
+# 보안 민감 정보
 SPEC.md
