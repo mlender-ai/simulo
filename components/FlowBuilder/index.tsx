@@ -16,6 +16,8 @@ import { type ScreenNodeData } from "./ScreenNode";
 import { FlowCanvas } from "./FlowCanvas";
 import { NodePanel } from "./NodePanel";
 import { FlowToolbar } from "./FlowToolbar";
+import { AnalysisPanel } from "./AnalysisPanel";
+import { LoadingOverlay, type AnalysisPhase } from "./LoadingOverlay";
 
 const STORAGE_KEY = "simulo_flow_builder";
 
@@ -68,6 +70,8 @@ export function FlowBuilder({ locale }: FlowBuilderProps) {
   const [savedFlows, setSavedFlows] = useState<SavedFlow[]>([]);
   const [flowSummary, setFlowSummary] = useState<FlowSummary | null>(null);
   const [paths, setPaths] = useState<PathResult[]>([]);
+  const [showAnalysisPanel, setShowAnalysisPanel] = useState(false);
+  const [analysisPhase, setAnalysisPhase] = useState<AnalysisPhase>("preparing");
   const rfInstance = useRef<ReactFlowInstance | null>(null);
 
   const hasStartNode = nodes.some((n) => n.type === "start");
@@ -260,6 +264,8 @@ export function FlowBuilder({ locale }: FlowBuilderProps) {
     setAnalyzing(true);
     setFlowSummary(null);
     setPaths([]);
+    setShowAnalysisPanel(false);
+    setAnalysisPhase("preparing");
 
     try {
       // Send full node+edge graph to the 3-phase API
@@ -278,6 +284,8 @@ export function FlowBuilder({ locale }: FlowBuilderProps) {
         target: e.target,
       }));
 
+      setAnalysisPhase("phase1");
+
       const response = await fetch("/api/analyze-flow", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
@@ -289,12 +297,16 @@ export function FlowBuilder({ locale }: FlowBuilderProps) {
         }),
       });
 
+      setAnalysisPhase("phase2");
+
       if (!response.ok) {
         const errData = await response.json().catch(() => ({}));
         throw new Error((errData as { error?: string }).error || "Analysis failed");
       }
 
+      setAnalysisPhase("phase3");
       const result = await response.json();
+      setAnalysisPhase("applying");
 
       const nodeResults: Record<string, {
         dropOffRisk: string;
@@ -363,6 +375,7 @@ export function FlowBuilder({ locale }: FlowBuilderProps) {
       if (result.paths) {
         setPaths(result.paths);
       }
+      setShowAnalysisPanel(true);
     } catch (err) {
       console.error("[FlowBuilder] Analysis error:", err);
     } finally {
@@ -370,11 +383,42 @@ export function FlowBuilder({ locale }: FlowBuilderProps) {
     }
   }, [nodes, edges, hypothesis, targetUser, setNodes, setEdges]);
 
-  const RISK_COLORS: Record<string, string> = {
-    "높음": "text-red-400",
-    "보통": "text-amber-400",
-    "낮음": "text-emerald-400",
-  };
+  // --- Focus node on canvas ---
+  const handleNodeFocus = useCallback(
+    (nodeId: string) => {
+      const node = nodes.find((n) => n.id === nodeId);
+      if (node && rfInstance.current) {
+        rfInstance.current.setCenter(node.position.x + 100, node.position.y + 120, {
+          zoom: 1.2,
+          duration: 600,
+        });
+      }
+    },
+    [nodes]
+  );
+
+  // --- Highlight a path (select nodes on that path) ---
+  const handlePathHighlight = useCallback(
+    (pathNodeIds: string[]) => {
+      setNodes((nds) =>
+        nds.map((n) => ({
+          ...n,
+          selected: pathNodeIds.includes(n.id),
+        }))
+      );
+    },
+    [setNodes]
+  );
+
+  // --- Build node risk list for AnalysisPanel ---
+  const nodeRisks = nodes
+    .filter((n) => n.type === "screen" && n.data?.analysisResult)
+    .map((n) => ({
+      id: n.id,
+      name: n.data.name || "",
+      dropOffRisk: n.data.analysisResult.dropOffRisk ?? "낮음",
+      dropOffPercent: n.data.analysisResult.dropOffPercent ?? 0,
+    }));
 
   return (
     <div className="flex flex-col h-[calc(100vh-0px)]">
@@ -398,7 +442,7 @@ export function FlowBuilder({ locale }: FlowBuilderProps) {
           onAddNode={handleAddNode}
           onAnalyze={handleAnalyze}
         />
-        <div className="flex-1 flex flex-col overflow-hidden">
+        <div className="flex-1 flex flex-col overflow-hidden relative">
           <FlowCanvas
             nodes={nodes}
             edges={edges}
@@ -409,38 +453,21 @@ export function FlowBuilder({ locale }: FlowBuilderProps) {
             onInit={(inst) => { rfInstance.current = inst; }}
           />
 
-          {/* Flow summary panel (shown after analysis) */}
-          {flowSummary && (
-            <div className="border-t border-[var(--border)] bg-[var(--surface)] px-4 py-3 shrink-0">
-              <div className="flex items-center gap-4 text-xs">
-                <div>
-                  <span className="text-[var(--muted)]">전체 이탈 위험 </span>
-                  <span className={`font-medium ${RISK_COLORS[flowSummary.totalDropOffRisk] ?? "text-white"}`}>
-                    {flowSummary.totalDropOffRisk}
-                  </span>
-                </div>
-                <div>
-                  <span className="text-[var(--muted)]">완료율 </span>
-                  <span className="font-medium mono">{flowSummary.estimatedCompletionRate}%</span>
-                </div>
-                {paths.length > 0 && (
-                  <div>
-                    <span className="text-[var(--muted)]">경로 </span>
-                    {paths.map((p, i) => (
-                      <span key={i} className="mr-2">
-                        <span className="text-white/60">{p.pathName}</span>
-                        <span className="mono ml-1 text-white/40">({p.estimatedCompletionRate}%)</span>
-                      </span>
-                    ))}
-                  </div>
-                )}
-              </div>
-              {flowSummary.overallSummary && (
-                <p className="text-[11px] text-white/50 mt-1.5">{flowSummary.overallSummary}</p>
-              )}
-            </div>
-          )}
+          {/* Loading overlay during analysis */}
+          {analyzing && <LoadingOverlay phase={analysisPhase} />}
         </div>
+
+        {/* Right-side analysis panel */}
+        {showAnalysisPanel && flowSummary && (
+          <AnalysisPanel
+            flowSummary={flowSummary}
+            paths={paths}
+            nodeRisks={nodeRisks}
+            onNodeFocus={handleNodeFocus}
+            onPathHighlight={handlePathHighlight}
+            onClose={() => setShowAnalysisPanel(false)}
+          />
+        )}
       </div>
 
       {/* Load modal */}
