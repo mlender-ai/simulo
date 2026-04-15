@@ -19,17 +19,14 @@ npx prisma migrate dev  # DB 마이그레이션
 npx prisma generate     # Prisma 클라이언트 생성
 ```
 
-## 대규모 파일 변경 후 필수 절차
-layout.tsx, globals.css, 또는 5개 이상 파일 동시 수정 시:
+## Dev 서버 실행
 ```bash
-lsof -ti:3000 | xargs kill -9   # dev 서버 종료
-rm -rf .next                      # 캐시 삭제
-npm run build                     # 빌드 검증
-npm run dev                       # 깨끗한 재시작
-# 브라우저에서 Cmd+Shift+R (Hard Refresh)
+npm run dev        # 항상 .next 캐시 삭제 후 시작 (기본값)
+npm run dev:quick  # 캐시 유지한 채 빠르게 시작 (변경 없을 때만)
 ```
-이 순서를 지키지 않으면 .next 캐시 불일치로 CSS/JS 404 대량 발생.
-참고: .claude/memory/errors.md
+`npm run dev`는 매번 `.next`를 삭제하므로 stale chunk 404 에러가 발생하지 않음.
+코드 변경 후에는 반드시 `npm run dev`(또는 브라우저 Cmd+Shift+R).
+QA 에이전트가 dev 스크립트에 캐시 정리가 포함되어 있는지 자동 검증함.
 
 ## 디자인 톤앤매너
 - 다크 테마 기본 (#0a0a0a, #111111)

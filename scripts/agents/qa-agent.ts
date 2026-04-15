@@ -39,10 +39,16 @@ interface QAResults {
   lint: { passed: boolean; output: string };
   typeCheck: { passed: boolean; output: string };
   e2e: { passed: boolean; output: string };
+  devServerHealth: { passed: boolean; output: string };
+  cacheCheck: { passed: boolean; output: string };
   codeAnalysis: string;
 }
 
 function runChecks(): QAResults {
+  // .next 캐시 정리 후 빌드 (stale chunk 404 방지)
+  console.log("[qa-agent] .next 캐시 정리...");
+  run("rm -rf .next");
+
   console.log("[qa-agent] 빌드 검증...");
   const build = run("npm run build 2>&1 | tail -30");
 
@@ -54,6 +60,25 @@ function runChecks(): QAResults {
 
   console.log("[qa-agent] E2E 테스트...");
   const e2e = run("npx playwright test --reporter=list 2>&1 | tail -40");
+
+  // dev 서버 기동 후 헬스체크
+  console.log("[qa-agent] dev 서버 헬스체크...");
+  run("rm -rf .next"); // 빌드 후 캐시가 남으므로 다시 정리
+  const devStart = run("timeout 15 bash -c 'npm run dev:quick &>/dev/null & sleep 8 && curl -s -o /dev/null -w \"%{http_code}\" http://localhost:3000 && kill $(lsof -ti:3000) 2>/dev/null'");
+  const devServerHealth = {
+    passed: devStart.output.includes("200"),
+    output: devStart.output.includes("200") ? "dev server: 200 OK" : `dev server: ${devStart.output || "failed to start"}`,
+  };
+
+  // 캐시 불일치 체크 — dev 스크립트가 .next 캐시를 자동 정리하는지 확인
+  console.log("[qa-agent] 캐시 안전성 검사...");
+  const devScript = run("node -e \"const p=require('./package.json'); console.log(p.scripts.dev)\"");
+  const cacheCheck = {
+    passed: devScript.output.includes("rm -rf .next"),
+    output: devScript.output.includes("rm -rf .next")
+      ? "dev script includes cache cleanup"
+      : `WARNING: dev script does NOT clean .next cache. Current: '${devScript.output}'. This causes stale chunk 404 errors after code changes.`,
+  };
 
   // 코드 분석 컨텍스트 수집
   console.log("[qa-agent] 코드 분석 컨텍스트 수집...");
@@ -85,6 +110,8 @@ ${errors}
     lint: { passed: lint.exitCode === 0, output: lint.output },
     typeCheck: { passed: typeCheck.exitCode === 0, output: typeCheck.output },
     e2e: { passed: e2e.exitCode === 0, output: e2e.output },
+    devServerHealth,
+    cacheCheck,
     codeAnalysis,
   };
 }
@@ -122,6 +149,12 @@ ${results.typeCheck.output.slice(-500)}
 ### E2E 테스트: ${results.e2e.passed ? "PASS" : "FAIL"}
 ${results.e2e.output.slice(-500)}
 
+### Dev 서버 헬스체크: ${results.devServerHealth.passed ? "PASS" : "FAIL"}
+${results.devServerHealth.output}
+
+### 캐시 안전성: ${results.cacheCheck.passed ? "PASS" : "FAIL"}
+${results.cacheCheck.output}
+
 ---
 
 ## 코드 분석
@@ -140,6 +173,8 @@ ${results.codeAnalysis}
 | 린트 | PASS/FAIL |
 | 타입 체크 | PASS/FAIL |
 | E2E 테스트 | PASS/FAIL |
+| Dev 서버 | PASS/FAIL |
+| 캐시 안전성 | PASS/FAIL |
 
 ## 발견된 이슈
 
@@ -189,7 +224,7 @@ async function main() {
   console.log(`\n[qa-agent] 저장 완료: ${outPath}`);
 
   // 검사 실패 시 exit code 1 (GitHub Actions에서 Issue 생성 트리거)
-  const hasCritical = !results.build.passed || !results.typeCheck.passed;
+  const hasCritical = !results.build.passed || !results.typeCheck.passed || !results.cacheCheck.passed;
   if (hasCritical) {
     console.error("[qa-agent] CRITICAL 이슈 발견 — exit 1");
     process.exit(1);

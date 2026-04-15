@@ -3,8 +3,8 @@
   "version": "0.1.0",
   "private": true,
   "scripts": {
-    "dev": "next dev",
-    "dev:clean": "kill $(lsof -ti :3000) 2>/dev/null; rm -rf .next && next dev",
+    "dev": "rm -rf .next && next dev",
+    "dev:quick": "next dev",
     "build": "next build",
     "start": "next start",
     "lint": "next lint",
