@@ -6,6 +6,7 @@ import Link from "next/link";
 import { STRIPPED_IMAGE } from "@/lib/storage";
 import { storage, type AnalysisResult } from "@/lib/storage";
 import { getLocale, t, type Locale } from "@/lib/i18n";
+import { ShareExportPanel } from "@/components/ShareExportPanel";
 
 const VERDICT_COLORS: Record<string, string> = {
   Pass: "text-emerald-400 bg-emerald-400/10 border-emerald-400/20",
@@ -129,6 +130,9 @@ export default function HistoryPage() {
                     >
                       {t(verdictKey, locale)}
                     </span>
+                    <div onClick={(e) => e.preventDefault()}>
+                      <ShareExportPanel analysisId={analysis.id} />
+                    </div>
                   </div>
                 </div>
               </div>

@@ -262,7 +262,7 @@ export function ReportTabs({ data, locale }: { data: AnalysisResult; locale: Loc
 
       {/* Overview */}
       {tab === "overview" && (
-        <div className="space-y-6">
+        <div id="overview-tab-content" className="space-y-6">
           <div className="flex items-center gap-6 flex-wrap">
             <div className="text-center">
               <div className="text-5xl font-bold mono">{data.score}</div>
