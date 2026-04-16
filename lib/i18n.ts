@@ -180,6 +180,31 @@ const translations = {
     comparisonFocus: "비교 기준 (선택)",
     comparisonFocusPlaceholder: "예: 온보딩 플로우, 리워드 경험, 정보 구조",
     comparisonGuide: "자사 제품과 비교할 경쟁사 제품의 스크린샷을 올려주세요. 최대 2개 경쟁사까지 추가할 수 있습니다.",
+    productDescriptionLabel: "제품 설명 (선택)",
+    productDescriptionHint: "각 버튼과 기능이 어떻게 동작하는지 간단히 적어주면 AI가 화면 외 맥락까지 고려합니다.",
+    oursDescriptionPlaceholder:
+      "예시) 야핏무브 메인 홈은 두 개의 탭으로 구성. '걷고 받기' 탭은 걸음수 기반 마일리지 적립 영역으로 0걸음→보너스→1,000걸음→2,000걸음 단계별 보상, '잠자고 받기' 탭은 수면 중 광고 시청 기반 보상. 하단 CTA는 광고 시청 후 보상 수령으로 이어짐.",
+    competitorDescriptionPlaceholder:
+      "예시) 메인 화면 최상단은 걸음 위젯, 중단은 광고 카드 리스트, 하단 탭바에 '리워드/내정보'. 카드 클릭 시 광고 시청 후 캐시 적립.",
+
+    // Analysis perspective (체크박스)
+    analysisPerspectiveTitle: "분석 관점",
+    analysisPerspectiveHint: "리포트에 포함할 관점을 선택하세요. 체크하지 않은 관점은 리포트에서 제외됩니다.",
+    perspectiveUsability: "사용성 전반",
+    perspectiveUsabilityRequired: "(필수)",
+    perspectiveUsabilityTooltip:
+      "화면의 정보 구조, 버튼 위치, 피드백 등 기본 사용성을 평가합니다. 모든 리포트에 기본 포함되는 필수 관점입니다.",
+    perspectiveDesire: "욕망 충족도 분석",
+    perspectiveDesireTooltip:
+      "4050 여성 유저의 3가지 욕망(효능감·건강과시·손실회피)을 기준으로 화면이 욕망을 얼마나 잘 충족하는지 평가합니다. 체크 해제 시 욕망 카드와 점수가 리포트에서 제외됩니다.",
+    perspectiveComparison: "경쟁사 비교",
+    perspectiveComparisonTooltip:
+      "자사 제품 대비 경쟁사의 강점·약점·격차를 분석합니다. 비교 분석 탭에서는 항상 포함되어 해제할 수 없습니다.",
+    perspectiveAccessibility: "접근성 (4050)",
+    perspectiveAccessibilityTooltip:
+      "40-50대 여성 유저 기준 시각 친화성(폰트·대비·버튼 크기)과 언어 친화성(용어·어조)을 평가합니다. 체크 해제 시 접근성 섹션이 리포트에서 제외됩니다.",
+    perspectiveIncluded: "리포트에 포함됩니다",
+    perspectiveExcluded: "리포트에서 제외됩니다",
     comparisonTabSummary: "비교 요약",
     comparisonTabDetails: "제품별 상세",
     comparisonTabSideBySide: "나란히 보기",
@@ -414,6 +439,33 @@ const translations = {
     comparisonFocus: "Comparison focus (optional)",
     comparisonFocusPlaceholder: "e.g. Onboarding flow, Reward experience, Information architecture",
     comparisonGuide: "Upload screenshots of your product and competitor products. Up to 2 competitors supported.",
+    productDescriptionLabel: "Product description (optional)",
+    productDescriptionHint:
+      "Briefly describe how each button/feature actually works so the AI considers context beyond what is visible.",
+    oursDescriptionPlaceholder:
+      "Example) YafitMove main home has two tabs. 'Walk to earn' tab gives step-based mileage with reward stages 0 → bonus → 1,000 → 2,000 steps. 'Sleep to earn' tab rewards watching ads while asleep. The bottom CTA triggers ad view → reward claim.",
+    competitorDescriptionPlaceholder:
+      "Example) Main screen: step widget on top, ad card list in the middle, bottom tab bar with Reward/Profile. Tapping a card plays an ad then credits cash.",
+
+    // Analysis perspective (checkboxes)
+    analysisPerspectiveTitle: "Analysis perspective",
+    analysisPerspectiveHint:
+      "Choose which perspectives to include in the report. Unchecked perspectives will be excluded.",
+    perspectiveUsability: "Overall usability",
+    perspectiveUsabilityRequired: "(required)",
+    perspectiveUsabilityTooltip:
+      "Evaluates information architecture, button placement, and feedback. Always included as the baseline perspective.",
+    perspectiveDesire: "Desire fulfillment",
+    perspectiveDesireTooltip:
+      "Evaluates how well the screens fulfill the 3 core desires of 40-50s women (Utility, Health & Pride, Loss Aversion). Uncheck to exclude desire cards and scores from the report.",
+    perspectiveComparison: "Competitor comparison",
+    perspectiveComparisonTooltip:
+      "Analyzes strengths, weaknesses, and gaps versus competitors. Always included in the Comparison tab and cannot be unchecked there.",
+    perspectiveAccessibility: "Accessibility (40-50s)",
+    perspectiveAccessibilityTooltip:
+      "Evaluates visual friendliness (font, contrast, button size) and linguistic friendliness (terminology, tone) for 40-50s female users. Uncheck to exclude the accessibility section.",
+    perspectiveIncluded: "Included in report",
+    perspectiveExcluded: "Excluded from report",
     comparisonTabSummary: "Summary",
     comparisonTabDetails: "By Product",
     comparisonTabSideBySide: "Side by Side",

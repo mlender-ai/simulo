@@ -26,6 +26,7 @@ export async function POST(request: NextRequest) {
       ours,
       competitors,
       comparisonFocus,
+      analysisPerspective,
     } = body;
 
     if (!hypothesis || !targetUser) {
@@ -83,6 +84,7 @@ export async function POST(request: NextRequest) {
         locale,
         apiKey,
         model,
+        analysisPerspective,
       });
 
       isComparison = true;

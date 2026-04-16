@@ -8,6 +8,7 @@ import {
   type InputTab,
   type FigmaState,
   type ComparisonState,
+  type AnalysisPerspective,
 } from "@/components/InputSection";
 import { OnboardingBanner } from "@/components/OnboardingBanner";
 import { Tooltip } from "@/components/Tooltip";
@@ -63,9 +64,15 @@ export default function Home() {
     error: "",
   });
   const [comparison, setComparison] = useState<ComparisonState>({
-    ours: { productName: "", images: [] },
-    competitors: [{ productName: "", images: [] }],
+    ours: { productName: "", images: [], description: "" },
+    competitors: [{ productName: "", images: [], description: "" }],
     focus: "",
+  });
+  const [analysisPerspective, setAnalysisPerspective] = useState<AnalysisPerspective>({
+    usability: true,
+    desire: true,
+    comparison: false,
+    accessibility: true,
   });
 
   useEffect(() => {
@@ -119,6 +126,10 @@ export default function Home() {
       const savedApiKey = localStorage.getItem("simulo_anthropic_key");
       const savedModel = localStorage.getItem("simulo_model") || "haiku";
 
+      const effectivePerspective = isComparison
+        ? { ...analysisPerspective, comparison: true }
+        : analysisPerspective;
+
       const body = isComparison
         ? {
             hypothesis,
@@ -132,6 +143,7 @@ export default function Home() {
             ours: comparison.ours,
             competitors: comparison.competitors,
             comparisonFocus: comparison.focus || undefined,
+            analysisPerspective: effectivePerspective,
           }
         : isFlow
           ? {
@@ -144,6 +156,7 @@ export default function Home() {
               locale,
               apiKey: savedApiKey || undefined,
               model: savedModel,
+              analysisPerspective: effectivePerspective,
             }
           : isFigma
             ? {
@@ -158,6 +171,7 @@ export default function Home() {
                 figmaToken: figma.token,
                 figmaFileKey: figma.fileKey,
                 figmaFrameIds: figma.selectedFrameIds,
+                analysisPerspective: effectivePerspective,
               }
             : {
                 images,
@@ -169,6 +183,7 @@ export default function Home() {
                 locale,
                 apiKey: savedApiKey || undefined,
                 model: savedModel,
+                analysisPerspective: effectivePerspective,
               };
 
       const response = await fetch("/api/analyze", {
@@ -266,6 +281,8 @@ export default function Home() {
           onFigmaChange={setFigma}
           comparison={comparison}
           onComparisonChange={setComparison}
+          analysisPerspective={analysisPerspective}
+          onAnalysisPerspectiveChange={setAnalysisPerspective}
         />
 
         {error && (

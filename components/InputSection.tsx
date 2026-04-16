@@ -37,7 +37,15 @@ export interface FigmaState {
 export interface ComparisonProductInput {
   productName: string;
   images: string[]; // base64
+  description: string;
 }
+
+export type AnalysisPerspective = {
+  usability: true; // always required
+  desire: boolean;
+  comparison: boolean;
+  accessibility: boolean;
+};
 
 export interface ComparisonState {
   ours: ComparisonProductInput;
@@ -65,6 +73,8 @@ interface InputSectionProps {
   onFigmaChange: (figma: FigmaState) => void;
   comparison: ComparisonState;
   onComparisonChange: (comparison: ComparisonState) => void;
+  analysisPerspective: AnalysisPerspective;
+  onAnalysisPerspectiveChange: (perspective: AnalysisPerspective) => void;
 }
 
 export type InputTab = "image" | "url" | "figma" | "flow" | "comparison";
@@ -113,6 +123,8 @@ export function InputSection({
   onFigmaChange,
   comparison,
   onComparisonChange,
+  analysisPerspective,
+  onAnalysisPerspectiveChange,
 }: InputSectionProps) {
   const [isDragging, setIsDragging] = useState(false);
   const [draggingZone, setDraggingZone] = useState<string | null>(null);
@@ -287,8 +299,25 @@ export function InputSection({
     if (comparison.competitors.length >= 2) return;
     onComparisonChange({
       ...comparison,
-      competitors: [...comparison.competitors, { productName: "", images: [] }],
+      competitors: [
+        ...comparison.competitors,
+        { productName: "", images: [], description: "" },
+      ],
     });
+  };
+
+  const updateOursDescription = (description: string) => {
+    onComparisonChange({
+      ...comparison,
+      ours: { ...comparison.ours, description },
+    });
+  };
+
+  const updateCompetitorDescription = (index: number, description: string) => {
+    const updated = comparison.competitors.map((c, i) =>
+      i === index ? { ...c, description } : c
+    );
+    onComparisonChange({ ...comparison, competitors: updated });
   };
 
   const removeCompetitor = (index: number) => {
@@ -600,6 +629,19 @@ export function InputSection({
               placeholder={t("productNamePlaceholder", locale)}
               className="w-full px-4 py-2.5 bg-white/[0.03] border border-[var(--border)] rounded-md text-sm focus:outline-none focus:border-white/30 mb-3"
             />
+            <label className="flex items-center text-xs text-[var(--muted)] mb-1.5 uppercase tracking-wider">
+              {t("productDescriptionLabel", locale)}
+            </label>
+            <textarea
+              value={comparison.ours.description}
+              onChange={(e) => updateOursDescription(e.target.value)}
+              placeholder={t("oursDescriptionPlaceholder", locale)}
+              rows={4}
+              className="w-full px-4 py-2.5 bg-white/[0.03] border border-[var(--border)] rounded-md text-sm focus:outline-none focus:border-white/30 resize-none mb-1.5"
+            />
+            <p className="text-xs text-[var(--muted)] mb-3">
+              {t("productDescriptionHint", locale)}
+            </p>
             <div
               className={`border border-dashed rounded-md p-4 text-center cursor-pointer transition-colors ${
                 draggingZone === "cmp-ours"
@@ -677,6 +719,16 @@ export function InputSection({
                 placeholder={t("competitorNamePlaceholder", locale)}
                 className="w-full px-4 py-2.5 bg-white/[0.03] border border-[var(--border)] rounded-md text-sm focus:outline-none focus:border-white/30 mb-3"
               />
+              <label className="flex items-center text-xs text-[var(--muted)] mb-1.5 uppercase tracking-wider">
+                {t("productDescriptionLabel", locale)}
+              </label>
+              <textarea
+                value={comp.description}
+                onChange={(e) => updateCompetitorDescription(i, e.target.value)}
+                placeholder={t("competitorDescriptionPlaceholder", locale)}
+                rows={3}
+                className="w-full px-4 py-2.5 bg-white/[0.03] border border-[var(--border)] rounded-md text-sm focus:outline-none focus:border-white/30 resize-none mb-3"
+              />
               <div
                 className={`border border-dashed rounded-md p-4 text-center cursor-pointer transition-colors ${
                   draggingZone === `cmp-comp-${i}`
@@ -753,6 +805,106 @@ export function InputSection({
           </div>
         </div>
       )}
+
+      {/* Analysis perspective (checkboxes) */}
+      <div className="pt-4 border-t border-[var(--border)]">
+        <label className="flex items-center text-xs text-[var(--muted)] mb-1.5 uppercase tracking-wider">
+          {t("analysisPerspectiveTitle", locale)}
+        </label>
+        <p className="text-xs text-[var(--muted)] mb-3">
+          {t("analysisPerspectiveHint", locale)}
+        </p>
+        <div className="grid grid-cols-2 gap-2">
+          {(
+            [
+              {
+                key: "usability" as const,
+                labelKey: "perspectiveUsability" as const,
+                tooltipKey: "perspectiveUsabilityTooltip" as const,
+                required: true,
+                disabled: true,
+                checked: true,
+              },
+              {
+                key: "desire" as const,
+                labelKey: "perspectiveDesire" as const,
+                tooltipKey: "perspectiveDesireTooltip" as const,
+                required: false,
+                disabled: false,
+                checked: analysisPerspective.desire,
+              },
+              {
+                key: "comparison" as const,
+                labelKey: "perspectiveComparison" as const,
+                tooltipKey: "perspectiveComparisonTooltip" as const,
+                required: activeTab === "comparison",
+                disabled: activeTab === "comparison",
+                checked:
+                  activeTab === "comparison" ? true : analysisPerspective.comparison,
+              },
+              {
+                key: "accessibility" as const,
+                labelKey: "perspectiveAccessibility" as const,
+                tooltipKey: "perspectiveAccessibilityTooltip" as const,
+                required: false,
+                disabled: false,
+                checked: analysisPerspective.accessibility,
+              },
+            ]
+          ).map((item) => (
+            <label
+              key={item.key}
+              className={`flex flex-col gap-1.5 p-3 rounded-md border transition-colors ${
+                item.checked
+                  ? "border-white/20 bg-white/[0.04]"
+                  : "border-[var(--border)] bg-white/[0.02]"
+              } ${item.disabled ? "cursor-default" : "cursor-pointer hover:border-white/20"}`}
+            >
+              <div className="flex items-center gap-2">
+                <input
+                  type="checkbox"
+                  checked={item.checked}
+                  disabled={item.disabled}
+                  onChange={(e) => {
+                    if (item.key === "usability") return;
+                    if (item.key === "comparison" && activeTab === "comparison") return;
+                    onAnalysisPerspectiveChange({
+                      ...analysisPerspective,
+                      [item.key]: e.target.checked,
+                    });
+                  }}
+                  className="accent-white"
+                />
+                <span className="text-sm">
+                  {t(item.labelKey, locale)}
+                  {item.required && (
+                    <span className="ml-1 text-[11px] text-[var(--muted)]">
+                      {t("perspectiveUsabilityRequired", locale)}
+                    </span>
+                  )}
+                </span>
+                <Tooltip content={t(item.tooltipKey, locale)} />
+              </div>
+              <div className="flex items-center gap-1.5 pl-6">
+                <span
+                  className="inline-block w-1.5 h-1.5 rounded-full"
+                  style={{ background: item.checked ? "#86efac" : "#555" }}
+                />
+                <span
+                  style={{
+                    fontSize: "11px",
+                    color: item.checked ? "#86efac" : "#555",
+                  }}
+                >
+                  {item.checked
+                    ? t("perspectiveIncluded", locale)
+                    : t("perspectiveExcluded", locale)}
+                </span>
+              </div>
+            </label>
+          ))}
+        </div>
+      </div>
 
       {/* Context Inputs */}
       <div className="space-y-3 pt-4 border-t border-[var(--border)]">

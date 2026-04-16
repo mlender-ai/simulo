@@ -453,6 +453,14 @@ interface FlowAnalyzeParams {
 export interface ComparisonProduct {
   productName: string;
   images: string[]; // base64
+  description?: string;
+}
+
+export interface AnalysisPerspectiveInput {
+  usability: boolean;
+  desire: boolean;
+  comparison: boolean;
+  accessibility: boolean;
 }
 
 interface ComparisonAnalyzeParams {
@@ -464,6 +472,7 @@ interface ComparisonAnalyzeParams {
   locale?: string;
   apiKey?: string;
   model?: ModelTier;
+  analysisPerspective?: AnalysisPerspectiveInput;
 }
 
 function getClient(apiKey?: string) {
@@ -800,12 +809,23 @@ export async function analyzeComparisonWithClaude(params: ComparisonAnalyzeParam
 
   const content: Anthropic.Messages.ContentBlockParam[] = [];
 
+  const descriptionBlock = (desc: string | undefined): string => {
+    const trimmed = (desc || "").trim();
+    return isKo
+      ? `[제품 컨텍스트: ${trimmed || "제공된 설명 없음. 이미지만으로 판단."}]`
+      : `[Product context: ${trimmed || "No description provided. Judge from images only."}]`;
+  };
+
   // Ours first
   content.push({
     type: "text" as const,
     text: isKo
       ? `=== 자사 제품: ${params.ours.productName} ===`
       : `=== Our product: ${params.ours.productName} ===`,
+  });
+  content.push({
+    type: "text" as const,
+    text: descriptionBlock(params.ours.description),
   });
   params.ours.images.forEach((base64, i) => {
     content.push({
@@ -828,6 +848,10 @@ export async function analyzeComparisonWithClaude(params: ComparisonAnalyzeParam
         ? `=== 경쟁사: ${comp.productName} ===`
         : `=== Competitor: ${comp.productName} ===`,
     });
+    content.push({
+      type: "text" as const,
+      text: descriptionBlock(comp.description),
+    });
     comp.images.forEach((base64, i) => {
       content.push({
         type: "text" as const,
@@ -848,14 +872,43 @@ export async function analyzeComparisonWithClaude(params: ComparisonAnalyzeParam
       : `Comparison focus: ${params.comparisonFocus}`
     : "";
 
+  const contextInstruction = isKo
+    ? `각 제품 앞에는 가능한 경우 [제품 컨텍스트: ...] 설명이 제공됩니다. 버튼·기능의 실제 동작 방식을 이 설명으로 파악한 뒤 평가하세요. 설명이 없으면 "제공된 설명 없음"으로 표시되며, 그 경우에는 이미지만으로 판단하고 평가의 한계를 명시하세요. 설명이나 이미지에서 확인되지 않는 기능은 추측하지 마세요.`
+    : `Each product is preceded by a [Product context: ...] description when available. Use it to understand how buttons and features actually work before evaluating. If none is provided (marked "No description provided"), analyze from images only and note the limitation. Do NOT assume functionality that is not visible or described.`;
+
+  const perspective = params.analysisPerspective;
+  const perspectiveLines: string[] = [];
+  if (perspective) {
+    if (isKo) {
+      perspectiveLines.push(`분석 관점 설정:`);
+      perspectiveLines.push(`- 사용성 전반: 포함 (필수)`);
+      perspectiveLines.push(`- 욕망 충족도(desireAlignment): ${perspective.desire ? "포함" : "제외 — 해당 필드를 비우거나 null로 설정"}`);
+      perspectiveLines.push(`- 경쟁사 비교(comparison): ${perspective.comparison ? "포함" : "제외"}`);
+      perspectiveLines.push(`- 4050 접근성(accessibility4050): ${perspective.accessibility ? "포함" : "제외 — 해당 필드를 비우거나 null로 설정"}`);
+      perspectiveLines.push(`제외된 관점은 JSON에서 해당 필드를 비우거나 null로 설정하세요.`);
+    } else {
+      perspectiveLines.push(`Analysis perspectives:`);
+      perspectiveLines.push(`- Overall usability: included (required)`);
+      perspectiveLines.push(`- Desire fulfillment (desireAlignment): ${perspective.desire ? "included" : "excluded — leave the field empty or null"}`);
+      perspectiveLines.push(`- Competitor comparison: ${perspective.comparison ? "included" : "excluded"}`);
+      perspectiveLines.push(`- 40-50s accessibility (accessibility4050): ${perspective.accessibility ? "included" : "excluded — leave the field empty or null"}`);
+      perspectiveLines.push(`For excluded perspectives, leave those fields empty or null in the JSON.`);
+    }
+  }
+  const perspectiveBlock = perspectiveLines.join("\n");
+
   const userPrompt = isKo
     ? `가설: ${params.hypothesis}
 타깃 유저: ${params.targetUser}
 ${focusLine}
+${contextInstruction}
+${perspectiveBlock}
 자사 제품(${params.ours.productName})과 경쟁사(${params.competitors.map((c) => c.productName).join(", ")})를 동일 가설로 비교 분석 후 JSON 반환.`
     : `Hypothesis: ${params.hypothesis}
 Target User: ${params.targetUser}
 ${focusLine}
+${contextInstruction}
+${perspectiveBlock}
 Compare our product (${params.ours.productName}) vs competitors (${params.competitors.map((c) => c.productName).join(", ")}) against the same hypothesis. Return JSON.`;
 
   content.push({ type: "text" as const, text: userPrompt });
