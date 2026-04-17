@@ -7,6 +7,7 @@ import { STRIPPED_IMAGE } from "@/lib/storage";
 import { storage, type AnalysisResult } from "@/lib/storage";
 import { getLocale, t, type Locale } from "@/lib/i18n";
 import { ShareExportPanel } from "@/components/ShareExportPanel";
+import { gradeFromScore } from "@/components/report/constants";
 
 const VERDICT_COLORS: Record<string, string> = {
   Pass: "text-emerald-400 bg-emerald-400/10 border-emerald-400/20",
@@ -14,11 +15,24 @@ const VERDICT_COLORS: Record<string, string> = {
   Fail: "text-red-400 bg-red-400/10 border-red-400/20",
 };
 
+const GRADE_BADGE: Record<string, { bg: string; color: string; border: string }> = {
+  "우수": { bg: "rgba(20,83,45,0.25)", color: "#86efac", border: "rgba(134,239,172,0.25)" },
+  "양호": { bg: "rgba(30,58,95,0.4)", color: "#93c5fd", border: "rgba(147,197,253,0.25)" },
+  "개선 필요": { bg: "rgba(67,20,7,0.35)", color: "#fdba74", border: "rgba(253,186,116,0.25)" },
+  "미흡": { bg: "rgba(69,10,10,0.35)", color: "#fca5a5", border: "rgba(252,165,165,0.25)" },
+};
+
+const MODE_BADGE: Record<string, { bg: string; color: string; border: string; labelKey: "modeBadgeHypothesis" | "modeBadgeUsability" }> = {
+  hypothesis: { bg: "rgba(30,58,95,0.5)", color: "#93c5fd", border: "rgba(147,197,253,0.2)", labelKey: "modeBadgeHypothesis" },
+  usability: { bg: "rgba(42,26,58,0.6)", color: "#d8b4fe", border: "rgba(216,180,254,0.2)", labelKey: "modeBadgeUsability" },
+};
+
 export default function HistoryPage() {
   const [locale, setLocale] = useState<Locale>("ko");
   const [analyses, setAnalyses] = useState<AnalysisResult[]>([]);
   const [filter, setFilter] = useState("");
   const [verdictFilter, setVerdictFilter] = useState<string>("all");
+  const [modeFilter, setModeFilter] = useState<string>("all");
 
   useEffect(() => {
     setLocale(getLocale());
@@ -45,7 +59,9 @@ export default function HistoryPage() {
       a.projectTag?.toLowerCase().includes(filter.toLowerCase());
     const matchesVerdict =
       verdictFilter === "all" || a.verdict === verdictFilter;
-    return matchesSearch && matchesVerdict;
+    const rowMode = a.mode ?? "hypothesis";
+    const matchesMode = modeFilter === "all" || rowMode === modeFilter;
+    return matchesSearch && matchesVerdict && matchesMode;
   });
 
   return (
@@ -67,6 +83,15 @@ export default function HistoryPage() {
           className="flex-1 px-4 py-2 bg-[var(--surface)] border border-[var(--border)] rounded-md text-sm focus:outline-none focus:border-white/30"
         />
         <select
+          value={modeFilter}
+          onChange={(e) => setModeFilter(e.target.value)}
+          className="px-3 py-2 bg-[var(--surface)] border border-[var(--border)] rounded-md text-sm focus:outline-none"
+        >
+          <option value="all">{t("filterModeAll", locale)}</option>
+          <option value="hypothesis">{t("filterModeHypothesis", locale)}</option>
+          <option value="usability">{t("filterModeUsability", locale)}</option>
+        </select>
+        <select
           value={verdictFilter}
           onChange={(e) => setVerdictFilter(e.target.value)}
           className="px-3 py-2 bg-[var(--surface)] border border-[var(--border)] rounded-md text-sm focus:outline-none"
@@ -81,6 +106,11 @@ export default function HistoryPage() {
       <div className="space-y-2">
         {filtered.map((analysis) => {
           const verdictKey = analysis.verdict as "Pass" | "Partial" | "Fail";
+          const rowMode = analysis.mode ?? "hypothesis";
+          const isUsability = rowMode === "usability";
+          const modeBadge = MODE_BADGE[rowMode];
+          const grade = analysis.grade ?? gradeFromScore(analysis.score);
+          const gradeBadge = GRADE_BADGE[grade];
           return (
             <Link
               key={analysis.id}
@@ -103,12 +133,24 @@ export default function HistoryPage() {
                 <div className="flex-1 min-w-0 flex items-start justify-between gap-4">
                   <div className="flex-1 min-w-0">
                     <p className="text-sm truncate mb-1">
-                      {analysis.hypothesis}
+                      {isUsability ? t("usabilityReportTitle", locale) : analysis.hypothesis}
                     </p>
                     <div className="flex items-center gap-3 text-xs text-[var(--muted)]">
                       <span className="mono">
                         {new Date(analysis.createdAt).toLocaleDateString()}
                       </span>
+                      {modeBadge && (
+                        <span
+                          className="px-1.5 py-0.5 rounded border"
+                          style={{
+                            background: modeBadge.bg,
+                            color: modeBadge.color,
+                            borderColor: modeBadge.border,
+                          }}
+                        >
+                          {t(modeBadge.labelKey, locale)}
+                        </span>
+                      )}
                       {analysis.projectTag && (
                         <span className="px-1.5 py-0.5 rounded bg-white/5 border border-[var(--border)]">
                           {analysis.projectTag}
@@ -125,11 +167,28 @@ export default function HistoryPage() {
                     <span className="mono text-sm font-medium">
                       {analysis.score}
                     </span>
-                    <span
-                      className={`text-xs px-2 py-0.5 rounded border ${VERDICT_COLORS[analysis.verdict] ?? ""}`}
-                    >
-                      {t(verdictKey, locale)}
-                    </span>
+                    {isUsability ? (
+                      <span
+                        className="text-xs px-2 py-0.5 rounded border"
+                        style={
+                          gradeBadge
+                            ? {
+                                background: gradeBadge.bg,
+                                color: gradeBadge.color,
+                                borderColor: gradeBadge.border,
+                              }
+                            : undefined
+                        }
+                      >
+                        {grade}
+                      </span>
+                    ) : (
+                      <span
+                        className={`text-xs px-2 py-0.5 rounded border ${VERDICT_COLORS[analysis.verdict] ?? ""}`}
+                      >
+                        {t(verdictKey, locale)}
+                      </span>
+                    )}
                     <div onClick={(e) => e.preventDefault()}>
                       <ShareExportPanel analysisId={analysis.id} />
                     </div>

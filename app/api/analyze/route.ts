@@ -1,6 +1,6 @@
 import { NextRequest, NextResponse } from "next/server";
 import { analyzeWithClaude, analyzeFlowWithClaude, analyzeComparisonWithClaude } from "@/lib/claude";
-import type { ComparisonProduct } from "@/lib/claude";
+import type { ComparisonProduct, AnalysisMode, AnalysisOptions } from "@/lib/claude";
 import { v4 as uuidv4 } from "uuid";
 import { Prisma } from "@prisma/client";
 
@@ -27,13 +27,31 @@ export async function POST(request: NextRequest) {
       competitors,
       comparisonFocus,
       analysisPerspective,
+      mode: rawMode,
+      analysisOptions: rawAnalysisOptions,
     } = body;
 
-    if (!hypothesis || !targetUser) {
-      return NextResponse.json(
-        { error: "Hypothesis and target user are required" },
-        { status: 400 }
-      );
+    const mode: AnalysisMode = rawMode === "usability" ? "usability" : "hypothesis";
+    const analysisOptions: AnalysisOptions = mode === "usability"
+      ? {
+          usability: true,
+          desireAlignment: rawAnalysisOptions?.desireAlignment ?? true,
+          competitorComparison: rawAnalysisOptions?.competitorComparison ?? false,
+          accessibility: rawAnalysisOptions?.accessibility ?? false,
+        }
+      : {};
+
+    const effectiveTargetUser = mode === "usability"
+      ? (targetUser?.trim() || "40-50대 한국 여성 (야핏무브 핵심 타깃)")
+      : targetUser;
+
+    if (mode === "hypothesis") {
+      if (!hypothesis || !targetUser) {
+        return NextResponse.json(
+          { error: "Hypothesis and target user are required" },
+          { status: 400 }
+        );
+      }
     }
 
     const effectiveKey = apiKey || process.env.ANTHROPIC_API_KEY;
@@ -79,16 +97,18 @@ export async function POST(request: NextRequest) {
         ours: ours as ComparisonProduct,
         competitors: competitors as ComparisonProduct[],
         hypothesis,
-        targetUser,
+        targetUser: effectiveTargetUser,
         comparisonFocus,
         locale,
         apiKey,
         model,
         analysisPerspective,
+        mode,
+        analysisOptions,
       });
 
       isComparison = true;
-      comparisonData = result;
+      comparisonData = { ...(result as Record<string, unknown>), mode };
       thumbnailUrls = [
         ...(ours.images as string[]).map((b64: string) => `data:image/png;base64,${b64}`),
         ...competitors.flatMap((c: ComparisonProduct) =>
@@ -130,11 +150,13 @@ export async function POST(request: NextRequest) {
       result = await analyzeWithClaude({
         images: base64Images,
         hypothesis,
-        targetUser,
+        targetUser: effectiveTargetUser,
         task,
         locale,
         apiKey,
         model,
+        mode,
+        analysisOptions,
       });
       thumbnailUrls = imageUrls;
     } else if (inputType === "flow" && flowSteps && flowSteps.length >= 2) {
@@ -142,11 +164,13 @@ export async function POST(request: NextRequest) {
       result = await analyzeFlowWithClaude({
         flowSteps,
         hypothesis,
-        targetUser,
+        targetUser: effectiveTargetUser,
         task,
         locale,
         apiKey,
         model,
+        mode,
+        analysisOptions,
       });
       thumbnailUrls = flowSteps.map((s: { image: string }) => `data:image/png;base64,${s.image}`);
       savedFlowSteps = flowSteps.map((s: { stepNumber: number; stepName: string }) => ({
@@ -165,11 +189,13 @@ export async function POST(request: NextRequest) {
       result = await analyzeWithClaude({
         images,
         hypothesis,
-        targetUser,
+        targetUser: effectiveTargetUser,
         task,
         locale,
         apiKey,
         model,
+        mode,
+        analysisOptions,
       });
       thumbnailUrls = images.map((b64: string) => `data:image/png;base64,${b64}`);
     }
@@ -225,30 +251,60 @@ export async function POST(request: NextRequest) {
           }))
         : (r.issues as unknown[]);
 
-      topLevel = {
-        verdict: String(r.verdict ?? "Partial"),
-        score: Number(r.score ?? 0),
-        taskSuccessLikelihood: r.taskSuccessLikelihood as string | undefined,
-        taskSuccessReason: r.taskSuccessReason as string | undefined,
-        summary: String(r.summary ?? ""),
-        strengths: r.strengths as string[] | undefined,
-        thinkAloud: r.thinkAloud as unknown[] | undefined,
-        issues: issuesWithImages,
-        scoreBreakdown: r.scoreBreakdown,
-        verdictReason: r.verdictReason as string | undefined,
-        flowAnalysis: r.flowAnalysis,
-        adFriction: r.adFriction,
-      };
+      if (mode === "usability") {
+        // Usability mode has no verdict/taskSuccess/thinkAloud/verdictReason.
+        // Map grade into the verdict slot so history cards keep working.
+        topLevel = {
+          verdict: String(r.grade ?? "개선 필요"),
+          score: Number(r.score ?? 0),
+          summary: String(r.summary ?? ""),
+          strengths: r.strengths as string[] | undefined,
+          thinkAloud: [],
+          issues: issuesWithImages,
+          scoreBreakdown: r.scoreBreakdown,
+        };
+      } else {
+        topLevel = {
+          verdict: String(r.verdict ?? "Partial"),
+          score: Number(r.score ?? 0),
+          taskSuccessLikelihood: r.taskSuccessLikelihood as string | undefined,
+          taskSuccessReason: r.taskSuccessReason as string | undefined,
+          summary: String(r.summary ?? ""),
+          strengths: r.strengths as string[] | undefined,
+          thinkAloud: r.thinkAloud as unknown[] | undefined,
+          issues: issuesWithImages,
+          scoreBreakdown: r.scoreBreakdown,
+          verdictReason: r.verdictReason as string | undefined,
+          flowAnalysis: r.flowAnalysis,
+          adFriction: r.adFriction,
+        };
+      }
     }
+
+    // For usability mode, bundle user-selected options + non-column result fields
+    // into analysisOptions (single JSON column per the schema addition in Step 7).
+    const usabilityResultBundle = mode === "usability"
+      ? {
+          options: analysisOptions,
+          result: {
+            grade: r.grade ?? null,
+            quickWins: r.quickWins ?? [],
+            desireAlignment: r.desireAlignment ?? null,
+            accessibility4050: r.accessibility4050 ?? null,
+            retentionRisk: r.retentionRisk ?? null,
+          },
+        }
+      : null;
 
     const analysis = {
       id: uuidv4(),
       createdAt: new Date().toISOString(),
-      hypothesis,
-      targetUser,
+      hypothesis: mode === "usability" ? "" : hypothesis,
+      targetUser: effectiveTargetUser,
       task: task || null,
       projectTag: projectTag || null,
       inputType: inputType || "image",
+      mode,
       verdict: topLevel.verdict,
       score: topLevel.score,
       taskSuccessLikelihood: topLevel.taskSuccessLikelihood,
@@ -264,6 +320,16 @@ export async function POST(request: NextRequest) {
       ...(topLevel.adFriction ? { adFriction: topLevel.adFriction } : {}),
       ...(savedFlowSteps ? { flowSteps: savedFlowSteps } : {}),
       ...(isComparison ? { isComparison: true, comparisonData } : {}),
+      ...(mode === "usability"
+        ? {
+            analysisOptions: usabilityResultBundle,
+            grade: r.grade ?? null,
+            quickWins: r.quickWins ?? [],
+            desireAlignment: r.desireAlignment ?? null,
+            accessibility4050: r.accessibility4050 ?? null,
+            retentionRisk: r.retentionRisk ?? null,
+          }
+        : {}),
     };
 
     // Persist to DB if configured
@@ -279,6 +345,10 @@ export async function POST(request: NextRequest) {
             task: analysis.task,
             projectTag: analysis.projectTag,
             inputType: analysis.inputType,
+            mode: analysis.mode,
+            analysisOptions: usabilityResultBundle
+              ? (usabilityResultBundle as unknown as Prisma.InputJsonValue)
+              : Prisma.JsonNull,
             verdict: analysis.verdict,
             score: analysis.score,
             taskSuccessLikelihood: analysis.taskSuccessLikelihood,

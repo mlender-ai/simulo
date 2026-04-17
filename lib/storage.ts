@@ -72,6 +72,12 @@ export interface ComparisonProductResult {
   }[];
 }
 
+export interface ComparisonTableRow {
+  aspect: string;
+  scores: { productName: string; score: number; note: string }[];
+  winner: string;
+}
+
 export interface ComparisonResult {
   products: ComparisonProductResult[];
   comparison: {
@@ -81,6 +87,41 @@ export interface ComparisonResult {
     accessibilityGap?: string;
     keyDifferences: { aspect: string; ours: string; competitor: string }[];
     topPriorities: string[];
+    comparisonTable?: ComparisonTableRow[];
+  };
+  mode?: AnalysisMode;
+}
+
+export interface UsabilityAccessibility {
+  score: number;
+  fontReadability: string;
+  touchTargetSize: string;
+  languageFriendliness: string;
+  visualComplexity: string;
+}
+
+export interface QuickWin {
+  issue: string;
+  fix: string;
+  effort: string;
+  impact: string;
+}
+
+export type AnalysisMode = "hypothesis" | "usability";
+
+export interface AnalysisOptionsBundle {
+  options?: {
+    usability?: boolean;
+    desireAlignment?: boolean;
+    competitorComparison?: boolean;
+    accessibility?: boolean;
+  };
+  result?: {
+    grade?: string;
+    quickWins?: QuickWin[];
+    desireAlignment?: DesireAlignment | null;
+    accessibility4050?: UsabilityAccessibility | null;
+    retentionRisk?: RetentionRisk | null;
   };
 }
 
@@ -92,6 +133,12 @@ export interface AnalysisResult {
   task: string | null;
   projectTag: string | null;
   inputType: string;
+  mode?: AnalysisMode;
+  analysisOptions?: AnalysisOptionsBundle | null;
+  // Usability-mode specific (also included inline by the API response for convenience)
+  grade?: string;
+  quickWins?: QuickWin[];
+  accessibility4050?: UsabilityAccessibility | null;
   verdict: "Pass" | "Partial" | "Fail";
   score: number;
   taskSuccessLikelihood: "High" | "Medium" | "Low";
@@ -309,4 +356,148 @@ function generateId(): string {
   return uuidv4();
 }
 
-export const storage = { getAll, save, getById, getByIdWithImages, generateId, deleteImages };
+// ─── Storage quota monitoring ───────────────────────────────────────
+
+export interface StorageUsage {
+  /** localStorage bytes used by simulo */
+  localStorageUsed: number;
+  /** Total localStorage bytes used (all keys) */
+  localStorageTotal: number;
+  /** Estimated localStorage quota (browser-dependent, typically 5-10MB) */
+  localStorageQuota: number;
+  /** Usage percentage (0-100) */
+  usagePercent: number;
+  /** Number of stored analyses */
+  analysisCount: number;
+  /** IndexedDB estimated size in bytes (0 if unavailable) */
+  indexedDBUsed: number;
+}
+
+const LS_QUOTA_ESTIMATE = 5 * 1024 * 1024; // 5MB conservative estimate
+
+function getStorageUsage(): StorageUsage {
+  if (typeof window === "undefined") {
+    return { localStorageUsed: 0, localStorageTotal: 0, localStorageQuota: LS_QUOTA_ESTIMATE, usagePercent: 0, analysisCount: 0, indexedDBUsed: 0 };
+  }
+
+  let totalBytes = 0;
+  let simuloBytes = 0;
+  for (let i = 0; i < localStorage.length; i++) {
+    const key = localStorage.key(i);
+    if (!key) continue;
+    const value = localStorage.getItem(key) || "";
+    const size = (key.length + value.length) * 2; // UTF-16
+    totalBytes += size;
+    if (key.startsWith("simulo")) simuloBytes += size;
+  }
+
+  const analyses = getAll();
+
+  return {
+    localStorageUsed: simuloBytes,
+    localStorageTotal: totalBytes,
+    localStorageQuota: LS_QUOTA_ESTIMATE,
+    usagePercent: Math.round((totalBytes / LS_QUOTA_ESTIMATE) * 100),
+    analysisCount: analyses.length,
+    indexedDBUsed: 0, // filled async by getStorageUsageAsync
+  };
+}
+
+async function getStorageUsageAsync(): Promise<StorageUsage> {
+  const usage = getStorageUsage();
+
+  // Try navigator.storage.estimate() for IndexedDB size
+  if (typeof navigator !== "undefined" && navigator.storage?.estimate) {
+    try {
+      const estimate = await navigator.storage.estimate();
+      usage.indexedDBUsed = estimate.usage ?? 0;
+    } catch {
+      // not available
+    }
+  }
+
+  return usage;
+}
+
+/** Returns true if localStorage usage exceeds the given threshold (default 80%) */
+function isNearQuota(thresholdPercent = 80): boolean {
+  const usage = getStorageUsage();
+  return usage.usagePercent >= thresholdPercent;
+}
+
+/**
+ * Delete a single analysis from localStorage and its images from IndexedDB.
+ */
+function deleteById(id: string): void {
+  const all = getAll();
+  const filtered = all.filter((a) => a.id !== id);
+  localStorage.setItem(STORAGE_KEY, JSON.stringify(filtered));
+  deleteImages(id);
+}
+
+/**
+ * Delete analyses older than the given number of days.
+ * Returns the number of deleted entries.
+ */
+function deleteOlderThan(days: number): number {
+  const all = getAll();
+  const cutoff = Date.now() - days * 24 * 60 * 60 * 1000;
+  const keep: AnalysisResult[] = [];
+  const remove: AnalysisResult[] = [];
+
+  for (const a of all) {
+    if (new Date(a.createdAt).getTime() < cutoff) {
+      remove.push(a);
+    } else {
+      keep.push(a);
+    }
+  }
+
+  if (remove.length > 0) {
+    localStorage.setItem(STORAGE_KEY, JSON.stringify(keep));
+    for (const a of remove) {
+      deleteImages(a.id);
+    }
+  }
+
+  return remove.length;
+}
+
+/**
+ * Clear all analysis data from localStorage and IndexedDB.
+ */
+async function clearAll(): Promise<number> {
+  const all = getAll();
+  const count = all.length;
+  localStorage.removeItem(STORAGE_KEY);
+
+  // Clear IndexedDB image store
+  try {
+    const db = await openImageDB();
+    const tx = db.transaction(IDB_STORE, "readwrite");
+    tx.objectStore(IDB_STORE).clear();
+    await new Promise<void>((resolve, reject) => {
+      tx.oncomplete = () => resolve();
+      tx.onerror = () => reject(tx.error);
+    });
+  } catch {
+    // non-critical
+  }
+
+  return count;
+}
+
+export const storage = {
+  getAll,
+  save,
+  getById,
+  getByIdWithImages,
+  generateId,
+  deleteImages,
+  deleteById,
+  deleteOlderThan,
+  clearAll,
+  getStorageUsage,
+  getStorageUsageAsync,
+  isNearQuota,
+};

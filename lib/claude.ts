@@ -1,5 +1,20 @@
 import Anthropic from "@anthropic-ai/sdk";
 import type { FlowStep } from "./storage";
+import {
+  parseClaudeResponse,
+  AnalysisResponseSchema,
+  ComparisonResponseSchema,
+  UsabilityResponseSchema,
+} from "./response-parser";
+
+export type AnalysisMode = "hypothesis" | "usability";
+
+export interface AnalysisOptions {
+  usability?: boolean;
+  desireAlignment?: boolean;
+  competitorComparison?: boolean;
+  accessibility?: boolean;
+}
 
 // ──────────────────────────────────────────────
 // Simulo Agent System Prompt — YafitMove Desire-Based UX Model
@@ -356,9 +371,25 @@ Respond in pure JSON only. No markdown, no code blocks, no backticks.
     "keyDifferences": [
       { "aspect": "comparison angle", "ours": "our assessment", "competitor": "competitor: assessment" }
     ],
-    "topPriorities": ["Most impactful improvement for our product 1", "2", "3"]
+    "topPriorities": ["Most impactful improvement for our product 1", "2", "3"],
+    "comparisonTable": [
+      {
+        "aspect": "Short evaluation aspect (e.g. Onboarding clarity, Reward visibility, 4050 accessibility, Friction per reward, CTA effectiveness)",
+        "scores": [
+          { "productName": "Our product name", "score": 0-10, "note": "Very short (≤ 15 words) observation for this aspect" },
+          { "productName": "Competitor name", "score": 0-10, "note": "Very short (≤ 15 words) observation for this aspect" }
+        ],
+        "winner": "productName of the top-scoring product on this aspect"
+      }
+    ]
   }
-}`;
+}
+
+## comparisonTable rules
+- Generate 4–7 aspect rows that matter most for the target user and (when provided) the hypothesis.
+- Each row's "scores" array MUST contain exactly one entry per product, in the same order as the top-level "products".
+- Scores 0-10; ties are allowed — in that case set "winner" to the product with strictly higher score, or "" if truly tied.
+- Notes must be concrete (cite a specific UI element) and extremely short.`;
 
 const COMPARISON_SYSTEM_PROMPT_KO = `${YAFIT_CONTEXT}
 
@@ -419,9 +450,201 @@ JSON 키는 영문, 값은 한국어. 반드시 순수 JSON만 반환. 마크다
     "keyDifferences": [
       { "aspect": "비교 관점", "ours": "자사 평가", "competitor": "경쟁사명: 평가" }
     ],
-    "topPriorities": ["자사 제품의 가장 임팩트 있는 개선 1", "2", "3"]
+    "topPriorities": ["자사 제품의 가장 임팩트 있는 개선 1", "2", "3"],
+    "comparisonTable": [
+      {
+        "aspect": "짧은 평가 관점 (예: 온보딩 명확성, 보상 가시성, 4050 접근성, 보상당 마찰, CTA 효과)",
+        "scores": [
+          { "productName": "자사 제품명", "score": 0-10, "note": "해당 관점에 대한 15자 이내 매우 짧은 관찰" },
+          { "productName": "경쟁사명", "score": 0-10, "note": "해당 관점에 대한 15자 이내 매우 짧은 관찰" }
+        ],
+        "winner": "이 관점에서 가장 높은 점수를 받은 제품명"
+      }
+    ]
+  }
+}
+
+## comparisonTable 규칙
+- 타깃 유저(그리고 가설이 주어졌다면 가설)에 가장 중요한 4~7개의 관점 행을 생성하세요.
+- 각 행의 "scores" 배열은 상단 "products"와 동일한 순서로 제품 수만큼 정확히 1개씩 포함해야 합니다.
+- 점수는 0-10, 동점 허용 — 완전히 동점이면 "winner"는 ""로 두세요. 그렇지 않으면 더 높은 제품명을 기입.
+- note는 매우 짧게, 실제 본 UI 요소를 근거로 제시하세요.`;
+
+// ──────────────────────────────────────────────
+// Usability Mode Prompt (no hypothesis required)
+// ──────────────────────────────────────────────
+
+function buildUsabilityPrompt(
+  locale: string,
+  targetUser: string,
+  options: AnalysisOptions,
+  isFlow: boolean,
+): string {
+  const isKo = locale === "ko";
+  const defaultTarget = isKo
+    ? "4050 한국 여성, 야핏무브 핵심 타깃"
+    : "40-50s Korean women, core YafitMove users";
+  const effectiveTarget = targetUser?.trim() || defaultTarget;
+
+  const usabilityLine = options.usability !== false
+    ? (isKo ? "- 사용성 전반: 명확성(clarity), 흐름(flow), 피드백(feedback), 효율성(efficiency)" : "- Overall usability: clarity, flow, feedback, efficiency")
+    : "";
+  const desireLine = options.desireAlignment
+    ? (isKo ? "- 욕망 충족도: 4050 여성의 Utility / HealthPride / LossAversion" : "- Desire alignment: utility, healthPride, lossAversion for 4050 women")
+    : "";
+  const accessibilityLine = options.accessibility
+    ? (isKo ? "- 4050 접근성: 폰트 크기, 대비, 터치 타깃, 언어 친화성, 시각 복잡도" : "- 4050 accessibility: font size, contrast, touch targets, language friendliness, visual complexity")
+    : "";
+
+  const flowClause = isFlow
+    ? (isKo ? "멀티 스텝 플로우가 제공됩니다. 각 단계별 사용성을 평가하되, 종합 점수와 이슈는 플로우 전체 기준으로 작성하세요." : "A multi-step flow is provided. Evaluate usability per step, but aggregate the score and issues across the whole flow.")
+    : "";
+
+  if (isKo) {
+    return `${YAFIT_CONTEXT}
+
+당신은 가설 없이 화면 자체의 사용성을 종합 평가하는 UX 분석 에이전트입니다.
+특정 가설 검증이 아니라, 제공된 화면의 사용성 품질과 4050 여성 타깃 적합도를 판단합니다.
+
+타깃 유저: ${effectiveTarget}
+
+평가 관점 (선택된 항목만 평가):
+${usabilityLine}
+${desireLine}
+${accessibilityLine}
+
+${flowClause}
+
+채점 원칙:
+- Pass/Fail 판정 없음. 점수와 등급만 반환.
+- 0-100점 종합 점수. scoreBreakdown 4항목 합(각 0-25)과 반드시 일치.
+- 등급 기준: 우수(90+), 양호(70-89), 개선 필요(50-69), 미흡(~49).
+- 모든 지적은 실제 화면의 UI 요소(텍스트·버튼·영역)를 근거로 명시.
+- quickWins는 노력 낮음 + 임팩트 높음 항목을 우선 배열 앞쪽에 배치.
+
+${SCORE_CRITERIA}
+
+JSON 키는 영문, 값은 한국어. 반드시 순수 JSON만 반환. 마크다운, 코드블록, 백틱 절대 사용 금지.
+
+{
+  "score": 0-100,
+  "grade": "우수" | "양호" | "개선 필요" | "미흡",
+  "summary": "2-3문장 전반적 평가",
+  "scoreBreakdown": {
+    "clarity": { "score": 0-25, "reason": "한국어" },
+    "flow": { "score": 0-25, "reason": "한국어" },
+    "feedback": { "score": 0-25, "reason": "한국어" },
+    "efficiency": { "score": 0-25, "reason": "한국어" }
+  },
+  "desireAlignment": {
+    "utility": { "score": 0-10, "comment": "[Evidence] 확인한 UI 요소 → [Judgment] 효능감 충족 여부" },
+    "healthPride": { "score": 0-10, "comment": "[Evidence] ... → [Judgment] 건강 성취/과시 충족 여부" },
+    "lossAversion": { "score": 0-10, "comment": "[Evidence] ... → [Judgment] 손실 회피 활성화 여부" }
+  },
+  "accessibility4050": {
+    "score": 0-10,
+    "fontReadability": "폰트 크기·가독성 평가 (근거 포함)",
+    "touchTargetSize": "버튼·탭 영역 크기 평가",
+    "languageFriendliness": "용어 친숙도·어조 평가",
+    "visualComplexity": "레이아웃 복잡도·시각 피로도 평가"
+  },
+  "strengths": ["욕망 충족/사용성 측면에서의 강점 (근거 포함)"],
+  "quickWins": [
+    {
+      "issue": "개선이 필요한 지점",
+      "fix": "구체적 개선 방법",
+      "effort": "낮음" | "중간" | "높음",
+      "impact": "낮음" | "중간" | "높음"
+    }
+  ],
+  "issues": [
+    {
+      "screen": "화면 N",
+      "screenIndex": 0,
+      "severity": "심각" | "보통" | "낮음",
+      "desireType": "utility" | "healthPride" | "lossAversion" | "general",
+      "issue": "어떤 사용성 문제가 발생하는가",
+      "recommendation": "어떻게 바꾸면 좋은가",
+      "heatZone": { "x": 0-100, "y": 0-100, "width": 0-100, "height": 0-100, "label": "영역 설명 (최대 15자)" }
+    }
+  ],
+  "retentionRisk": {
+    "d1Risk": "높음" | "보통" | "낮음",
+    "d7Risk": "높음" | "보통" | "낮음",
+    "mainRiskReason": "리텐션 저하의 가장 핵심 원인"
   }
 }`;
+  }
+
+  return `${YAFIT_CONTEXT}
+
+You are a UX analysis agent evaluating overall screen usability WITHOUT a specific hypothesis.
+Assess the usability quality and fit for the 40-50s Korean women target — no pass/fail verdict, just score + insights.
+
+Target user: ${effectiveTarget}
+
+Evaluate based on selected options only:
+${usabilityLine}
+${desireLine}
+${accessibilityLine}
+
+${flowClause}
+
+Scoring:
+- No pass/fail. Return score + grade only.
+- 0-100 score. Must equal sum of scoreBreakdown four items (each 0-25).
+- Grade: 우수(90+), 양호(70-89), 개선 필요(50-69), 미흡(~49). Use these Korean labels.
+- Cite actual UI elements (text, buttons, regions) as evidence for every point.
+- Order quickWins so low-effort + high-impact items appear first.
+
+${SCORE_CRITERIA}
+
+Respond in pure JSON only. No markdown, no code blocks, no backticks.
+
+{
+  "score": 0-100,
+  "grade": "우수" | "양호" | "개선 필요" | "미흡",
+  "summary": "2-3 sentences",
+  "scoreBreakdown": {
+    "clarity": { "score": 0-25, "reason": "string" },
+    "flow": { "score": 0-25, "reason": "string" },
+    "feedback": { "score": 0-25, "reason": "string" },
+    "efficiency": { "score": 0-25, "reason": "string" }
+  },
+  "desireAlignment": {
+    "utility": { "score": 0-10, "comment": "[Evidence] specific UI → [Judgment] how utility desire is met" },
+    "healthPride": { "score": 0-10, "comment": "[Evidence] ... → [Judgment] ..." },
+    "lossAversion": { "score": 0-10, "comment": "[Evidence] ... → [Judgment] ..." }
+  },
+  "accessibility4050": {
+    "score": 0-10,
+    "fontReadability": "font size & readability assessment with evidence",
+    "touchTargetSize": "button/tap area size assessment",
+    "languageFriendliness": "terminology familiarity & tone",
+    "visualComplexity": "layout complexity & visual fatigue"
+  },
+  "strengths": ["strength with evidence"],
+  "quickWins": [
+    { "issue": "string", "fix": "string", "effort": "낮음" | "중간" | "높음", "impact": "낮음" | "중간" | "높음" }
+  ],
+  "issues": [
+    {
+      "screen": "Screen N",
+      "screenIndex": 0,
+      "severity": "심각" | "보통" | "낮음",
+      "desireType": "utility" | "healthPride" | "lossAversion" | "general",
+      "issue": "string",
+      "recommendation": "string",
+      "heatZone": { "x": 0-100, "y": 0-100, "width": 0-100, "height": 0-100, "label": "short label" }
+    }
+  ],
+  "retentionRisk": {
+    "d1Risk": "높음" | "보통" | "낮음",
+    "d7Risk": "높음" | "보통" | "낮음",
+    "mainRiskReason": "string"
+  }
+}`;
+}
 
 export type ModelTier = "haiku" | "sonnet";
 
@@ -432,22 +655,26 @@ const MODEL_MAP: Record<ModelTier, string> = {
 
 interface AnalyzeParams {
   images: string[];
-  hypothesis: string;
+  hypothesis?: string;
   targetUser: string;
   task?: string;
   locale?: string;
   apiKey?: string;
   model?: ModelTier;
+  mode?: AnalysisMode;
+  analysisOptions?: AnalysisOptions;
 }
 
 interface FlowAnalyzeParams {
   flowSteps: FlowStep[];
-  hypothesis: string;
+  hypothesis?: string;
   targetUser: string;
   task?: string;
   locale?: string;
   apiKey?: string;
   model?: ModelTier;
+  mode?: AnalysisMode;
+  analysisOptions?: AnalysisOptions;
 }
 
 export interface ComparisonProduct {
@@ -466,13 +693,15 @@ export interface AnalysisPerspectiveInput {
 interface ComparisonAnalyzeParams {
   ours: ComparisonProduct;
   competitors: ComparisonProduct[];
-  hypothesis: string;
-  targetUser: string;
+  hypothesis?: string;
+  targetUser?: string;
   comparisonFocus?: string;
   locale?: string;
   apiKey?: string;
   model?: ModelTier;
   analysisPerspective?: AnalysisPerspectiveInput;
+  mode?: AnalysisMode;
+  analysisOptions?: AnalysisOptions;
 }
 
 function getClient(apiKey?: string) {
@@ -483,222 +712,13 @@ function getClient(apiKey?: string) {
   return { client: new Anthropic({ apiKey: key }), key };
 }
 
-function extractJsonObject(text: string): string {
-  // Find the first { or [ and extract everything up to its matching closing bracket
-  const start = text.search(/[{[]/);
-  if (start === -1) return text;
-
-  const opener = text[start];
-  const closer = opener === "{" ? "}" : "]";
-  let depth = 0;
-  let inString = false;
-  let escape = false;
-
-  for (let i = start; i < text.length; i++) {
-    const ch = text[i];
-    if (escape) { escape = false; continue; }
-    if (ch === "\\" && inString) { escape = true; continue; }
-    if (ch === '"') { inString = !inString; continue; }
-    if (inString) continue;
-    if (ch === opener) depth++;
-    if (ch === closer) {
-      depth--;
-      if (depth === 0) return text.slice(start, i + 1);
-    }
-  }
-  // No matching close found — return from start to end (truncated case)
-  return text.slice(start);
-}
-
-function cleanAndParse(raw: string, stopReason?: string | null) {
-  // Strip markdown code fences
-  let cleaned = raw.replace(/```json\n?/g, "").replace(/```\n?/g, "").trim();
-
-  // Extract just the JSON object — strips any trailing prose Claude may have added
-  cleaned = extractJsonObject(cleaned);
-
-  // Sanitize common LLM output issues (unescaped control chars, schema pipe literals)
-  cleaned = sanitizeJsonText(cleaned);
-
-  console.log("[claude] Cleaned response (first 100 chars):", cleaned.slice(0, 100));
-  console.log("[claude] Response length:", cleaned.length, "| stop_reason:", stopReason);
-
-  let parsed: Record<string, unknown>;
-
-  try {
-    parsed = JSON.parse(cleaned);
-  } catch (e) {
-    // Always attempt recovery — truncation can happen with max_tokens or
-    // when Claude emits malformed JSON regardless of stop_reason
-    console.warn("[claude] JSON parse failed (stop_reason:", stopReason, "). Attempting recovery...");
-    const parseErr = e as Error & { message: string };
-    console.warn("[claude] Parse error:", parseErr.message);
-    // Log 100 chars around the error position for debugging
-    const posMatch = parseErr.message.match(/position (\d+)/);
-    if (posMatch) {
-      const pos = parseInt(posMatch[1]);
-      console.warn("[claude] Context around error:", JSON.stringify(cleaned.slice(Math.max(0, pos - 40), pos + 60)));
-    }
-    const recovered = recoverTruncatedJson(cleaned);
-    if (recovered) {
-      console.log("[claude] JSON recovery succeeded");
-      parsed = recovered as Record<string, unknown>;
-    } else {
-      throw e;
-    }
-  }
-
-  // Ensure required array/object fields exist with safe defaults
-  // so the UI never crashes even if Claude's response was truncated or missing fields
-  if (parsed && typeof parsed === "object" && !Array.isArray(parsed)) {
-    // Standard analysis fields
-    if (!Array.isArray(parsed.strengths)) parsed.strengths = parsed.strengths ?? [];
-    if (!Array.isArray(parsed.thinkAloud)) parsed.thinkAloud = parsed.thinkAloud ?? [];
-    if (!Array.isArray(parsed.issues)) parsed.issues = parsed.issues ?? [];
-    if (!Array.isArray(parsed.topPriorities)) parsed.topPriorities = parsed.topPriorities ?? [];
-
-    // Comparison analysis: backfill each product's arrays and objects
-    if (Array.isArray(parsed.products)) {
-      for (const product of parsed.products as Record<string, unknown>[]) {
-        if (!Array.isArray(product.strengths)) product.strengths = [];
-        if (!Array.isArray(product.weaknesses)) product.weaknesses = [];
-        if (!Array.isArray(product.thinkAloud)) product.thinkAloud = [];
-        if (!Array.isArray(product.issues)) product.issues = [];
-        if (!product.accessibility4050 || typeof product.accessibility4050 !== "object") {
-          product.accessibility4050 = {
-            visualFriendliness: { score: 0, evidence: "" },
-            linguisticFriendliness: { score: 0, evidence: "" },
-          };
-        }
-      }
-    }
-    if (!parsed.comparison && Array.isArray(parsed.products)) {
-      parsed.comparison = { winner: "", winnerReason: "", ourProductPosition: "", accessibilityGap: "", keyDifferences: [], topPriorities: [] };
-    }
-
-    const missingFields = [];
-    if ((parsed.strengths as unknown[]).length === 0 && !parsed.products) missingFields.push("strengths");
-    if ((parsed.thinkAloud as unknown[]).length === 0 && !parsed.products) missingFields.push("thinkAloud");
-    if ((parsed.issues as unknown[]).length === 0 && !parsed.products) missingFields.push("issues");
-    if (missingFields.length > 0) {
-      console.warn("[claude] Missing or empty fields after parse:", missingFields.join(", "));
-    }
-  }
-
-  return parsed;
-}
-
-/**
- * Sanitize a JSON string to fix common issues from LLM output:
- * - Unescaped control characters (newlines, tabs) inside string values
- * - Pipe-separated type annotations copied verbatim from the schema
- *   e.g. "dropOffRisk": "High" | "Medium" | "Low"  →  "High"
- */
-function sanitizeJsonText(text: string): string {
-  // Replace unescaped control characters inside JSON strings
-  let result = "";
-  let inStr = false;
-  let esc = false;
-  for (let i = 0; i < text.length; i++) {
-    const ch = text[i];
-    if (esc) { esc = false; result += ch; continue; }
-    if (ch === "\\" && inStr) { esc = true; result += ch; continue; }
-    if (ch === '"') { inStr = !inStr; result += ch; continue; }
-    if (inStr) {
-      // Escape raw control characters that break JSON parsing
-      if (ch === "\n") { result += "\\n"; continue; }
-      if (ch === "\r") { result += "\\r"; continue; }
-      if (ch === "\t") { result += "\\t"; continue; }
-    }
-    result += ch;
-  }
-
-  // Fix schema literals leaked into values: "value" | "other" | "another"
-  // Replace: "SomeValue" | "OtherValue" with just "SomeValue"
-  result = result.replace(/"([^"]+)"\s*\|\s*"[^"]+(?:"\s*\|\s*"[^"]+)*"/g, '"$1"');
-
-  return result;
-}
-
-/**
- * Attempt to recover a truncated JSON object by closing unclosed brackets/braces.
- * Tries progressively more aggressive truncation until a valid parse succeeds.
- */
-function recoverTruncatedJson(text: string): unknown | null {
-  // Pre-sanitize before any recovery attempts
-  const sanitized = sanitizeJsonText(text);
-
-  // Helper: scan text, close any open strings/brackets/braces, and try to parse
-  function tryClose(input: string): unknown | null {
-    let s = input;
-    // Track JSON state
-    let inStr = false;
-    let esc = false;
-    const stack: string[] = []; // tracks open { and [
-
-    for (const ch of s) {
-      if (esc) { esc = false; continue; }
-      if (ch === "\\" && inStr) { esc = true; continue; }
-      if (ch === '"') { inStr = !inStr; continue; }
-      if (inStr) continue;
-      if (ch === "{") stack.push("}");
-      else if (ch === "[") stack.push("]");
-      else if (ch === "}" || ch === "]") stack.pop();
-    }
-
-    // Close open string
-    if (inStr) s += '"';
-    // Remove trailing comma or colon (incomplete key-value)
-    s = s.replace(/[,:\s]+$/, "");
-    // Close all open brackets/braces in reverse order
-    while (stack.length) s += stack.pop();
-
-    try {
-      return JSON.parse(s);
-    } catch {
-      return null;
-    }
-  }
-
-  // Attempt 1: sanitized, close as-is
-  let result = tryClose(sanitized);
-  if (result) return result;
-
-  // Attempt 2: truncate at the last comma outside a string and close
-  let lastSafeComma = -1;
-  let inStr = false;
-  let esc = false;
-  for (let i = 0; i < sanitized.length; i++) {
-    const ch = sanitized[i];
-    if (esc) { esc = false; continue; }
-    if (ch === "\\" && inStr) { esc = true; continue; }
-    if (ch === '"') { inStr = !inStr; continue; }
-    if (inStr) continue;
-    if (ch === ",") lastSafeComma = i;
-  }
-
-  if (lastSafeComma > 0) {
-    result = tryClose(sanitized.slice(0, lastSafeComma));
-    if (result) return result;
-  }
-
-  // Attempt 3: find the last complete key-value pair by looking for last "}," or "],"
-  for (const pattern of ["},", "],", "}"]) {
-    const idx = sanitized.lastIndexOf(pattern);
-    if (idx > 0) {
-      result = tryClose(sanitized.slice(0, idx + 1));
-      if (result) return result;
-    }
-  }
-
-  console.error("[claude] JSON recovery failed after all attempts");
-  return null;
-}
+// Parsing functions moved to lib/response-parser.ts
 
 export async function analyzeWithClaude(params: AnalyzeParams) {
   const { client, key } = getClient(params.apiKey);
   const isKo = params.locale === "ko";
   const modelId = MODEL_MAP[params.model || "haiku"];
+  const isUsability = params.mode === "usability";
 
   const imageContent: Anthropic.Messages.ImageBlockParam[] = params.images.map(
     (base64) => ({
@@ -711,22 +731,41 @@ export async function analyzeWithClaude(params: AnalyzeParams) {
     })
   );
 
-  const userPrompt = isKo
-    ? `가설: ${params.hypothesis}
-타깃 유저: ${params.targetUser}
+  const targetUserLine = params.targetUser?.trim()
+    ? (isKo ? `타깃 유저: ${params.targetUser}` : `Target User: ${params.targetUser}`)
+    : (isKo ? "타깃 유저: (미지정 — 시스템 기본값 사용)" : "Target User: (unspecified — use system default)");
+
+  const userPrompt = isUsability
+    ? (isKo
+        ? `${targetUserLine}
+${params.images.length}개 화면의 사용성을 가설 없이 종합 평가하고 JSON 반환.`
+        : `${targetUserLine}
+Evaluate overall usability of ${params.images.length} screen(s) without a hypothesis. Return JSON.`)
+    : (isKo
+        ? `가설: ${params.hypothesis}
+${targetUserLine}
 ${params.task ? `태스크: ${params.task}` : "태스크: 가설에서 추론"}
 ${params.images.length}개 화면 분석 후 JSON 반환.`
-    : `Hypothesis: ${params.hypothesis}
-Target User: ${params.targetUser}
+        : `Hypothesis: ${params.hypothesis}
+${targetUserLine}
 ${params.task ? `Task: ${params.task}` : "Task: Infer from hypothesis"}
-Analyze ${params.images.length} screen(s), return JSON.`;
+Analyze ${params.images.length} screen(s), return JSON.`);
 
-  console.log("[claude] Calling API with model:", modelId, "| key prefix:", key.slice(0, 10));
+  const systemPrompt = isUsability
+    ? buildUsabilityPrompt(
+        params.locale || "en",
+        params.targetUser,
+        params.analysisOptions || { usability: true },
+        false,
+      )
+    : (isKo ? SYSTEM_PROMPT_KO : SYSTEM_PROMPT_EN);
+
+  console.log("[claude] Calling API with model:", modelId, "| key prefix:", key.slice(0, 10), "| mode:", params.mode || "hypothesis");
 
   const response = await client.messages.create({
     model: modelId,
     max_tokens: 8192,
-    system: isKo ? SYSTEM_PROMPT_KO : SYSTEM_PROMPT_EN,
+    system: systemPrompt,
     messages: [
       {
         role: "user",
@@ -744,13 +783,15 @@ Analyze ${params.images.length} screen(s), return JSON.`;
 
   console.log("[claude] Raw response (last 200 chars):", textBlock.text.slice(-200));
 
-  return cleanAndParse(textBlock.text, response.stop_reason);
+  const schema = isUsability ? UsabilityResponseSchema : AnalysisResponseSchema;
+  return parseClaudeResponse(textBlock.text, schema, { stopReason: response.stop_reason });
 }
 
 export async function analyzeFlowWithClaude(params: FlowAnalyzeParams) {
   const { client, key } = getClient(params.apiKey);
   const isKo = params.locale === "ko";
   const modelId = MODEL_MAP[params.model || "haiku"];
+  const isUsability = params.mode === "usability";
 
   const content: Anthropic.Messages.ContentBlockParam[] = [];
   for (const step of params.flowSteps) {
@@ -770,24 +811,43 @@ export async function analyzeFlowWithClaude(params: FlowAnalyzeParams) {
     });
   }
 
-  const userPrompt = isKo
-    ? `가설: ${params.hypothesis}
-타깃 유저: ${params.targetUser}
+  const targetUserLine = params.targetUser?.trim()
+    ? (isKo ? `타깃 유저: ${params.targetUser}` : `Target User: ${params.targetUser}`)
+    : (isKo ? "타깃 유저: (미지정 — 시스템 기본값 사용)" : "Target User: (unspecified — use system default)");
+
+  const userPrompt = isUsability
+    ? (isKo
+        ? `${targetUserLine}
+위 ${params.flowSteps.length}단계 플로우의 사용성을 가설 없이 종합 평가하고 JSON 반환.`
+        : `${targetUserLine}
+Evaluate the ${params.flowSteps.length}-step flow for overall usability without a hypothesis. Return JSON.`)
+    : (isKo
+        ? `가설: ${params.hypothesis}
+${targetUserLine}
 ${params.task ? `태스크: ${params.task}` : "태스크: 가설에서 추론"}
 위 ${params.flowSteps.length}단계 유저 플로우를 분석하고 JSON 반환.`
-    : `Hypothesis: ${params.hypothesis}
-Target User: ${params.targetUser}
+        : `Hypothesis: ${params.hypothesis}
+${targetUserLine}
 ${params.task ? `Task: ${params.task}` : "Task: Infer from hypothesis"}
-Analyze the ${params.flowSteps.length}-step user flow above and return JSON.`;
+Analyze the ${params.flowSteps.length}-step user flow above and return JSON.`);
 
   content.push({ type: "text" as const, text: userPrompt });
 
-  console.log("[claude] Calling Flow API with model:", modelId, "| key prefix:", key.slice(0, 10), "| steps:", params.flowSteps.length);
+  const systemPrompt = isUsability
+    ? buildUsabilityPrompt(
+        params.locale || "en",
+        params.targetUser,
+        params.analysisOptions || { usability: true },
+        true,
+      )
+    : (isKo ? FLOW_SYSTEM_PROMPT_KO : FLOW_SYSTEM_PROMPT_EN);
+
+  console.log("[claude] Calling Flow API with model:", modelId, "| key prefix:", key.slice(0, 10), "| steps:", params.flowSteps.length, "| mode:", params.mode || "hypothesis");
 
   const response = await client.messages.create({
     model: modelId,
     max_tokens: 16384,
-    system: isKo ? FLOW_SYSTEM_PROMPT_KO : FLOW_SYSTEM_PROMPT_EN,
+    system: systemPrompt,
     messages: [{ role: "user", content }],
   });
 
@@ -798,7 +858,8 @@ Analyze the ${params.flowSteps.length}-step user flow above and return JSON.`;
     throw new Error("No text response from Claude");
   }
 
-  return cleanAndParse(textBlock.text, response.stop_reason);
+  const schema = isUsability ? UsabilityResponseSchema : AnalysisResponseSchema;
+  return parseClaudeResponse(textBlock.text, schema, { stopReason: response.stop_reason });
 }
 
 export async function analyzeComparisonWithClaude(params: ComparisonAnalyzeParams) {
@@ -897,19 +958,38 @@ export async function analyzeComparisonWithClaude(params: ComparisonAnalyzeParam
   }
   const perspectiveBlock = perspectiveLines.join("\n");
 
-  const userPrompt = isKo
-    ? `가설: ${params.hypothesis}
+  const isUsabilityCompare = params.mode === "usability";
+  const defaultTarget = isKo ? "4050 한국 여성, 야핏무브 핵심 타깃" : "40-50s Korean women, core YafitMove users";
+  const effectiveTarget = params.targetUser?.trim() || defaultTarget;
+
+  const userPrompt = isUsabilityCompare
+    ? (isKo
+        ? `모드: 사용성 비교 분석 (가설 없음)
+타깃 유저: ${effectiveTarget}
+${focusLine}
+${contextInstruction}
+자사 제품(${params.ours.productName})과 경쟁사(${params.competitors.map((c) => c.productName).join(", ")})를 동일 사용성 루브릭으로 비교 평가.
+특정 가설 검증이 아니라 각 제품의 사용성 품질과 4050 여성 타깃 적합도를 비교 판단하세요.
+JSON 반환.`
+        : `Mode: Usability comparison (no hypothesis)
+Target User: ${effectiveTarget}
+${focusLine}
+${contextInstruction}
+Compare our product (${params.ours.productName}) vs competitors (${params.competitors.map((c) => c.productName).join(", ")}) using a consistent usability rubric.
+Judge overall usability quality and 4050 target fit per product instead of validating a hypothesis. Return JSON.`)
+    : (isKo
+        ? `가설: ${params.hypothesis}
 타깃 유저: ${params.targetUser}
 ${focusLine}
 ${contextInstruction}
 ${perspectiveBlock}
 자사 제품(${params.ours.productName})과 경쟁사(${params.competitors.map((c) => c.productName).join(", ")})를 동일 가설로 비교 분석 후 JSON 반환.`
-    : `Hypothesis: ${params.hypothesis}
+        : `Hypothesis: ${params.hypothesis}
 Target User: ${params.targetUser}
 ${focusLine}
 ${contextInstruction}
 ${perspectiveBlock}
-Compare our product (${params.ours.productName}) vs competitors (${params.competitors.map((c) => c.productName).join(", ")}) against the same hypothesis. Return JSON.`;
+Compare our product (${params.ours.productName}) vs competitors (${params.competitors.map((c) => c.productName).join(", ")}) against the same hypothesis. Return JSON.`);
 
   content.push({ type: "text" as const, text: userPrompt });
 
@@ -942,5 +1022,5 @@ Compare our product (${params.ours.productName}) vs competitors (${params.compet
 
   console.log("[claude] Comparison raw response (last 200 chars):", textBlock.text.slice(-200));
 
-  return cleanAndParse(textBlock.text, response.stop_reason);
+  return parseClaudeResponse(textBlock.text, ComparisonResponseSchema, { stopReason: response.stop_reason });
 }

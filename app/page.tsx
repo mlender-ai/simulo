@@ -9,6 +9,8 @@ import {
   type FigmaState,
   type ComparisonState,
   type AnalysisPerspective,
+  type AnalysisMode,
+  type AnalysisOptionsState,
 } from "@/components/InputSection";
 import { OnboardingBanner } from "@/components/OnboardingBanner";
 import { Tooltip } from "@/components/Tooltip";
@@ -74,6 +76,13 @@ export default function Home() {
     comparison: false,
     accessibility: true,
   });
+  const [mode, setMode] = useState<AnalysisMode>("hypothesis");
+  const [analysisOptions, setAnalysisOptions] = useState<AnalysisOptionsState>({
+    usability: true,
+    desireAlignment: true,
+    competitorComparison: false,
+    accessibility: false,
+  });
 
   useEffect(() => {
     setLocale(getLocale());
@@ -99,10 +108,12 @@ export default function Home() {
       (c) => c.productName.trim() !== "" && c.images.length > 0
     );
   const imageReady = !isFlow && !isFigma && !isComparison && images.length > 0;
-  const canSubmit =
-    (imageReady || flowReady || figmaReady || comparisonReady) &&
-    hypothesis.trim() !== "" &&
-    targetUser.trim() !== "";
+  const inputReady = imageReady || flowReady || figmaReady || comparisonReady;
+  const contextReady =
+    mode === "usability"
+      ? true
+      : hypothesis.trim() !== "" && targetUser.trim() !== "";
+  const canSubmit = inputReady && contextReady;
 
   const loadingKeys = isComparison
     ? COMPARISON_LOADING_STEP_KEYS
@@ -130,60 +141,45 @@ export default function Home() {
         ? { ...analysisPerspective, comparison: true }
         : analysisPerspective;
 
+      const commonBody = {
+        hypothesis: mode === "usability" ? undefined : hypothesis,
+        targetUser: targetUser || undefined,
+        task: task || undefined,
+        projectTag: projectTag || undefined,
+        locale,
+        apiKey: savedApiKey || undefined,
+        model: savedModel,
+        mode,
+        analysisOptions: mode === "usability" ? analysisOptions : undefined,
+        analysisPerspective: effectivePerspective,
+      };
+
       const body = isComparison
         ? {
-            hypothesis,
-            targetUser,
-            task: task || undefined,
-            projectTag: projectTag || undefined,
+            ...commonBody,
             inputType: "comparison",
-            locale,
-            apiKey: savedApiKey || undefined,
-            model: savedModel,
             ours: comparison.ours,
             competitors: comparison.competitors,
             comparisonFocus: comparison.focus || undefined,
-            analysisPerspective: effectivePerspective,
           }
         : isFlow
           ? {
-              flowSteps,
-              hypothesis,
-              targetUser,
-              task: task || undefined,
-              projectTag: projectTag || undefined,
+              ...commonBody,
               inputType: "flow",
-              locale,
-              apiKey: savedApiKey || undefined,
-              model: savedModel,
-              analysisPerspective: effectivePerspective,
+              flowSteps,
             }
           : isFigma
             ? {
-                hypothesis,
-                targetUser,
-                task: task || undefined,
-                projectTag: projectTag || undefined,
+                ...commonBody,
                 inputType: "figma",
-                locale,
-                apiKey: savedApiKey || undefined,
-                model: savedModel,
                 figmaToken: figma.token,
                 figmaFileKey: figma.fileKey,
                 figmaFrameIds: figma.selectedFrameIds,
-                analysisPerspective: effectivePerspective,
               }
             : {
-                images,
-                hypothesis,
-                targetUser,
-                task: task || undefined,
-                projectTag: projectTag || undefined,
+                ...commonBody,
                 inputType: "image",
-                locale,
-                apiKey: savedApiKey || undefined,
-                model: savedModel,
-                analysisPerspective: effectivePerspective,
+                images,
               };
 
       const response = await fetch("/api/analyze", {
@@ -283,6 +279,10 @@ export default function Home() {
           onComparisonChange={setComparison}
           analysisPerspective={analysisPerspective}
           onAnalysisPerspectiveChange={setAnalysisPerspective}
+          mode={mode}
+          onModeChange={setMode}
+          analysisOptions={analysisOptions}
+          onAnalysisOptionsChange={setAnalysisOptions}
         />
 
         {error && (

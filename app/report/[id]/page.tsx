@@ -6,6 +6,7 @@ import Link from "next/link";
 import { storage, type AnalysisResult } from "@/lib/storage";
 import { ReportTabs } from "@/components/ReportTabs";
 import { ComparisonReportTabs } from "@/components/ComparisonReportTabs";
+import { UsabilityReportTabs } from "@/components/UsabilityReportTabs";
 import { getLocale, t, type Locale } from "@/lib/i18n";
 import { ShareExportPanel } from "@/components/ShareExportPanel";
 
@@ -80,7 +81,11 @@ export default function ReportPage() {
             <ShareExportPanel analysisId={data.id} />
           </div>
         </div>
-        <h1 className="text-xl font-semibold mb-2">{data.hypothesis}</h1>
+        <h1 className="text-xl font-semibold mb-2">
+          {data.mode === "usability"
+            ? t("usabilityReportTitle", locale)
+            : data.hypothesis}
+        </h1>
         <div className="flex items-center gap-3 text-xs text-[var(--muted)]">
           <span className="mono">
             {new Date(data.createdAt).toLocaleString()}
@@ -96,6 +101,8 @@ export default function ReportPage() {
 
       {data.isComparison ? (
         <ComparisonReportTabs analysis={data} locale={locale} />
+      ) : data.mode === "usability" ? (
+        <UsabilityReportTabs data={data} locale={locale} />
       ) : (
         <ReportTabs data={data} locale={locale} />
       )}

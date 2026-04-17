@@ -1,12 +1,20 @@
 "use client";
 
-import { useState, useEffect } from "react";
+import { useState, useEffect, useCallback } from "react";
 import {
   getLocale,
   setLocale as saveLocale,
   t,
   type Locale,
 } from "@/lib/i18n";
+import { storage, type StorageUsage } from "@/lib/storage";
+
+function formatBytes(bytes: number): string {
+  if (bytes === 0) return "0 B";
+  const units = ["B", "KB", "MB", "GB"];
+  const i = Math.floor(Math.log(bytes) / Math.log(1024));
+  return `${(bytes / Math.pow(1024, i)).toFixed(i > 0 ? 1 : 0)} ${units[i]}`;
+}
 
 export default function SettingsPage() {
   const [locale, setLocaleState] = useState<Locale>("ko");
@@ -14,13 +22,21 @@ export default function SettingsPage() {
   const [figmaToken, setFigmaToken] = useState("");
   const [model, setModel] = useState<"haiku" | "sonnet">("haiku");
   const [saved, setSaved] = useState(false);
+  const [storageUsage, setStorageUsage] = useState<StorageUsage | null>(null);
+  const [clearMsg, setClearMsg] = useState("");
+
+  const refreshStorageUsage = useCallback(async () => {
+    const usage = await storage.getStorageUsageAsync();
+    setStorageUsage(usage);
+  }, []);
 
   useEffect(() => {
     setLocaleState(getLocale());
     setApiKey(localStorage.getItem("simulo_anthropic_key") ?? "");
     setFigmaToken(localStorage.getItem("simulo_figma_token") ?? "");
     setModel((localStorage.getItem("simulo_model") as "haiku" | "sonnet") || "haiku");
-  }, []);
+    refreshStorageUsage();
+  }, [refreshStorageUsage]);
 
   const handleLocaleChange = (newLocale: Locale) => {
     setLocaleState(newLocale);
@@ -138,6 +154,90 @@ export default function SettingsPage() {
         >
           {saved ? t("saved", locale) : t("save", locale)}
         </button>
+
+        {/* Storage Management */}
+        <div className="pt-6 border-t border-[var(--border)] space-y-4">
+          <h2 className="text-xs text-[var(--muted)] uppercase tracking-wider">
+            {t("storageSection", locale)}
+          </h2>
+
+          {storageUsage && (
+            <div className="p-4 rounded-lg border border-[var(--border)] bg-[var(--surface)] space-y-3">
+              {/* Usage bar */}
+              <div>
+                <div className="flex justify-between text-xs text-[var(--muted)] mb-1.5">
+                  <span>{t("storageUsage", locale)}</span>
+                  <span>{storageUsage.usagePercent}%</span>
+                </div>
+                <div className="h-2 rounded-full bg-white/5 overflow-hidden">
+                  <div
+                    className={`h-full rounded-full transition-all ${
+                      storageUsage.usagePercent >= 80
+                        ? "bg-yellow-500"
+                        : storageUsage.usagePercent >= 95
+                          ? "bg-red-500"
+                          : "bg-white/30"
+                    }`}
+                    style={{ width: `${Math.min(storageUsage.usagePercent, 100)}%` }}
+                  />
+                </div>
+              </div>
+
+              {/* Stats */}
+              <div className="grid grid-cols-2 gap-3 text-sm">
+                <div>
+                  <span className="text-[var(--muted)] text-xs">{t("storageLocalStorage", locale)}</span>
+                  <p className="font-mono text-xs mt-0.5">
+                    {formatBytes(storageUsage.localStorageUsed)} / {formatBytes(storageUsage.localStorageQuota)}
+                  </p>
+                </div>
+                <div>
+                  <span className="text-[var(--muted)] text-xs">{t("storageImages", locale)}</span>
+                  <p className="font-mono text-xs mt-0.5">
+                    {storageUsage.indexedDBUsed > 0
+                      ? formatBytes(storageUsage.indexedDBUsed)
+                      : "—"}
+                  </p>
+                </div>
+              </div>
+
+              <p className="text-xs text-[var(--muted)]">
+                {storageUsage.analysisCount}{t("storageAnalyses", locale)}
+              </p>
+
+              {/* Actions */}
+              <div className="flex gap-2 pt-1">
+                <button
+                  onClick={async () => {
+                    const count = storage.deleteOlderThan(30);
+                    setClearMsg(`${count}${t("storageCleared", locale)}`);
+                    await refreshStorageUsage();
+                    setTimeout(() => setClearMsg(""), 3000);
+                  }}
+                  className="px-3 py-1.5 text-xs border border-[var(--border)] rounded-md hover:border-white/20 transition-colors"
+                >
+                  30{t("storageClearOldDays", locale)}
+                </button>
+                <button
+                  onClick={async () => {
+                    if (!confirm(t("storageClearConfirm", locale))) return;
+                    const count = await storage.clearAll();
+                    setClearMsg(`${count}${t("storageCleared", locale)}`);
+                    await refreshStorageUsage();
+                    setTimeout(() => setClearMsg(""), 3000);
+                  }}
+                  className="px-3 py-1.5 text-xs border border-red-500/30 text-red-400 rounded-md hover:bg-red-500/10 transition-colors"
+                >
+                  {t("storageClearAll", locale)}
+                </button>
+              </div>
+
+              {clearMsg && (
+                <p className="text-xs text-green-400">{clearMsg}</p>
+              )}
+            </div>
+          )}
+        </div>
 
         {/* Coming Soon */}
         <div className="pt-6 border-t border-[var(--border)] space-y-4">

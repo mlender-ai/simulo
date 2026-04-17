@@ -30,7 +30,7 @@ const DESIRE_TYPE_BADGE: Record<string, string> = {
   general: "text-gray-400 bg-gray-400/10 border-gray-400/20",
 };
 
-type Tab = "summary" | "details" | "sideBySide";
+type Tab = "summary" | "table" | "details" | "sideBySide";
 
 interface ComparisonReportTabsProps {
   analysis: AnalysisResult;
@@ -59,8 +59,12 @@ export function ComparisonReportTabs({ analysis, locale }: ComparisonReportTabsP
   const ourProduct = data.products[0];
   const winnerName = data.comparison?.winner ?? "";
 
+  const tableRows = data.comparison?.comparisonTable ?? [];
+  const hasTable = tableRows.length > 0;
+
   const tabs: { key: Tab; label: string }[] = [
     { key: "summary", label: t("comparisonTabSummary", locale) },
+    ...(hasTable ? [{ key: "table" as Tab, label: t("comparisonTabTable", locale) }] : []),
     { key: "details", label: t("comparisonTabDetails", locale) },
     { key: "sideBySide", label: t("comparisonTabSideBySide", locale) },
   ];
@@ -184,6 +188,76 @@ export function ComparisonReportTabs({ analysis, locale }: ComparisonReportTabsP
               </ol>
             </div>
           )}
+        </div>
+      )}
+
+      {/* Table tab — per-aspect comparison with winner-based cell coloring */}
+      {activeTab === "table" && hasTable && (
+        <div className="rounded-lg border border-[var(--border)] overflow-hidden">
+          <table className="w-full text-sm">
+            <thead className="bg-white/[0.03] text-xs text-[var(--muted)] uppercase tracking-wider">
+              <tr>
+                <th className="text-left px-3 py-2 font-normal">{t("aspect", locale)}</th>
+                {data.products.map((p, i) => (
+                  <th key={i} className="text-left px-3 py-2 font-normal">
+                    {p.productName}
+                    {i === 0 && (
+                      <span className="ml-1.5 text-[10px] px-1 py-0.5 rounded border border-white/20 text-white/70 uppercase align-middle">
+                        {t("ourProduct", locale)}
+                      </span>
+                    )}
+                  </th>
+                ))}
+              </tr>
+            </thead>
+            <tbody>
+              {tableRows.map((row, i) => {
+                const winner = row.winner?.trim() ?? "";
+                const hasWinner = winner.length > 0;
+                const ourName = data.products[0]?.productName ?? "";
+                const oursWon = hasWinner && winner === ourName;
+                return (
+                  <tr key={i} className="border-t border-[var(--border)]">
+                    <td className="px-3 py-2.5 align-top text-[var(--muted)]">{row.aspect}</td>
+                    {data.products.map((p, j) => {
+                      const cell = row.scores.find((s) => s.productName === p.productName)
+                        ?? row.scores[j];
+                      if (!cell) {
+                        return <td key={j} className="px-3 py-2.5 align-top text-[var(--muted)]">—</td>;
+                      }
+                      const isWinnerCell = hasWinner && cell.productName === winner;
+                      const bg = isWinnerCell
+                        ? oursWon
+                          ? "rgba(134,239,172,0.12)"
+                          : "rgba(252,165,165,0.12)"
+                        : "transparent";
+                      const borderColor = isWinnerCell
+                        ? oursWon
+                          ? "rgba(134,239,172,0.4)"
+                          : "rgba(252,165,165,0.4)"
+                        : "transparent";
+                      return (
+                        <td
+                          key={j}
+                          className="px-3 py-2.5 align-top"
+                          style={{ background: bg, borderLeft: `2px solid ${borderColor}` }}
+                        >
+                          <div className="flex items-baseline gap-2 mb-1">
+                            <span className="mono text-sm font-medium">{cell.score}</span>
+                            <span className="text-[10px] text-[var(--muted)]">/10</span>
+                            {isWinnerCell && <span className="text-[10px]">🏆</span>}
+                          </div>
+                          {cell.note && (
+                            <p className="text-xs text-white/80 leading-snug">{cell.note}</p>
+                          )}
+                        </td>
+                      );
+                    })}
+                  </tr>
+                );
+              })}
+            </tbody>
+          </table>
         </div>
       )}
 

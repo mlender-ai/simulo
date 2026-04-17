@@ -1,5 +1,11 @@
 import { NextRequest, NextResponse } from "next/server";
 import Anthropic from "@anthropic-ai/sdk";
+import {
+  parseClaudeResponse,
+  FlowNodeResultSchema,
+  FlowEdgeResultSchema,
+  FlowIntegrationResultSchema,
+} from "@/lib/response-parser";
 
 // ─── Types ────��─────────────────────────────────────────────────────
 
@@ -145,16 +151,7 @@ Synthesize them from a full-flow perspective and return ONLY the following JSON.
 
 // ─── Helpers ───────────────���────────────────────────────────────────
 
-function extractJson(text: string): string {
-  let s = text.trim();
-  const start = s.indexOf("{");
-  const end = s.lastIndexOf("}");
-  if (start !== -1 && end !== -1) s = s.slice(start, end + 1);
-  // Clean pipe literals from risk values
-  s = s.replace(/"(높음|보통|낮���)"\s*\|\s*"[^"]*"/g, (_, first) => `"${first}"`);
-  s = s.replace(/"[^"]*"\s*\|\s*"(높음|보통|낮음)"/g, (_, last) => `"${last}"`);
-  return s;
-}
+// extractJson replaced by lib/response-parser.ts
 
 function extractPaths(
   nodes: FlowNode[],
@@ -297,15 +294,7 @@ export async function POST(request: NextRequest) {
         (b): b is Anthropic.Messages.TextBlock => b.type === "text"
       )?.text ?? "{}";
 
-      const parsed = JSON.parse(extractJson(text));
-      const result: NodeResult = {
-        dropOffRisk: parsed.dropOffRisk ?? "보통",
-        dropOffPercent: parsed.dropOffPercent ?? 50,
-        stayPercent: parsed.stayPercent ?? 50,
-        desireScore: parsed.desireScore ?? { utility: 5, healthPride: 5, lossAversion: 5 },
-        mainReason: parsed.mainReason ?? "",
-        frictionPoints: parsed.frictionPoints ?? [],
-      };
+      const result = parseClaudeResponse(text, FlowNodeResultSchema, { stopReason: response.stop_reason }) as unknown as NodeResult;
 
       return [node.id, result];
     });
@@ -370,13 +359,7 @@ export async function POST(request: NextRequest) {
         (b): b is Anthropic.Messages.TextBlock => b.type === "text"
       )?.text ?? "{}";
 
-      const parsed = JSON.parse(extractJson(text));
-      const result: EdgeResult = {
-        transitionSmooth: parsed.transitionSmooth ?? true,
-        dropOffAtTransition: parsed.dropOffAtTransition ?? 10,
-        reason: parsed.reason ?? "",
-        recommendation: parsed.recommendation ?? "",
-      };
+      const result: EdgeResult = parseClaudeResponse(text, FlowEdgeResultSchema, { stopReason: response.stop_reason });
 
       return [edge.id, result];
     });
@@ -476,14 +459,12 @@ Synthesize the above into an overall flow assessment and return JSON.`,
       (b): b is Anthropic.Messages.TextBlock => b.type === "text"
     )?.text ?? "{}";
 
-    const flowSummary = JSON.parse(extractJson(integrationText));
+    const flowSummary = parseClaudeResponse(integrationText, FlowIntegrationResultSchema, { stopReason: integrationResponse.stop_reason });
 
-    // Ensure required fields
-    flowSummary.totalDropOffRisk = flowSummary.totalDropOffRisk ?? "보통";
-    flowSummary.estimatedCompletionRate = flowSummary.estimatedCompletionRate ?? 50;
-    flowSummary.biggestDropOffNode = flowSummary.biggestDropOffNodeId ?? flowSummary.biggestDropOffNode ?? null;
-    flowSummary.criticalPath = flowSummary.criticalPath ?? [];
-    flowSummary.overallSummary = flowSummary.overallSummary ?? "";
+    // Normalize biggestDropOffNode (API may return either field name)
+    if (!flowSummary.biggestDropOffNode && flowSummary.biggestDropOffNodeId) {
+      flowSummary.biggestDropOffNode = flowSummary.biggestDropOffNodeId;
+    }
 
     console.log("[analyze-flow] Phase 3 complete | completion rate:", flowSummary.estimatedCompletionRate);
 

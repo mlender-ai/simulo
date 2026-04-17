@@ -18,9 +18,18 @@ export async function GET(request: NextRequest) {
       return NextResponse.json({ error: "Not found" }, { status: 404 });
     }
 
+    // For usability mode, unpack analysisOptions.result so report UI can read
+    // grade/quickWins/desireAlignment/accessibility4050/retentionRisk at the top level.
+    const bundle = row.analysisOptions as
+      | { options?: unknown; result?: Record<string, unknown> }
+      | null
+      | undefined;
+    const usabilityResult = row.mode === "usability" && bundle?.result ? bundle.result : {};
+
     return NextResponse.json({
       ...row,
       createdAt: row.createdAt.toISOString(),
+      ...usabilityResult,
     });
   } catch (error) {
     console.error("[report] DB error:", error);

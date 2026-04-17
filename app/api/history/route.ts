@@ -30,13 +30,23 @@ export async function GET() {
         verdictReason: true,
         flowAnalysis: true,
         flowSteps: true,
+        mode: true,
+        analysisOptions: true,
       },
     });
 
-    const analyses = rows.map((r: { createdAt: Date; [key: string]: unknown }) => ({
-      ...r,
-      createdAt: r.createdAt.toISOString(),
-    }));
+    const analyses = rows.map((r: { createdAt: Date; [key: string]: unknown }) => {
+      const bundle = r.analysisOptions as
+        | { options?: unknown; result?: Record<string, unknown> }
+        | null
+        | undefined;
+      const usabilityResult = r.mode === "usability" && bundle?.result ? bundle.result : {};
+      return {
+        ...r,
+        createdAt: r.createdAt.toISOString(),
+        ...usabilityResult,
+      };
+    });
 
     return NextResponse.json({ analyses, source: "db" });
   } catch (error) {

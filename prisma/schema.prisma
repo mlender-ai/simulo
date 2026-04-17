@@ -15,6 +15,8 @@ model Analysis {
   task                  String?
   projectTag            String?
   inputType             String   @default("image")
+  mode                  String   @default("hypothesis")
+  analysisOptions       Json?
   verdict               String
   score                 Int
   taskSuccessLikelihood String?

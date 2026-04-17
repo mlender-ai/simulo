@@ -6,7 +6,8 @@ import Link from "next/link";
 import { type AnalysisResult } from "@/lib/storage";
 import { ReportTabs } from "@/components/ReportTabs";
 import { ComparisonReportTabs } from "@/components/ComparisonReportTabs";
-import { getLocale, type Locale } from "@/lib/i18n";
+import { UsabilityReportTabs } from "@/components/UsabilityReportTabs";
+import { getLocale, t, type Locale } from "@/lib/i18n";
 
 export default function SharePage() {
   const params = useParams();
@@ -68,7 +69,9 @@ export default function SharePage() {
         {/* Header */}
         <div className="mb-8">
           <h1 className="text-xl font-semibold mb-2 text-white">
-            {data.hypothesis}
+            {data.mode === "usability"
+              ? t("usabilityReportTitle", locale)
+              : data.hypothesis}
           </h1>
           <div className="flex items-center gap-3 text-xs text-white/40">
             <span className="mono">
@@ -86,6 +89,8 @@ export default function SharePage() {
         {/* Report content */}
         {data.isComparison ? (
           <ComparisonReportTabs analysis={data} locale={locale} />
+        ) : data.mode === "usability" ? (
+          <UsabilityReportTabs data={data} locale={locale} />
         ) : (
           <ReportTabs data={data} locale={locale} />
         )}
