@@ -182,6 +182,7 @@ const translations = {
     comparisonGuide: "자사 제품과 비교할 경쟁사 제품의 스크린샷을 올려주세요. 최대 2개 경쟁사까지 추가할 수 있습니다.",
     productDescriptionLabel: "제품 설명 (선택)",
     productDescriptionHint: "각 버튼과 기능이 어떻게 동작하는지 간단히 적어주면 AI가 화면 외 맥락까지 고려합니다.",
+    screenDescriptionPlaceholder: "예: 메인 홈 화면. 상단 탭 '걷고 받기'는 걸음수 기반 마일리지 적립. 하단 CTA는 광고 시청 후 보상 수령으로 연결. 숫자는 오늘 적립 가능한 마일리지 잔량.",
     oursDescriptionPlaceholder:
       "예시) 야핏무브 메인 홈은 두 개의 탭으로 구성. '걷고 받기' 탭은 걸음수 기반 마일리지 적립 영역으로 0걸음→보너스→1,000걸음→2,000걸음 단계별 보상, '잠자고 받기' 탭은 수면 중 광고 시청 기반 보상. 하단 CTA는 광고 시청 후 보상 수령으로 이어짐.",
     competitorDescriptionPlaceholder:
@@ -493,6 +494,8 @@ const translations = {
     productDescriptionLabel: "Product description (optional)",
     productDescriptionHint:
       "Briefly describe how each button/feature actually works so the AI considers context beyond what is visible.",
+    screenDescriptionPlaceholder:
+      "e.g. Main home screen. Top tab 'Walk to earn' gives step-based mileage. Bottom CTA links to ad-view reward claim. Numbers show today's remaining earnable mileage.",
     oursDescriptionPlaceholder:
       "Example) YafitMove main home has two tabs. 'Walk to earn' tab gives step-based mileage with reward stages 0 → bonus → 1,000 → 2,000 steps. 'Sleep to earn' tab rewards watching ads while asleep. The bottom CTA triggers ad view → reward claim.",
     competitorDescriptionPlaceholder:

@@ -26,6 +26,7 @@ export async function POST(request: NextRequest) {
       ours,
       competitors,
       comparisonFocus,
+      screenDescription,
       analysisPerspective,
       mode: rawMode,
       analysisOptions: rawAnalysisOptions,
@@ -157,6 +158,7 @@ export async function POST(request: NextRequest) {
         model,
         mode,
         analysisOptions,
+        screenDescription,
       });
       thumbnailUrls = imageUrls;
     } else if (inputType === "flow" && flowSteps && flowSteps.length >= 2) {
@@ -171,6 +173,7 @@ export async function POST(request: NextRequest) {
         model,
         mode,
         analysisOptions,
+        screenDescription,
       });
       thumbnailUrls = flowSteps.map((s: { image: string }) => `data:image/png;base64,${s.image}`);
       savedFlowSteps = flowSteps.map((s: { stepNumber: number; stepName: string }) => ({
@@ -196,6 +199,7 @@ export async function POST(request: NextRequest) {
         model,
         mode,
         analysisOptions,
+        screenDescription,
       });
       thumbnailUrls = images.map((b64: string) => `data:image/png;base64,${b64}`);
     }

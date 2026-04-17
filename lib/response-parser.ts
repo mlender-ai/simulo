@@ -410,21 +410,35 @@ export function parseClaudeResponse<T extends z.ZodTypeAny>(
     }
   }
 
-  // Step 4: Validate with Zod (safeParse for graceful coercion)
+  // Step 4: Guard — ensure parsed value is a plain object before schema validation.
+  // If it's null, an array, or a primitive, Zod's root .object() will fail and the
+  // schema's field-level .catch()/.default() won't run, leaving us with no safe data.
+  if (!parsed || typeof parsed !== "object" || Array.isArray(parsed)) {
+    console.error(
+      "[response-parser] Parsed value is not a plain object (got",
+      Array.isArray(parsed) ? "array" : typeof parsed,
+      "). Cannot validate.",
+    );
+    throw new Error(
+      `[response-parser] Expected JSON object from Claude, got ${Array.isArray(parsed) ? "array" : typeof parsed}. Raw (first 200): ${cleaned.slice(0, 200)}`,
+    );
+  }
+
+  // Step 5: Validate with Zod (safeParse for graceful coercion).
+  // All schema fields use .catch()/.default(), so safeParse should almost always succeed.
   const result = schema.safeParse(parsed);
   if (result.success) {
     console.log("[response-parser] Schema validation passed");
     return result.data;
   }
 
-  // Zod validation failed — log issues but return the coerced data anyway
-  // since .catch() and .default() in the schema handle most missing fields
+  // Zod validation failed despite .catch()/.default() guards.
+  // Log the first few issues and fall back to the raw parsed object so the
+  // caller still gets something usable rather than an exception.
   console.warn(
     "[response-parser] Schema validation had issues:",
     result.error.issues.slice(0, 5).map((i) => `${i.path.join(".")}: ${i.message}`).join("; "),
   );
-
-  // Fall back: return parsed data as-is (the schema defaults won't apply,
-  // but the data is still parseable JSON). Apply manual backfills.
+  console.warn("[response-parser] Returning raw parsed data as fallback.");
   return parsed as z.infer<T>;
 }

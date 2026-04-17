@@ -42,6 +42,7 @@ export default function Home() {
   const router = useRouter();
   const [locale, setLocale] = useState<Locale>("ko");
   const [images, setImages] = useState<string[]>([]);
+  const [screenDescription, setScreenDescription] = useState("");
   const [hypothesis, setHypothesis] = useState("");
   const [targetUser, setTargetUser] = useState("");
   const [task, setTask] = useState("");
@@ -146,6 +147,7 @@ export default function Home() {
         targetUser: targetUser || undefined,
         task: task || undefined,
         projectTag: projectTag || undefined,
+        screenDescription: screenDescription || undefined,
         locale,
         apiKey: savedApiKey || undefined,
         model: savedModel,
@@ -261,6 +263,8 @@ export default function Home() {
           locale={locale}
           images={images}
           onImagesChange={setImages}
+          screenDescription={screenDescription}
+          onScreenDescriptionChange={setScreenDescription}
           hypothesis={hypothesis}
           onHypothesisChange={setHypothesis}
           targetUser={targetUser}

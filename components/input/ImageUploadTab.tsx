@@ -34,9 +34,11 @@ interface ImageUploadTabProps {
   locale: Locale;
   images: string[];
   onImagesChange: (images: string[]) => void;
+  description?: string;
+  onDescriptionChange?: (description: string) => void;
 }
 
-export function ImageUploadTab({ locale, images, onImagesChange }: ImageUploadTabProps) {
+export function ImageUploadTab({ locale, images, onImagesChange, description, onDescriptionChange }: ImageUploadTabProps) {
   const [isDragging, setIsDragging] = useState(false);
 
   const handleFiles = useCallback(
@@ -93,6 +95,19 @@ export function ImageUploadTab({ locale, images, onImagesChange }: ImageUploadTa
           ))}
         </div>
       )}
+      <div className="mt-3">
+        <label className="flex items-center text-xs text-[var(--muted)] mb-1.5 uppercase tracking-wider">
+          {t("productDescriptionLabel", locale)}
+        </label>
+        <textarea
+          value={description ?? ""}
+          onChange={(e) => onDescriptionChange?.(e.target.value)}
+          placeholder={t("screenDescriptionPlaceholder", locale)}
+          rows={3}
+          className="w-full px-4 py-2.5 bg-white/[0.03] border border-[var(--border)] rounded-md text-sm focus:outline-none focus:border-white/30 resize-none mb-1.5"
+        />
+        <p className="text-xs text-[var(--muted)]">{t("productDescriptionHint", locale)}</p>
+      </div>
     </div>
   );
 }

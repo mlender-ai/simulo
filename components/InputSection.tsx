@@ -68,6 +68,8 @@ interface InputSectionProps {
   locale: Locale;
   images: string[];
   onImagesChange: (images: string[]) => void;
+  screenDescription: string;
+  onScreenDescriptionChange: (value: string) => void;
   hypothesis: string;
   onHypothesisChange: (value: string) => void;
   targetUser: string;
@@ -96,6 +98,8 @@ export function InputSection({
   locale,
   images,
   onImagesChange,
+  screenDescription,
+  onScreenDescriptionChange,
   hypothesis,
   onHypothesisChange,
   targetUser,
@@ -178,7 +182,7 @@ export function InputSection({
 
       {/* Tab content */}
       {activeTab === "image" && (
-        <ImageUploadTab locale={locale} images={images} onImagesChange={onImagesChange} />
+        <ImageUploadTab locale={locale} images={images} onImagesChange={onImagesChange} description={screenDescription} onDescriptionChange={onScreenDescriptionChange} />
       )}
 
       {activeTab === "url" && (
