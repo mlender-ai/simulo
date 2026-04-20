@@ -96,6 +96,36 @@ interface ComparisonAnalyzeParams {
 // Internal helpers
 // ──────────────────────────────────────────────
 
+/**
+ * Retry an async operation with exponential backoff.
+ * Retries on JSON parse errors and 5xx API errors, up to maxAttempts times.
+ */
+async function withRetry<T>(
+  fn: () => Promise<T>,
+  maxAttempts = 3,
+  label = "claude",
+): Promise<T> {
+  let lastError: unknown;
+  for (let attempt = 1; attempt <= maxAttempts; attempt++) {
+    try {
+      return await fn();
+    } catch (err) {
+      lastError = err;
+      const isRetryable =
+        err instanceof SyntaxError || // JSON parse failure
+        (err instanceof Error && /parse|JSON|truncat/i.test(err.message)) ||
+        (err instanceof Anthropic.APIError && err.status >= 500);
+
+      if (!isRetryable || attempt === maxAttempts) break;
+
+      const delay = 1000 * 2 ** (attempt - 1); // 1s, 2s, 4s
+      console.warn(`[${label}] Attempt ${attempt} failed — retrying in ${delay}ms...`, (err as Error).message);
+      await new Promise((r) => setTimeout(r, delay));
+    }
+  }
+  throw lastError;
+}
+
 function getClient(apiKey?: string) {
   const key = apiKey || process.env.ANTHROPIC_API_KEY;
   if (!key) {
@@ -148,22 +178,23 @@ export async function analyzeWithClaude(params: AnalyzeParams) {
 
   console.log("[claude] Calling API with model:", modelId, "| key prefix:", key.slice(0, 10), "| mode:", params.mode || "hypothesis");
 
-  const response = await client.messages.create({
-    model: modelId,
-    max_tokens: 8192,
-    system: systemPrompt,
-    messages: [{ role: "user", content: [...imageContent, { type: "text", text: userPrompt }] }],
-  });
-
-  console.log("[claude] API response received. Stop reason:", response.stop_reason, "| usage:", JSON.stringify(response.usage));
-
-  const textBlock = response.content.find((b) => b.type === "text");
-  if (!textBlock || textBlock.type !== "text") throw new Error("No text response from Claude");
-
-  console.log("[claude] Raw response (last 200 chars):", textBlock.text.slice(-200));
-
   const schema = isUsability ? UsabilityResponseSchema : AnalysisResponseSchema;
-  return parseClaudeResponse(textBlock.text, schema, { stopReason: response.stop_reason });
+  return withRetry(async () => {
+    const response = await client.messages.create({
+      model: modelId,
+      max_tokens: 8192,
+      system: systemPrompt,
+      messages: [{ role: "user", content: [...imageContent, { type: "text", text: userPrompt }] }],
+    });
+
+    console.log("[claude] API response received. Stop reason:", response.stop_reason, "| usage:", JSON.stringify(response.usage));
+
+    const textBlock = response.content.find((b) => b.type === "text");
+    if (!textBlock || textBlock.type !== "text") throw new Error("No text response from Claude");
+
+    console.log("[claude] Raw response (last 200 chars):", textBlock.text.slice(-200));
+    return parseClaudeResponse(textBlock.text, schema, { stopReason: response.stop_reason });
+  }, 3, "analyzeWithClaude");
 }
 
 export async function analyzeFlowWithClaude(params: FlowAnalyzeParams) {
@@ -203,20 +234,22 @@ export async function analyzeFlowWithClaude(params: FlowAnalyzeParams) {
 
   console.log("[claude] Calling Flow API with model:", modelId, "| key prefix:", key.slice(0, 10), "| steps:", params.flowSteps.length, "| mode:", params.mode || "hypothesis");
 
-  const response = await client.messages.create({
-    model: modelId,
-    max_tokens: 16384,
-    system: systemPrompt,
-    messages: [{ role: "user", content }],
-  });
-
-  console.log("[claude] Flow API response received. Stop reason:", response.stop_reason);
-
-  const textBlock = response.content.find((b) => b.type === "text");
-  if (!textBlock || textBlock.type !== "text") throw new Error("No text response from Claude");
-
   const schema = isUsability ? UsabilityResponseSchema : AnalysisResponseSchema;
-  return parseClaudeResponse(textBlock.text, schema, { stopReason: response.stop_reason });
+  return withRetry(async () => {
+    const response = await client.messages.create({
+      model: modelId,
+      max_tokens: 16384,
+      system: systemPrompt,
+      messages: [{ role: "user", content }],
+    });
+
+    console.log("[claude] Flow API response received. Stop reason:", response.stop_reason);
+
+    const textBlock = response.content.find((b) => b.type === "text");
+    if (!textBlock || textBlock.type !== "text") throw new Error("No text response from Claude");
+
+    return parseClaudeResponse(textBlock.text, schema, { stopReason: response.stop_reason });
+  }, 3, "analyzeFlowWithClaude");
 }
 
 export async function analyzeComparisonWithClaude(params: ComparisonAnalyzeParams) {
@@ -317,19 +350,20 @@ export async function analyzeComparisonWithClaude(params: ComparisonAnalyzeParam
   const totalImages = params.ours.images.length + params.competitors.reduce((sum, c) => sum + c.images.length, 0);
   console.log("[claude] Calling Comparison API with model:", modelId, "| key prefix:", key.slice(0, 10), "| products:", 1 + params.competitors.length, "| total images:", totalImages);
 
-  const response = await client.messages.create({
-    model: modelId,
-    max_tokens: 16384,
-    system: isKo ? COMPARISON_SYSTEM_PROMPT_KO : COMPARISON_SYSTEM_PROMPT_EN,
-    messages: [{ role: "user", content }],
-  });
+  return withRetry(async () => {
+    const response = await client.messages.create({
+      model: modelId,
+      max_tokens: 16384,
+      system: isKo ? COMPARISON_SYSTEM_PROMPT_KO : COMPARISON_SYSTEM_PROMPT_EN,
+      messages: [{ role: "user", content }],
+    });
 
-  console.log("[claude] Comparison API response received. Stop reason:", response.stop_reason, "| usage:", JSON.stringify(response.usage));
+    console.log("[claude] Comparison API response received. Stop reason:", response.stop_reason, "| usage:", JSON.stringify(response.usage));
 
-  const textBlock = response.content.find((b) => b.type === "text");
-  if (!textBlock || textBlock.type !== "text") throw new Error("No text response from Claude");
+    const textBlock = response.content.find((b) => b.type === "text");
+    if (!textBlock || textBlock.type !== "text") throw new Error("No text response from Claude");
 
-  console.log("[claude] Comparison raw response (last 200 chars):", textBlock.text.slice(-200));
-
-  return parseClaudeResponse(textBlock.text, ComparisonResponseSchema, { stopReason: response.stop_reason });
+    console.log("[claude] Comparison raw response (last 200 chars):", textBlock.text.slice(-200));
+    return parseClaudeResponse(textBlock.text, ComparisonResponseSchema, { stopReason: response.stop_reason });
+  }, 3, "analyzeComparisonWithClaude");
 }
