@@ -13,15 +13,7 @@ import {
   ComparisonResponseSchema,
   UsabilityResponseSchema,
 } from "./response-parser";
-import {
-  SYSTEM_PROMPT_EN,
-  SYSTEM_PROMPT_KO,
-  FLOW_SYSTEM_PROMPT_EN,
-  FLOW_SYSTEM_PROMPT_KO,
-  COMPARISON_SYSTEM_PROMPT_EN,
-  COMPARISON_SYSTEM_PROMPT_KO,
-  buildUsabilityPrompt,
-} from "./prompts";
+import { buildSystemPrompt } from "./prompts";
 
 export type AnalysisMode = "hypothesis" | "usability";
 
@@ -172,9 +164,13 @@ export async function analyzeWithClaude(params: AnalyzeParams) {
         ? `가설: ${params.hypothesis}\n${tul}\n${params.task ? `태스크: ${params.task}` : "태스크: 가설에서 추론"}\n${sdl}${params.images.length}개 화면 분석 후 JSON 반환.`
         : `Hypothesis: ${params.hypothesis}\n${tul}\n${params.task ? `Task: ${params.task}` : "Task: Infer from hypothesis"}\n${sdl}Analyze ${params.images.length} screen(s), return JSON.`);
 
-  const systemPrompt = isUsability
-    ? buildUsabilityPrompt(params.locale || "en", params.targetUser, params.analysisOptions || { usability: true }, false)
-    : (isKo ? SYSTEM_PROMPT_KO : SYSTEM_PROMPT_EN);
+  const systemPrompt = buildSystemPrompt({
+    mode: params.mode || "hypothesis",
+    analysisOptions: params.analysisOptions,
+    targetUser: params.targetUser,
+    inputShape: "single",
+    locale: params.locale || "en",
+  });
 
   console.log("[claude] Calling API with model:", modelId, "| key prefix:", key.slice(0, 10), "| mode:", params.mode || "hypothesis");
 
@@ -228,9 +224,13 @@ export async function analyzeFlowWithClaude(params: FlowAnalyzeParams) {
 
   content.push({ type: "text" as const, text: userPrompt });
 
-  const systemPrompt = isUsability
-    ? buildUsabilityPrompt(params.locale || "en", params.targetUser, params.analysisOptions || { usability: true }, true)
-    : (isKo ? FLOW_SYSTEM_PROMPT_KO : FLOW_SYSTEM_PROMPT_EN);
+  const systemPrompt = buildSystemPrompt({
+    mode: params.mode || "hypothesis",
+    analysisOptions: params.analysisOptions,
+    targetUser: params.targetUser,
+    inputShape: "flow",
+    locale: params.locale || "en",
+  });
 
   console.log("[claude] Calling Flow API with model:", modelId, "| key prefix:", key.slice(0, 10), "| steps:", params.flowSteps.length, "| mode:", params.mode || "hypothesis");
 
@@ -354,7 +354,14 @@ export async function analyzeComparisonWithClaude(params: ComparisonAnalyzeParam
     const response = await client.messages.create({
       model: modelId,
       max_tokens: 16384,
-      system: isKo ? COMPARISON_SYSTEM_PROMPT_KO : COMPARISON_SYSTEM_PROMPT_EN,
+      system: buildSystemPrompt({
+        mode: params.mode || "hypothesis",
+        analysisOptions: params.analysisOptions,
+        targetUser: params.targetUser,
+        inputShape: "comparison",
+        hasCompetitor: true,
+        locale: params.locale || "en",
+      }),
       messages: [{ role: "user", content }],
     });
 

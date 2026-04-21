@@ -51,7 +51,11 @@ export async function POST(request: NextRequest) {
           competitorComparison: rawAnalysisOptions?.competitorComparison ?? false,
           accessibility: rawAnalysisOptions?.accessibility ?? false,
         }
-      : {};
+      : {
+          desireAlignment: rawAnalysisOptions?.desireAlignment ?? false,
+          competitorComparison: rawAnalysisOptions?.competitorComparison ?? false,
+          accessibility: rawAnalysisOptions?.accessibility ?? false,
+        };
 
     const effectiveTargetUser = mode === "usability"
       ? (targetUser?.trim() || "40-50대 한국 여성 (야핏무브 핵심 타깃)")
