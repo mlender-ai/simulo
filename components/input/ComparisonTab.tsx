@@ -1,10 +1,9 @@
 /* eslint-disable @next/next/no-img-element */
 "use client";
 
-import { useState } from "react";
 import { t, type Locale } from "@/lib/i18n";
 import type { ComparisonState } from "../InputSection";
-import { resizeImage } from "./ImageUploadTab";
+import { MediaUploader, type UploadedVideo } from "@/components/MediaUploader";
 
 interface ComparisonTabProps {
   locale: Locale;
@@ -13,28 +12,21 @@ interface ComparisonTabProps {
 }
 
 export function ComparisonTab({ locale, comparison, onComparisonChange }: ComparisonTabProps) {
-  const [draggingZone, setDraggingZone] = useState<string | null>(null);
 
   const updateOursName = (name: string) => {
     onComparisonChange({ ...comparison, ours: { ...comparison.ours, productName: name } });
   };
 
-  const handleOursImages = (files: FileList) => {
-    const remaining = 4 - comparison.ours.images.length;
-    const toProcess = Array.from(files).slice(0, remaining);
-    Promise.all(toProcess.map((f) => resizeImage(f, 1024))).then((resized) => {
-      onComparisonChange({
-        ...comparison,
-        ours: { ...comparison.ours, images: [...comparison.ours.images, ...resized] },
-      });
-    });
+  const updateOursImages = (images: string[]) => {
+    onComparisonChange({ ...comparison, ours: { ...comparison.ours, images } });
   };
 
-  const removeOursImage = (index: number) => {
-    onComparisonChange({
-      ...comparison,
-      ours: { ...comparison.ours, images: comparison.ours.images.filter((_, i) => i !== index) },
-    });
+  const updateOursVideos = (videos: UploadedVideo[]) => {
+    onComparisonChange({ ...comparison, ours: { ...comparison.ours, videos } });
+  };
+
+  const updateOursDescription = (description: string) => {
+    onComparisonChange({ ...comparison, ours: { ...comparison.ours, description } });
   };
 
   const updateCompetitorName = (index: number, name: string) => {
@@ -44,28 +36,18 @@ export function ComparisonTab({ locale, comparison, onComparisonChange }: Compar
     onComparisonChange({ ...comparison, competitors: updated });
   };
 
-  const handleCompetitorImages = (index: number, files: FileList) => {
-    const comp = comparison.competitors[index];
-    if (!comp) return;
-    const remaining = 4 - comp.images.length;
-    const toProcess = Array.from(files).slice(0, remaining);
-    Promise.all(toProcess.map((f) => resizeImage(f, 1024))).then((resized) => {
-      const updated = comparison.competitors.map((c, i) =>
-        i === index ? { ...c, images: [...c.images, ...resized] } : c
-      );
-      onComparisonChange({ ...comparison, competitors: updated });
-    });
-  };
-
-  const removeCompetitorImage = (compIndex: number, imgIndex: number) => {
+  const updateCompetitorImages = (index: number, images: string[]) => {
     const updated = comparison.competitors.map((c, i) =>
-      i === compIndex ? { ...c, images: c.images.filter((_, j) => j !== imgIndex) } : c
+      i === index ? { ...c, images } : c
     );
     onComparisonChange({ ...comparison, competitors: updated });
   };
 
-  const updateOursDescription = (description: string) => {
-    onComparisonChange({ ...comparison, ours: { ...comparison.ours, description } });
+  const updateCompetitorVideos = (index: number, videos: UploadedVideo[]) => {
+    const updated = comparison.competitors.map((c, i) =>
+      i === index ? { ...c, videos } : c
+    );
+    onComparisonChange({ ...comparison, competitors: updated });
   };
 
   const updateCompetitorDescription = (index: number, description: string) => {
@@ -79,7 +61,7 @@ export function ComparisonTab({ locale, comparison, onComparisonChange }: Compar
     if (comparison.competitors.length >= 2) return;
     onComparisonChange({
       ...comparison,
-      competitors: [...comparison.competitors, { productName: "", images: [], description: "" }],
+      competitors: [...comparison.competitors, { productName: "", images: [], videos: [], description: "" }],
     });
   };
 
@@ -113,40 +95,17 @@ export function ComparisonTab({ locale, comparison, onComparisonChange }: Compar
           onChange={(e) => updateOursDescription(e.target.value)}
           placeholder={t("oursDescriptionPlaceholder", locale)}
           rows={3}
-          className="w-full px-4 py-2.5 bg-white/[0.03] border border-[var(--border)] rounded-md text-sm focus:outline-none focus:border-white/30 resize-none mb-1.5"
+          className="w-full px-4 py-2.5 bg-white/[0.03] border border-[var(--border)] rounded-md text-sm focus:outline-none focus:border-white/30 resize-none mb-3"
         />
-        <p className="text-xs text-[var(--muted)] mb-3">{t("productDescriptionHint", locale)}</p>
-        <div
-          className={`border border-dashed rounded-md p-4 text-center cursor-pointer transition-colors ${
-            draggingZone === "cmp-ours" ? "border-white/40 bg-white/5" : "border-[var(--border)] hover:border-white/20"
-          }`}
-          onClick={() => document.getElementById("cmp-ours-file")?.click()}
-          onDragOver={(e) => { e.preventDefault(); setDraggingZone("cmp-ours"); }}
-          onDragLeave={() => setDraggingZone(null)}
-          onDrop={(e) => {
-            e.preventDefault();
-            setDraggingZone(null);
-            if (e.dataTransfer.files.length > 0) handleOursImages(e.dataTransfer.files);
-          }}
-        >
-          <p className="text-xs text-[var(--muted)]">{t("dropImages", locale)}</p>
-          <p className="text-xs text-[var(--muted)] mt-1">{comparison.ours.images.length}/4</p>
-          <input id="cmp-ours-file" type="file" accept="image/*" multiple className="hidden"
-            onChange={(e) => { if (e.target.files) handleOursImages(e.target.files); }}
-          />
-        </div>
-        {comparison.ours.images.length > 0 && (
-          <div className="flex gap-2 mt-3 flex-wrap">
-            {comparison.ours.images.map((img, i) => (
-              <div key={i} className="relative w-20 h-20 rounded border border-[var(--border)] overflow-hidden group">
-                <img src={`data:image/png;base64,${img}`} alt={`Ours ${i + 1}`} className="w-full h-full object-cover" />
-                <button onClick={() => removeOursImage(i)} className="absolute inset-0 bg-black/60 opacity-0 group-hover:opacity-100 transition-opacity flex items-center justify-center text-xs">
-                  {t("remove", locale)}
-                </button>
-              </div>
-            ))}
-          </div>
-        )}
+        <MediaUploader
+          uploadZoneId="cmp-ours"
+          maxImages={4}
+          maxVideos={1}
+          images={comparison.ours.images}
+          videos={comparison.ours.videos ?? []}
+          onImagesChange={updateOursImages}
+          onVideosChange={updateOursVideos}
+        />
       </div>
 
       {/* Competitors */}
@@ -172,37 +131,15 @@ export function ComparisonTab({ locale, comparison, onComparisonChange }: Compar
             rows={3}
             className="w-full px-4 py-2.5 bg-white/[0.03] border border-[var(--border)] rounded-md text-sm focus:outline-none focus:border-white/30 resize-none mb-3"
           />
-          <div
-            className={`border border-dashed rounded-md p-4 text-center cursor-pointer transition-colors ${
-              draggingZone === `cmp-comp-${i}` ? "border-white/40 bg-white/5" : "border-[var(--border)] hover:border-white/20"
-            }`}
-            onClick={() => document.getElementById(`cmp-comp-file-${i}`)?.click()}
-            onDragOver={(e) => { e.preventDefault(); setDraggingZone(`cmp-comp-${i}`); }}
-            onDragLeave={() => setDraggingZone(null)}
-            onDrop={(e) => {
-              e.preventDefault();
-              setDraggingZone(null);
-              if (e.dataTransfer.files.length > 0) handleCompetitorImages(i, e.dataTransfer.files);
-            }}
-          >
-            <p className="text-xs text-[var(--muted)]">{t("dropImages", locale)}</p>
-            <p className="text-xs text-[var(--muted)] mt-1">{comp.images.length}/4</p>
-            <input id={`cmp-comp-file-${i}`} type="file" accept="image/*" multiple className="hidden"
-              onChange={(e) => { if (e.target.files) handleCompetitorImages(i, e.target.files); }}
-            />
-          </div>
-          {comp.images.length > 0 && (
-            <div className="flex gap-2 mt-3 flex-wrap">
-              {comp.images.map((img, j) => (
-                <div key={j} className="relative w-20 h-20 rounded border border-[var(--border)] overflow-hidden group">
-                  <img src={`data:image/png;base64,${img}`} alt={`Competitor ${i + 1} ${j + 1}`} className="w-full h-full object-cover" />
-                  <button onClick={() => removeCompetitorImage(i, j)} className="absolute inset-0 bg-black/60 opacity-0 group-hover:opacity-100 transition-opacity flex items-center justify-center text-xs">
-                    {t("remove", locale)}
-                  </button>
-                </div>
-              ))}
-            </div>
-          )}
+          <MediaUploader
+            uploadZoneId={`cmp-comp-${i}`}
+            maxImages={4}
+            maxVideos={1}
+            images={comp.images}
+            videos={comp.videos ?? []}
+            onImagesChange={(imgs) => updateCompetitorImages(i, imgs)}
+            onVideosChange={(vids) => updateCompetitorVideos(i, vids)}
+          />
         </div>
       ))}
 

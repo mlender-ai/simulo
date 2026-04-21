@@ -1,5 +1,11 @@
 {
   "framework": "nextjs",
   "buildCommand": "npx prisma generate && npm run build",
-  "installCommand": "npm ci"
+  "installCommand": "npm ci",
+  "functions": {
+    "app/api/upload-video/route.ts": {
+      "maxDuration": 60,
+      "memory": 1024
+    }
+  }
 }

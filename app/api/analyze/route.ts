@@ -4,13 +4,17 @@ import type { ComparisonProduct, AnalysisMode, AnalysisOptions } from "@/lib/cla
 import { v4 as uuidv4 } from "uuid";
 import { Prisma } from "@prisma/client";
 
+interface VideoFrame { base64: string; name: string; timestamp: number; index: number; }
+interface UploadedVideo { fileName: string; duration: number; frameCount: number; interval: number; frames: VideoFrame[]; }
+
 console.log("[analyze] ENV ANTHROPIC_API_KEY prefix:", process.env.ANTHROPIC_API_KEY?.slice(0, 8) || "(not set)");
 
 export async function POST(request: NextRequest) {
   try {
     const body = await request.json();
     const {
-      images,
+      images: rawImages,
+      videos,
       hypothesis,
       targetUser,
       task,
@@ -31,6 +35,13 @@ export async function POST(request: NextRequest) {
       mode: rawMode,
       analysisOptions: rawAnalysisOptions,
     } = body;
+
+    // Merge video frames into images array
+    const videoFrameImages: string[] = Array.isArray(videos)
+      ? (videos as UploadedVideo[]).flatMap((v) => v.frames.map((f) => f.base64))
+      : [];
+    const images: string[] = [...(Array.isArray(rawImages) ? rawImages : []), ...videoFrameImages];
+    const hasVideos = videoFrameImages.length > 0;
 
     const mode: AnalysisMode = rawMode === "usability" ? "usability" : "hypothesis";
     const analysisOptions: AnalysisOptions = mode === "usability"
@@ -66,22 +77,35 @@ export async function POST(request: NextRequest) {
     let comparisonData: unknown = null;
 
     if (inputType === "comparison" && ours && Array.isArray(competitors)) {
-      if (!ours.productName || !Array.isArray(ours.images) || ours.images.length === 0) {
+      // Merge video frames into each product's images
+      const mergeProductMedia = (p: { productName: string; images: string[]; videos?: UploadedVideo[]; description?: string }): ComparisonProduct => ({
+        productName: p.productName,
+        description: p.description,
+        images: [
+          ...(p.images ?? []),
+          ...(p.videos ?? []).flatMap((v) => v.frames.map((f) => f.base64)),
+        ],
+      });
+
+      const oursWithFrames = mergeProductMedia(ours as { productName: string; images: string[]; videos?: UploadedVideo[]; description?: string });
+      const competitorsWithFrames = (competitors as Array<{ productName: string; images: string[]; videos?: UploadedVideo[]; description?: string }>).map(mergeProductMedia);
+
+      if (!oursWithFrames.productName || oursWithFrames.images.length === 0) {
         return NextResponse.json(
-          { error: "Our product requires productName and at least one image" },
+          { error: "Our product requires productName and at least one image or video" },
           { status: 400 }
         );
       }
-      if (competitors.length === 0) {
+      if (competitorsWithFrames.length === 0) {
         return NextResponse.json(
           { error: "At least one competitor is required" },
           { status: 400 }
         );
       }
-      for (const c of competitors as ComparisonProduct[]) {
-        if (!c.productName || !Array.isArray(c.images) || c.images.length === 0) {
+      for (const c of competitorsWithFrames) {
+        if (!c.productName || c.images.length === 0) {
           return NextResponse.json(
-            { error: "Each competitor requires productName and at least one image" },
+            { error: "Each competitor requires productName and at least one image or video" },
             { status: 400 }
           );
         }
@@ -89,14 +113,14 @@ export async function POST(request: NextRequest) {
 
       console.log(
         "[analyze] Comparison analysis | ours:",
-        ours.productName,
+        oursWithFrames.productName,
         "| competitors:",
-        competitors.map((c: ComparisonProduct) => c.productName).join(", ")
+        competitorsWithFrames.map((c) => c.productName).join(", ")
       );
 
       result = await analyzeComparisonWithClaude({
-        ours: ours as ComparisonProduct,
-        competitors: competitors as ComparisonProduct[],
+        ours: oursWithFrames,
+        competitors: competitorsWithFrames,
         hypothesis,
         targetUser: effectiveTargetUser,
         comparisonFocus,
@@ -111,9 +135,9 @@ export async function POST(request: NextRequest) {
       isComparison = true;
       comparisonData = { ...(result as Record<string, unknown>), mode };
       thumbnailUrls = [
-        ...(ours.images as string[]).map((b64: string) => `data:image/png;base64,${b64}`),
-        ...competitors.flatMap((c: ComparisonProduct) =>
-          c.images.map((b64: string) => `data:image/png;base64,${b64}`)
+        ...oursWithFrames.images.map((b64) => `data:image/png;base64,${b64}`),
+        ...competitorsWithFrames.flatMap((c) =>
+          c.images.map((b64) => `data:image/png;base64,${b64}`)
         ),
       ];
     } else if (inputType === "figma" && figmaToken && figmaFileKey && figmaFrameIds?.length > 0) {
@@ -188,7 +212,10 @@ export async function POST(request: NextRequest) {
           { status: 400 }
         );
       }
-      console.log("[analyze] Image analysis with", images.length, "images");
+      console.log("[analyze] Image analysis with", images.length, "images (includes video frames:", videoFrameImages.length, ")");
+      const videoContext = hasVideos
+        ? "\n\nSome of the provided screens are extracted frames from a video recording of actual app usage. Frame names include timestamps (e.g. '프레임 1 (0:02)'). When analyzing video frames: note the temporal sequence of user interactions, identify moments where the user appears to pause or struggle, compare early frames vs later frames for flow continuity, and flag any frames showing loading states, error states, or unexpected transitions."
+        : "";
       result = await analyzeWithClaude({
         images,
         hypothesis,
@@ -199,7 +226,7 @@ export async function POST(request: NextRequest) {
         model,
         mode,
         analysisOptions,
-        screenDescription,
+        screenDescription: (screenDescription || "") + videoContext,
       });
       thumbnailUrls = images.map((b64: string) => `data:image/png;base64,${b64}`);
     }

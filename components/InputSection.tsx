@@ -8,6 +8,7 @@ import { ImageUploadTab } from "./input/ImageUploadTab";
 import { FigmaTab } from "./input/FigmaTab";
 import { FlowInputTab } from "./input/FlowInputTab";
 import { ComparisonTab } from "./input/ComparisonTab";
+export type { UploadedVideo, VideoFrame } from "./MediaUploader";
 
 // ─── Re-exported types (used by parent components) ──────────────────
 
@@ -37,6 +38,7 @@ export interface FigmaState {
 export interface ComparisonProductInput {
   productName: string;
   images: string[]; // base64
+  videos: import("./MediaUploader").UploadedVideo[];
   description?: string;
 }
 
@@ -68,6 +70,8 @@ interface InputSectionProps {
   locale: Locale;
   images: string[];
   onImagesChange: (images: string[]) => void;
+  videos: import("./MediaUploader").UploadedVideo[];
+  onVideosChange: (videos: import("./MediaUploader").UploadedVideo[]) => void;
   screenDescription: string;
   onScreenDescriptionChange: (value: string) => void;
   hypothesis: string;
@@ -98,6 +102,8 @@ export function InputSection({
   locale,
   images,
   onImagesChange,
+  videos,
+  onVideosChange,
   screenDescription,
   onScreenDescriptionChange,
   hypothesis,
@@ -182,7 +188,7 @@ export function InputSection({
 
       {/* Tab content */}
       {activeTab === "image" && (
-        <ImageUploadTab locale={locale} images={images} onImagesChange={onImagesChange} description={screenDescription} onDescriptionChange={onScreenDescriptionChange} />
+        <ImageUploadTab locale={locale} images={images} onImagesChange={onImagesChange} videos={videos} onVideosChange={onVideosChange} description={screenDescription} onDescriptionChange={onScreenDescriptionChange} />
       )}
 
       {activeTab === "url" && (

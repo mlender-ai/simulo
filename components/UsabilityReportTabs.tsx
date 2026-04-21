@@ -5,7 +5,6 @@ import { useState, useEffect, useCallback } from "react";
 import type { AnalysisResult } from "@/lib/storage";
 import { STRIPPED_IMAGE } from "@/lib/storage";
 import { t, type Locale } from "@/lib/i18n";
-import { HeatmapViewer, HeatmapIssueDetail } from "@/components/HeatmapViewer";
 import {
   HEATMAP_STORAGE_KEY,
   GRADE_BADGE,

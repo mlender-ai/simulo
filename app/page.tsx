@@ -11,6 +11,7 @@ import {
   type AnalysisPerspective,
   type AnalysisMode,
   type AnalysisOptionsState,
+  type UploadedVideo,
 } from "@/components/InputSection";
 import { OnboardingBanner } from "@/components/OnboardingBanner";
 import { Tooltip } from "@/components/Tooltip";
@@ -42,6 +43,7 @@ export default function Home() {
   const router = useRouter();
   const [locale, setLocale] = useState<Locale>("ko");
   const [images, setImages] = useState<string[]>([]);
+  const [videos, setVideos] = useState<UploadedVideo[]>([]);
   const [screenDescription, setScreenDescription] = useState("");
   const [hypothesis, setHypothesis] = useState("");
   const [targetUser, setTargetUser] = useState("");
@@ -67,8 +69,8 @@ export default function Home() {
     error: "",
   });
   const [comparison, setComparison] = useState<ComparisonState>({
-    ours: { productName: "", images: [], description: "" },
-    competitors: [{ productName: "", images: [], description: "" }],
+    ours: { productName: "", images: [], videos: [], description: "" },
+    competitors: [{ productName: "", images: [], videos: [], description: "" }],
     focus: "",
   });
   const [analysisPerspective, setAnalysisPerspective] = useState<AnalysisPerspective>({
@@ -182,6 +184,7 @@ export default function Home() {
                 ...commonBody,
                 inputType: "image",
                 images,
+                videos,
               };
 
       const response = await fetch("/api/analyze", {
@@ -263,6 +266,8 @@ export default function Home() {
           locale={locale}
           images={images}
           onImagesChange={setImages}
+          videos={videos}
+          onVideosChange={setVideos}
           screenDescription={screenDescription}
           onScreenDescriptionChange={setScreenDescription}
           hypothesis={hypothesis}
