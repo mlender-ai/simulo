@@ -17,6 +17,8 @@ import { OnboardingBanner } from "@/components/OnboardingBanner";
 import { Tooltip } from "@/components/Tooltip";
 import { storage, type AnalysisResult } from "@/lib/storage";
 import { getLocale, t, type Locale } from "@/lib/i18n";
+import OCRReviewModal from "@/components/OCRReviewModal";
+import type { OCRResult } from "@/lib/ocr";
 
 const LOADING_STEP_KEYS = [
   "loadingStep1",
@@ -80,6 +82,8 @@ export default function Home() {
     accessibility: true,
   });
   const [mode, setMode] = useState<AnalysisMode>("hypothesis");
+  const [pendingOCRReview, setPendingOCRReview] = useState<{ results: OCRResult[]; body: Record<string, unknown> } | null>(null);
+  const [ocrLoading, setOcrLoading] = useState(false);
   const [analysisOptions, setAnalysisOptions] = useState<AnalysisOptionsState>({
     usability: true,
     desireAlignment: true,
@@ -124,80 +128,52 @@ export default function Home() {
       ? FLOW_LOADING_STEP_KEYS
       : LOADING_STEP_KEYS;
 
-  const handleAnalyze = async () => {
-    if (!canSubmit) return;
+  const buildAnalysisBody = (ocrReview?: OCRResult[]) => {
+    const savedApiKey = localStorage.getItem("simulo_anthropic_key");
+    const savedModel = localStorage.getItem("simulo_model") || "haiku";
+    const effectivePerspective = isComparison
+      ? { ...analysisPerspective, comparison: true }
+      : analysisPerspective;
+    const commonBody = {
+      hypothesis: mode === "usability" ? undefined : hypothesis,
+      targetUser: targetUser || undefined,
+      task: task || undefined,
+      projectTag: projectTag || undefined,
+      screenDescription: screenDescription || undefined,
+      locale,
+      apiKey: savedApiKey || undefined,
+      model: savedModel,
+      mode,
+      analysisOptions: mode === "usability" ? analysisOptions : undefined,
+      analysisPerspective: effectivePerspective,
+      ...(ocrReview ? { ocrReview } : {}),
+    };
+    return isComparison
+      ? { ...commonBody, inputType: "comparison", ours: comparison.ours, competitors: comparison.competitors, comparisonFocus: comparison.focus || undefined }
+      : isFlow
+        ? { ...commonBody, inputType: "flow", flowSteps }
+        : isFigma
+          ? { ...commonBody, inputType: "figma", figmaToken: figma.token, figmaFileKey: figma.fileKey, figmaFrameIds: figma.selectedFrameIds }
+          : { ...commonBody, inputType: "image", images, videos };
+  };
+
+  const runAnalysis = async (body: Record<string, unknown>) => {
     setLoading(true);
     setError(null);
     setLoadingStep(0);
-
     const stepInterval = setInterval(() => {
-      setLoadingStep((prev) =>
-        prev < loadingKeys.length - 1 ? prev + 1 : prev
-      );
+      setLoadingStep((prev) => prev < loadingKeys.length - 1 ? prev + 1 : prev);
     }, 3000);
-
     try {
-      const savedApiKey = localStorage.getItem("simulo_anthropic_key");
-      const savedModel = localStorage.getItem("simulo_model") || "haiku";
-
-      const effectivePerspective = isComparison
-        ? { ...analysisPerspective, comparison: true }
-        : analysisPerspective;
-
-      const commonBody = {
-        hypothesis: mode === "usability" ? undefined : hypothesis,
-        targetUser: targetUser || undefined,
-        task: task || undefined,
-        projectTag: projectTag || undefined,
-        screenDescription: screenDescription || undefined,
-        locale,
-        apiKey: savedApiKey || undefined,
-        model: savedModel,
-        mode,
-        analysisOptions: mode === "usability" ? analysisOptions : undefined,
-        analysisPerspective: effectivePerspective,
-      };
-
-      const body = isComparison
-        ? {
-            ...commonBody,
-            inputType: "comparison",
-            ours: comparison.ours,
-            competitors: comparison.competitors,
-            comparisonFocus: comparison.focus || undefined,
-          }
-        : isFlow
-          ? {
-              ...commonBody,
-              inputType: "flow",
-              flowSteps,
-            }
-          : isFigma
-            ? {
-                ...commonBody,
-                inputType: "figma",
-                figmaToken: figma.token,
-                figmaFileKey: figma.fileKey,
-                figmaFrameIds: figma.selectedFrameIds,
-              }
-            : {
-                ...commonBody,
-                inputType: "image",
-                images,
-                videos,
-              };
-
       const response = await fetch("/api/analyze", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify(body),
       });
-
       if (!response.ok) {
         const data = await response.json();
         throw new Error(data.error || "Analysis failed");
       }
-
       const result: AnalysisResult = await response.json();
       storage.save(result);
       router.push(`/report/${result.id}`);
@@ -208,6 +184,56 @@ export default function Home() {
       setLoading(false);
     }
   };
+
+  const handleAnalyze = async () => {
+    if (!canSubmit) return;
+
+    const ocrReviewEnabled = localStorage.getItem("simulo_ocr_review") === "true";
+    const isImageMode = !isComparison && !isFlow && !isFigma && images.length > 0;
+
+    if (ocrReviewEnabled && isImageMode) {
+      // OCR review mode: extract text first, show review modal, then analyze
+      setOcrLoading(true);
+      setError(null);
+      try {
+        const savedApiKey = localStorage.getItem("simulo_anthropic_key");
+        const ocrRes = await fetch("/api/ocr-extract", {
+          method: "POST",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify({ images, locale, apiKey: savedApiKey || undefined }),
+        });
+        if (!ocrRes.ok) throw new Error("OCR extraction failed");
+        const { ocrResults } = await ocrRes.json();
+        setPendingOCRReview({ results: ocrResults, body: buildAnalysisBody() as Record<string, unknown> });
+      } catch (err) {
+        // OCR failure — fall through to direct analysis
+        console.warn("OCR extraction failed, proceeding without review:", err);
+        await runAnalysis(buildAnalysisBody() as Record<string, unknown>);
+      } finally {
+        setOcrLoading(false);
+      }
+      return;
+    }
+
+    await runAnalysis(buildAnalysisBody() as Record<string, unknown>);
+  };
+
+  const handleOCRConfirm = async (reviewedOCR: OCRResult[]) => {
+    setPendingOCRReview(null);
+    await runAnalysis(buildAnalysisBody(reviewedOCR) as Record<string, unknown>);
+  };
+
+  if (ocrLoading) {
+    return (
+      <div className="flex items-center justify-center min-h-screen">
+        <div className="text-center space-y-4">
+          <div className="w-8 h-8 border-2 border-white/20 border-t-white rounded-full animate-spin mx-auto" />
+          <p className="text-sm text-white">텍스트를 추출하고 있습니다...</p>
+          <p className="text-xs text-[var(--muted)]">OCR Pass (claude-opus-4-7)</p>
+        </div>
+      </div>
+    );
+  }
 
   if (loading) {
     return (
@@ -235,6 +261,7 @@ export default function Home() {
   }
 
   return (
+    <>
     <div className="flex items-center justify-center min-h-screen px-6">
       <div className="w-full max-w-[720px]">
         <OnboardingBanner
@@ -302,16 +329,24 @@ export default function Home() {
 
         <button
           onClick={handleAnalyze}
-          disabled={!canSubmit}
+          disabled={!canSubmit || ocrLoading}
           className={`mt-6 w-full py-3 rounded-md text-sm font-medium transition-colors ${
-            canSubmit
+            canSubmit && !ocrLoading
               ? "bg-white text-black hover:bg-white/90"
               : "bg-white/10 text-[var(--muted)] cursor-not-allowed"
           }`}
         >
-          {t("runAnalysis", locale)}
+          {ocrLoading ? "텍스트 추출 중..." : t("runAnalysis", locale)}
         </button>
       </div>
     </div>
+    {pendingOCRReview && (
+      <OCRReviewModal
+        ocrResults={pendingOCRReview.results}
+        onConfirm={handleOCRConfirm}
+        onCancel={() => setPendingOCRReview(null)}
+      />
+    )}
+    </>
   );
 }

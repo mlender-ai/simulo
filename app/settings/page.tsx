@@ -21,6 +21,7 @@ export default function SettingsPage() {
   const [apiKey, setApiKey] = useState("");
   const [figmaToken, setFigmaToken] = useState("");
   const [model, setModel] = useState<"haiku" | "sonnet">("haiku");
+  const [ocrReviewMode, setOcrReviewMode] = useState(false);
   const [saved, setSaved] = useState(false);
   const [storageUsage, setStorageUsage] = useState<StorageUsage | null>(null);
   const [clearMsg, setClearMsg] = useState("");
@@ -35,6 +36,7 @@ export default function SettingsPage() {
     setApiKey(localStorage.getItem("simulo_anthropic_key") ?? "");
     setFigmaToken(localStorage.getItem("simulo_figma_token") ?? "");
     setModel((localStorage.getItem("simulo_model") as "haiku" | "sonnet") || "haiku");
+    setOcrReviewMode(localStorage.getItem("simulo_ocr_review") === "true");
     refreshStorageUsage();
   }, [refreshStorageUsage]);
 
@@ -47,6 +49,7 @@ export default function SettingsPage() {
     localStorage.setItem("simulo_anthropic_key", apiKey);
     localStorage.setItem("simulo_figma_token", figmaToken);
     localStorage.setItem("simulo_model", model);
+    localStorage.setItem("simulo_ocr_review", String(ocrReviewMode));
     setSaved(true);
     setTimeout(() => setSaved(false), 2000);
   };
@@ -128,6 +131,39 @@ export default function SettingsPage() {
           </div>
           <p className="text-xs text-[var(--muted)] mt-1">
             {t("modelHint", locale)}
+          </p>
+        </div>
+
+
+        {/* OCR Review Mode */}
+        <div>
+          <label className="block text-xs text-[var(--muted)] uppercase tracking-wider mb-1.5">
+            텍스트 인식 설정
+          </label>
+          <div
+            className="flex items-center justify-between p-3 rounded-lg border border-[var(--border)] bg-[var(--surface)] cursor-pointer"
+            onClick={() => setOcrReviewMode((v) => !v)}
+          >
+            <div>
+              <p className="text-sm font-medium">텍스트 추출 결과 확인 후 분석</p>
+              <p className="text-xs text-[var(--muted)] mt-0.5">
+                ON 시 OCR 결과를 직접 수정한 뒤 분석을 시작합니다
+              </p>
+            </div>
+            <div
+              className={`relative w-10 h-5 rounded-full transition-colors flex-shrink-0 ${
+                ocrReviewMode ? "bg-white/80" : "bg-white/20"
+              }`}
+            >
+              <span
+                className={`absolute top-0.5 w-4 h-4 rounded-full bg-black transition-transform ${
+                  ocrReviewMode ? "translate-x-5" : "translate-x-0.5"
+                }`}
+              />
+            </div>
+          </div>
+          <p className="text-xs text-[var(--muted)] mt-1">
+            기본값 OFF — ON 설정 시 분석 전 텍스트 확인 단계가 추가됩니다
           </p>
         </div>
 

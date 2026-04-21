@@ -24,7 +24,7 @@ export type ModelTier = "haiku" | "sonnet";
 
 const MODEL_MAP: Record<ModelTier, string> = {
   haiku: "claude-haiku-4-5-20251001",
-  sonnet: "claude-sonnet-4-5-20241022",
+  sonnet: "claude-sonnet-4-6",
 };
 
 // ──────────────────────────────────────────────
@@ -42,6 +42,7 @@ interface AnalyzeParams {
   mode?: AnalysisMode;
   analysisOptions?: import("./prompts").AnalysisOptions;
   screenDescription?: string;
+  ocrContext?: string;
 }
 
 interface FlowAnalyzeParams {
@@ -55,6 +56,7 @@ interface FlowAnalyzeParams {
   mode?: AnalysisMode;
   analysisOptions?: import("./prompts").AnalysisOptions;
   screenDescription?: string;
+  ocrContext?: string;
 }
 
 export interface ComparisonProduct {
@@ -138,6 +140,12 @@ function screenDescLine(screenDescription: string | undefined, isKo: boolean): s
   return isKo ? `화면 설명: ${desc}\n` : `Screen description: ${desc}\n`;
 }
 
+function ocrContextLine(ocrContext: string | undefined): string {
+  const ctx = ocrContext?.trim();
+  if (!ctx) return "";
+  return `\n${ctx}\n`;
+}
+
 // ──────────────────────────────────────────────
 // Public API functions
 // ──────────────────────────────────────────────
@@ -155,14 +163,15 @@ export async function analyzeWithClaude(params: AnalyzeParams) {
 
   const tul = targetUserLine(params.targetUser, isKo);
   const sdl = screenDescLine(params.screenDescription, isKo);
+  const ocl = ocrContextLine(params.ocrContext);
 
   const userPrompt = isUsability
     ? (isKo
-        ? `${tul}\n${sdl}${params.images.length}개 화면의 사용성을 가설 없이 종합 평가하고 JSON 반환.`
-        : `${tul}\n${sdl}Evaluate overall usability of ${params.images.length} screen(s) without a hypothesis. Return JSON.`)
+        ? `${tul}\n${sdl}${ocl}${params.images.length}개 화면의 사용성을 가설 없이 종합 평가하고 JSON 반환.`
+        : `${tul}\n${sdl}${ocl}Evaluate overall usability of ${params.images.length} screen(s) without a hypothesis. Return JSON.`)
     : (isKo
-        ? `가설: ${params.hypothesis}\n${tul}\n${params.task ? `태스크: ${params.task}` : "태스크: 가설에서 추론"}\n${sdl}${params.images.length}개 화면 분석 후 JSON 반환.`
-        : `Hypothesis: ${params.hypothesis}\n${tul}\n${params.task ? `Task: ${params.task}` : "Task: Infer from hypothesis"}\n${sdl}Analyze ${params.images.length} screen(s), return JSON.`);
+        ? `가설: ${params.hypothesis}\n${tul}\n${params.task ? `태스크: ${params.task}` : "태스크: 가설에서 추론"}\n${sdl}${ocl}${params.images.length}개 화면 분석 후 JSON 반환.`
+        : `Hypothesis: ${params.hypothesis}\n${tul}\n${params.task ? `Task: ${params.task}` : "Task: Infer from hypothesis"}\n${sdl}${ocl}Analyze ${params.images.length} screen(s), return JSON.`);
 
   const systemPrompt = buildSystemPrompt({
     mode: params.mode || "hypothesis",
@@ -213,14 +222,15 @@ export async function analyzeFlowWithClaude(params: FlowAnalyzeParams) {
 
   const tul = targetUserLine(params.targetUser, isKo);
   const sdl = screenDescLine(params.screenDescription, isKo);
+  const ocl = ocrContextLine(params.ocrContext);
 
   const userPrompt = isUsability
     ? (isKo
-        ? `${tul}\n${sdl}위 ${params.flowSteps.length}단계 플로우의 사용성을 가설 없이 종합 평가하고 JSON 반환.`
-        : `${tul}\n${sdl}Evaluate the ${params.flowSteps.length}-step flow for overall usability without a hypothesis. Return JSON.`)
+        ? `${tul}\n${sdl}${ocl}위 ${params.flowSteps.length}단계 플로우의 사용성을 가설 없이 종합 평가하고 JSON 반환.`
+        : `${tul}\n${sdl}${ocl}Evaluate the ${params.flowSteps.length}-step flow for overall usability without a hypothesis. Return JSON.`)
     : (isKo
         ? `가설: ${params.hypothesis}\n${tul}\n${params.task ? `태스크: ${params.task}` : "태스크: 가설에서 추론"}\n${sdl}위 ${params.flowSteps.length}단계 유저 플로우를 분석하고 JSON 반환.`
-        : `Hypothesis: ${params.hypothesis}\n${tul}\n${params.task ? `Task: ${params.task}` : "Task: Infer from hypothesis"}\n${sdl}Analyze the ${params.flowSteps.length}-step user flow above and return JSON.`);
+        : `Hypothesis: ${params.hypothesis}\n${tul}\n${params.task ? `Task: ${params.task}` : "Task: Infer from hypothesis"}\n${sdl}${ocl}Analyze the ${params.flowSteps.length}-step user flow above and return JSON.`);
 
   content.push({ type: "text" as const, text: userPrompt });
 

@@ -3,6 +3,8 @@ import { analyzeWithClaude, analyzeFlowWithClaude, analyzeComparisonWithClaude }
 import type { ComparisonProduct, AnalysisMode, AnalysisOptions } from "@/lib/claude";
 import { v4 as uuidv4 } from "uuid";
 import { Prisma } from "@prisma/client";
+import { preprocessImages } from "@/lib/imagePreprocess";
+import { extractTextFromImages, validateOCRResults, formatOCRForPrompt } from "@/lib/ocr";
 
 interface VideoFrame { base64: string; name: string; timestamp: number; index: number; }
 interface UploadedVideo { fileName: string; duration: number; frameCount: number; interval: number; frames: VideoFrame[]; }
@@ -34,6 +36,7 @@ export async function POST(request: NextRequest) {
       analysisPerspective,
       mode: rawMode,
       analysisOptions: rawAnalysisOptions,
+      ocrReview,
     } = body;
 
     // Merge video frames into images array
@@ -42,6 +45,33 @@ export async function POST(request: NextRequest) {
       : [];
     const images: string[] = [...(Array.isArray(rawImages) ? rawImages : []), ...videoFrameImages];
     const hasVideos = videoFrameImages.length > 0;
+
+    // ── Pass 1: Image preprocessing + Pass 2: OCR extraction ──
+    // Skip for comparison/figma — those paths use their own image sets
+    // ocrReview: client-sent pre-validated OCR results (when user has confirmed them in UI)
+    let ocrContext: string | undefined;
+    const shouldRunOCR = inputType !== "comparison" && inputType !== "figma" && images.length > 0;
+    if (shouldRunOCR) {
+      try {
+        let finalOCR;
+        if (ocrReview && Array.isArray(ocrReview) && ocrReview.length > 0) {
+          // User manually reviewed and confirmed OCR — skip Pass 1+2, use as-is
+          console.log("[analyze] Using client-reviewed OCR results:", ocrReview.length, "screens");
+          finalOCR = ocrReview;
+        } else {
+          console.log("[analyze] Pass 1: Preprocessing", images.length, "images");
+          const processedImages = await preprocessImages(images);
+          console.log("[analyze] Pass 2: OCR extraction with claude-opus-4-7");
+          const rawOCR = await extractTextFromImages(processedImages, apiKey || process.env.ANTHROPIC_API_KEY);
+          finalOCR = validateOCRResults(rawOCR);
+        }
+        ocrContext = formatOCRForPrompt(finalOCR, locale || "ko");
+        console.log("[analyze] OCR context ready:", ocrContext.slice(0, 120));
+      } catch (ocrErr) {
+        // OCR failure is non-fatal — analysis proceeds without OCR context
+        console.warn("[analyze] OCR pass failed (non-fatal):", ocrErr);
+      }
+    }
 
     const mode: AnalysisMode = rawMode === "usability" ? "usability" : "hypothesis";
     const analysisOptions: AnalysisOptions = mode === "usability"
@@ -202,6 +232,7 @@ export async function POST(request: NextRequest) {
         mode,
         analysisOptions,
         screenDescription,
+        ocrContext,
       });
       thumbnailUrls = flowSteps.map((s: { image: string }) => `data:image/png;base64,${s.image}`);
       savedFlowSteps = flowSteps.map((s: { stepNumber: number; stepName: string }) => ({
@@ -231,6 +262,7 @@ export async function POST(request: NextRequest) {
         mode,
         analysisOptions,
         screenDescription: (screenDescription || "") + videoContext,
+        ocrContext,
       });
       thumbnailUrls = images.map((b64: string) => `data:image/png;base64,${b64}`);
     }
