@@ -38,6 +38,7 @@ export function Sidebar() {
   const navItems = [
     { href: "/history", label: t("history", locale), icon: "≡" },
     { href: "/flow-builder", label: t("flowBuilder", locale), icon: "◇" },
+    { href: "/code-to-figma", label: "코드 → Figma", icon: "⟨⟩" },
     { href: "/settings", label: t("settings", locale), icon: "⚙" },
   ];
 
