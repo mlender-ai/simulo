@@ -32,6 +32,9 @@ model Analysis {
   flowSteps             Json?
   isComparison          Boolean  @default(false)
   comparisonData        Json?
+  previousAnalysisId    String?
+  roundNumber           Int      @default(1)
+  isImprovement         Boolean  @default(false)
 }
 
 model FlowAnalysis {

@@ -27,6 +27,137 @@ const MODE_BADGE: Record<string, { bg: string; color: string; border: string; la
   usability: { bg: "rgba(42,26,58,0.6)", color: "#d8b4fe", border: "rgba(216,180,254,0.2)", labelKey: "modeBadgeUsability" },
 };
 
+function AnalysisCard({
+  analysis,
+  locale,
+  isChild,
+}: {
+  analysis: AnalysisResult;
+  locale: Locale;
+  isChild: boolean;
+}) {
+  const verdictKey = analysis.verdict as "Pass" | "Partial" | "Fail";
+  const rowMode = analysis.mode ?? "hypothesis";
+  const isUsability = rowMode === "usability";
+  const modeBadge = MODE_BADGE[rowMode];
+  const grade = analysis.grade ?? gradeFromScore(analysis.score);
+  const gradeBadge = GRADE_BADGE[grade];
+
+  return (
+    <div className={isChild ? "pl-6 relative" : undefined}>
+      {isChild && (
+        <div
+          className="absolute left-2 top-0 bottom-0 flex flex-col items-center"
+          style={{ width: 16 }}
+        >
+          <div className="w-px flex-1 bg-[var(--border)]" style={{ marginTop: 12 }} />
+        </div>
+      )}
+      {isChild && (
+        <div
+          className="absolute text-[var(--muted)] text-[10px]"
+          style={{ left: 14, top: 14 }}
+        >
+          └
+        </div>
+      )}
+      <Link
+        href={`/report/${analysis.id}`}
+        className="block p-4 rounded-lg border border-[var(--border)] bg-[var(--surface)] hover:border-white/20 transition-colors"
+      >
+        <div className="flex items-center gap-3">
+          {analysis.thumbnailUrls?.[0] &&
+            analysis.thumbnailUrls[0] !== STRIPPED_IMAGE && (
+              <div
+                className="shrink-0 rounded overflow-hidden border border-[var(--border)]"
+                style={{ width: isChild ? 36 : 48, height: isChild ? 36 : 48 }}
+              >
+                <img
+                  src={analysis.thumbnailUrls[0]}
+                  alt="thumbnail"
+                  style={{ width: "100%", height: "100%", objectFit: "cover" }}
+                />
+              </div>
+            )}
+          <div className="flex-1 min-w-0 flex items-start justify-between gap-4">
+            <div className="flex-1 min-w-0">
+              <p className="text-sm truncate mb-1">
+                {analysis.isImprovement
+                  ? `개선 ${analysis.roundNumber ?? "?"}회차`
+                  : isUsability
+                  ? t("usabilityReportTitle", locale)
+                  : analysis.hypothesis}
+              </p>
+              <div className="flex items-center gap-3 text-xs text-[var(--muted)]">
+                <span className="mono">
+                  {new Date(analysis.createdAt).toLocaleDateString()}
+                </span>
+                {!analysis.isImprovement && modeBadge && (
+                  <span
+                    className="px-1.5 py-0.5 rounded border"
+                    style={{
+                      background: modeBadge.bg,
+                      color: modeBadge.color,
+                      borderColor: modeBadge.border,
+                    }}
+                  >
+                    {t(modeBadge.labelKey, locale)}
+                  </span>
+                )}
+                {analysis.isImprovement && (
+                  <span className="px-1.5 py-0.5 rounded bg-white/5 border border-[var(--border)]">
+                    개선안
+                  </span>
+                )}
+                {analysis.projectTag && !analysis.isImprovement && (
+                  <span className="px-1.5 py-0.5 rounded bg-white/5 border border-[var(--border)]">
+                    {analysis.projectTag}
+                  </span>
+                )}
+                {analysis.isComparison && (
+                  <span className="px-1.5 py-0.5 rounded bg-indigo-400/10 border border-indigo-400/20 text-indigo-300">
+                    {t("comparisonBadge", locale)}
+                  </span>
+                )}
+              </div>
+            </div>
+            <div className="flex items-center gap-3 shrink-0">
+              <span className="mono text-sm font-medium">{analysis.score}</span>
+              {isUsability || analysis.isImprovement ? (
+                <span
+                  className="text-xs px-2 py-0.5 rounded border"
+                  style={
+                    gradeBadge
+                      ? {
+                          background: gradeBadge.bg,
+                          color: gradeBadge.color,
+                          borderColor: gradeBadge.border,
+                        }
+                      : undefined
+                  }
+                >
+                  {grade}
+                </span>
+              ) : (
+                <span
+                  className={`text-xs px-2 py-0.5 rounded border ${VERDICT_COLORS[analysis.verdict] ?? ""}`}
+                >
+                  {t(verdictKey, locale)}
+                </span>
+              )}
+              {!isChild && (
+                <div onClick={(e) => e.preventDefault()}>
+                  <ShareExportPanel analysisId={analysis.id} />
+                </div>
+              )}
+            </div>
+          </div>
+        </div>
+      </Link>
+    </div>
+  );
+}
+
 export default function HistoryPage() {
   const [locale, setLocale] = useState<Locale>("ko");
   const [analyses, setAnalyses] = useState<AnalysisResult[]>([]);
@@ -104,100 +235,42 @@ export default function HistoryPage() {
       </div>
 
       <div className="space-y-2">
-        {filtered.map((analysis) => {
-          const verdictKey = analysis.verdict as "Pass" | "Partial" | "Fail";
-          const rowMode = analysis.mode ?? "hypothesis";
-          const isUsability = rowMode === "usability";
-          const modeBadge = MODE_BADGE[rowMode];
-          const grade = analysis.grade ?? gradeFromScore(analysis.score);
-          const gradeBadge = GRADE_BADGE[grade];
-          return (
-            <Link
-              key={analysis.id}
-              href={`/report/${analysis.id}`}
-              className="block p-4 rounded-lg border border-[var(--border)] bg-[var(--surface)] hover:border-white/20 transition-colors"
-            >
-              <div className="flex items-center gap-3">
-                {analysis.thumbnailUrls?.[0] && analysis.thumbnailUrls[0] !== STRIPPED_IMAGE && (
-                  <div
-                    className="shrink-0 rounded overflow-hidden border border-[var(--border)]"
-                    style={{ width: 48, height: 48 }}
-                  >
-                    <img
-                      src={analysis.thumbnailUrls[0]}
-                      alt="thumbnail"
-                      style={{ width: "100%", height: "100%", objectFit: "cover" }}
-                    />
-                  </div>
-                )}
-                <div className="flex-1 min-w-0 flex items-start justify-between gap-4">
-                  <div className="flex-1 min-w-0">
-                    <p className="text-sm truncate mb-1">
-                      {isUsability ? t("usabilityReportTitle", locale) : analysis.hypothesis}
-                    </p>
-                    <div className="flex items-center gap-3 text-xs text-[var(--muted)]">
-                      <span className="mono">
-                        {new Date(analysis.createdAt).toLocaleDateString()}
-                      </span>
-                      {modeBadge && (
-                        <span
-                          className="px-1.5 py-0.5 rounded border"
-                          style={{
-                            background: modeBadge.bg,
-                            color: modeBadge.color,
-                            borderColor: modeBadge.border,
-                          }}
-                        >
-                          {t(modeBadge.labelKey, locale)}
-                        </span>
-                      )}
-                      {analysis.projectTag && (
-                        <span className="px-1.5 py-0.5 rounded bg-white/5 border border-[var(--border)]">
-                          {analysis.projectTag}
-                        </span>
-                      )}
-                      {analysis.isComparison && (
-                        <span className="px-1.5 py-0.5 rounded bg-indigo-400/10 border border-indigo-400/20 text-indigo-300">
-                          {t("comparisonBadge", locale)}
-                        </span>
-                      )}
-                    </div>
-                  </div>
-                  <div className="flex items-center gap-3 shrink-0">
-                    <span className="mono text-sm font-medium">
-                      {analysis.score}
-                    </span>
-                    {isUsability ? (
-                      <span
-                        className="text-xs px-2 py-0.5 rounded border"
-                        style={
-                          gradeBadge
-                            ? {
-                                background: gradeBadge.bg,
-                                color: gradeBadge.color,
-                                borderColor: gradeBadge.border,
-                              }
-                            : undefined
-                        }
-                      >
-                        {grade}
-                      </span>
-                    ) : (
-                      <span
-                        className={`text-xs px-2 py-0.5 rounded border ${VERDICT_COLORS[analysis.verdict] ?? ""}`}
-                      >
-                        {t(verdictKey, locale)}
-                      </span>
-                    )}
-                    <div onClick={(e) => e.preventDefault()}>
-                      <ShareExportPanel analysisId={analysis.id} />
-                    </div>
-                  </div>
-                </div>
+        {(() => {
+          // Group improvements under their parent
+          const parentMap = new Map<string, AnalysisResult[]>();
+          const roots: AnalysisResult[] = [];
+
+          for (const a of filtered) {
+            if (a.isImprovement && a.previousAnalysisId) {
+              const children = parentMap.get(a.previousAnalysisId) ?? [];
+              children.push(a);
+              parentMap.set(a.previousAnalysisId, children);
+            } else {
+              roots.push(a);
+            }
+          }
+
+          return roots.map((analysis) => {
+            const children = parentMap.get(analysis.id) ?? [];
+            return (
+              <div key={analysis.id} className="space-y-1">
+                <AnalysisCard
+                  analysis={analysis}
+                  locale={locale}
+                  isChild={false}
+                />
+                {children.map((child) => (
+                  <AnalysisCard
+                    key={child.id}
+                    analysis={child}
+                    locale={locale}
+                    isChild
+                  />
+                ))}
               </div>
-            </Link>
-          );
-        })}
+            );
+          });
+        })()}
 
         {filtered.length === 0 && (
           <div className="text-center py-16 text-[var(--muted)]">

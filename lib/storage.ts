@@ -174,6 +174,9 @@ export interface AnalysisResult {
   adFriction?: AdFriction;
   isComparison?: boolean;
   comparisonData?: ComparisonResult;
+  previousAnalysisId?: string | null;
+  roundNumber?: number;
+  isImprovement?: boolean;
 }
 
 const STORAGE_KEY = "simulo_analyses";

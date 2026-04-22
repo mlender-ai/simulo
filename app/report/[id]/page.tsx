@@ -9,12 +9,15 @@ import { ComparisonReportTabs } from "@/components/ComparisonReportTabs";
 import { UsabilityReportTabs } from "@/components/UsabilityReportTabs";
 import { getLocale, t, type Locale } from "@/lib/i18n";
 import { ShareExportPanel } from "@/components/ShareExportPanel";
+import { ImprovementPanel } from "@/components/ImprovementPanel";
 
 export default function ReportPage() {
   const params = useParams();
   const [data, setData] = useState<AnalysisResult | null>(null);
   const [locale, setLocale] = useState<Locale>("ko");
   const [notFound, setNotFound] = useState(false);
+  const [isPanelOpen, setIsPanelOpen] = useState(false);
+  const [roundNumber, setRoundNumber] = useState(1);
 
   useEffect(() => {
     setLocale(getLocale());
@@ -62,49 +65,92 @@ export default function ReportPage() {
   if (!data) return null;
 
   return (
-    <div className="p-8 max-w-4xl">
-      <div className="mb-8">
-        <div className="flex items-center gap-3 mb-4">
-          <Link
-            href="/history"
-            className="text-sm text-[var(--muted)] hover:text-white transition-colors"
-          >
-            ← {t("backToHistory", locale)}
-          </Link>
-          <Link
-            href="/"
-            className="text-sm text-[var(--muted)] hover:text-white transition-colors"
-          >
-            {t("newAnalysis", locale)}
-          </Link>
-          <div className="ml-auto">
-            <ShareExportPanel analysisId={data.id} />
+    <div style={{ display: "flex", minHeight: "100vh", gap: 0 }}>
+      {/* 좌측: 리포트 */}
+      <div
+        style={{
+          flex: isPanelOpen ? "0 0 60%" : "0 0 100%",
+          maxWidth: isPanelOpen ? "60%" : "56rem",
+          transition: "flex 0.3s ease, max-width 0.3s ease",
+          padding: "2rem",
+          overflow: "hidden",
+        }}
+      >
+        <div className="mb-8">
+          <div className="flex items-center gap-3 mb-4">
+            <Link
+              href="/history"
+              className="text-sm text-[var(--muted)] hover:text-white transition-colors"
+            >
+              ← {t("backToHistory", locale)}
+            </Link>
+            <Link
+              href="/"
+              className="text-sm text-[var(--muted)] hover:text-white transition-colors"
+            >
+              {t("newAnalysis", locale)}
+            </Link>
+            <div className="ml-auto flex items-center gap-2">
+              <ShareExportPanel analysisId={data.id} />
+              <button
+                onClick={() => setIsPanelOpen((v) => !v)}
+                className="flex items-center gap-1.5 px-3 py-1.5 rounded-md text-xs transition-colors"
+                style={{
+                  border: "1px solid #ffffff40",
+                  color: isPanelOpen ? "#ffffff" : "var(--muted)",
+                  background: isPanelOpen ? "rgba(255,255,255,0.08)" : "transparent",
+                }}
+              >
+                <span>✦</span>
+                {isPanelOpen ? "패널 닫기" : "개선안 생성"}
+              </button>
+            </div>
+          </div>
+          <h1 className="text-xl font-semibold mb-2">
+            {data.mode === "usability"
+              ? t("usabilityReportTitle", locale)
+              : data.hypothesis}
+          </h1>
+          <div className="flex items-center gap-3 text-xs text-[var(--muted)]">
+            <span className="mono">
+              {new Date(data.createdAt).toLocaleString()}
+            </span>
+            {data.projectTag && (
+              <span className="px-1.5 py-0.5 rounded bg-white/5 border border-[var(--border)]">
+                {data.projectTag}
+              </span>
+            )}
+            <span className="uppercase">{data.inputType}</span>
           </div>
         </div>
-        <h1 className="text-xl font-semibold mb-2">
-          {data.mode === "usability"
-            ? t("usabilityReportTitle", locale)
-            : data.hypothesis}
-        </h1>
-        <div className="flex items-center gap-3 text-xs text-[var(--muted)]">
-          <span className="mono">
-            {new Date(data.createdAt).toLocaleString()}
-          </span>
-          {data.projectTag && (
-            <span className="px-1.5 py-0.5 rounded bg-white/5 border border-[var(--border)]">
-              {data.projectTag}
-            </span>
-          )}
-          <span className="uppercase">{data.inputType}</span>
-        </div>
+
+        {data.isComparison ? (
+          <ComparisonReportTabs analysis={data} locale={locale} />
+        ) : data.mode === "usability" ? (
+          <UsabilityReportTabs data={data} locale={locale} />
+        ) : (
+          <ReportTabs data={data} locale={locale} />
+        )}
       </div>
 
-      {data.isComparison ? (
-        <ComparisonReportTabs analysis={data} locale={locale} />
-      ) : data.mode === "usability" ? (
-        <UsabilityReportTabs data={data} locale={locale} />
-      ) : (
-        <ReportTabs data={data} locale={locale} />
+      {/* 우측: 개선안 패널 */}
+      {isPanelOpen && (
+        <div
+          style={{
+            flex: "0 0 40%",
+            borderLeft: "1px solid #1a1a1a",
+            position: "sticky",
+            top: 0,
+            height: "100vh",
+            overflowY: "auto",
+          }}
+        >
+          <ImprovementPanel
+            originalAnalysis={data}
+            roundNumber={roundNumber}
+            onNextRound={(n) => setRoundNumber(n)}
+          />
+        </div>
       )}
     </div>
   );

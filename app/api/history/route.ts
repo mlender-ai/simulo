@@ -32,6 +32,9 @@ export async function GET() {
         flowSteps: true,
         mode: true,
         analysisOptions: true,
+        isImprovement: true,
+        previousAnalysisId: true,
+        roundNumber: true,
       },
     });
 

@@ -37,6 +37,9 @@ export async function POST(request: NextRequest) {
       mode: rawMode,
       analysisOptions: rawAnalysisOptions,
       ocrReview,
+      previousAnalysisId,
+      roundNumber: rawRoundNumber,
+      isImprovement: rawIsImprovement,
     } = body;
 
     // Merge video frames into images array
@@ -363,6 +366,9 @@ export async function POST(request: NextRequest) {
         }
       : null;
 
+    const roundNumber = typeof rawRoundNumber === "number" ? rawRoundNumber : 1;
+    const isImprovement = rawIsImprovement === true;
+
     const analysis = {
       id: uuidv4(),
       createdAt: new Date().toISOString(),
@@ -372,6 +378,9 @@ export async function POST(request: NextRequest) {
       projectTag: projectTag || null,
       inputType: inputType || "image",
       mode,
+      previousAnalysisId: previousAnalysisId || null,
+      roundNumber,
+      isImprovement,
       verdict: topLevel.verdict,
       score: topLevel.score,
       taskSuccessLikelihood: topLevel.taskSuccessLikelihood,
@@ -431,6 +440,9 @@ export async function POST(request: NextRequest) {
             flowSteps: savedFlowSteps ?? null,
             isComparison,
             comparisonData: (comparisonData as object) ?? null,
+            previousAnalysisId: analysis.previousAnalysisId,
+            roundNumber: analysis.roundNumber,
+            isImprovement: analysis.isImprovement,
           },
         });
         console.log("[analyze] Saved to DB:", analysis.id);
