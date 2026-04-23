@@ -4,6 +4,13 @@ on:
   push:
     branches: [main, develop]
   pull_request:
+  workflow_dispatch:
+    inputs:
+      run_ideas:
+        description: '아이디어 에이전트 실행'
+        required: false
+        default: 'true'
+        type: boolean
   schedule:
     # 매일 KST 오전 9시 (UTC 0시) — 아이디어 + QA 모두 실행
     - cron: '0 0 * * *'
@@ -61,7 +68,6 @@ jobs:
         with:
           script: |
             const fs = require('fs');
-            const glob = require('glob');
             const files = fs.readdirSync('qa-reports').filter(f => f.endsWith('.md'));
             let report = '자동 QA 에이전트가 CRITICAL 이슈를 발견했습니다.';
             if (files.length > 0) {
@@ -77,10 +83,14 @@ jobs:
             });
 
   # ─────────────────────────────────────────────
-  # 아이디어 에이전트: 매일 KST 오전 9시 실행
+  # 아이디어 에이전트: KST 오전 9시 또는 수동 실행
   # ─────────────────────────────────────────────
   idea-generator:
-    if: github.event_name == 'schedule'
+    # schedule: UTC 0시(KST 9시) 스케줄에만 실행
+    # workflow_dispatch: inputs.run_ideas == true 일 때 실행
+    if: |
+      (github.event_name == 'schedule' && github.event.schedule == '0 0 * * *') ||
+      (github.event_name == 'workflow_dispatch' && github.event.inputs.run_ideas == 'true')
     runs-on: ubuntu-latest
     permissions:
       contents: write
@@ -100,46 +110,76 @@ jobs:
         run: npm ci
 
       - name: Run Idea Agent
+        id: idea
         env:
           ANTHROPIC_API_KEY: ${{ secrets.ANTHROPIC_API_KEY }}
         run: npx tsx scripts/agents/idea-agent.ts
+        continue-on-error: true
+
+      - name: Check idea output
+        id: check
+        run: |
+          TODAY=$(date +%Y%m%d)
+          FILE="ideas/ideas-${TODAY}.md"
+          if [ -f "$FILE" ]; then
+            echo "created=true" >> $GITHUB_OUTPUT
+            echo "file=$FILE" >> $GITHUB_OUTPUT
+            echo "[check] 오늘 아이디어 파일 확인됨: $FILE"
+          else
+            echo "created=false" >> $GITHUB_OUTPUT
+            echo "[check] 오늘 아이디어 파일 없음 (에이전트 실패 가능성)"
+            exit 1
+          fi
 
       - name: Create Issue with ideas
+        if: steps.check.outputs.created == 'true'
         uses: actions/github-script@v7
         with:
           script: |
             const fs = require('fs');
-            const files = fs.readdirSync('ideas').filter(f => f.endsWith('.md') && f !== '.gitkeep');
-            if (files.length > 0) {
-              const latest = files.sort().pop();
-              const content = fs.readFileSync(`ideas/${latest}`, 'utf8');
-              await github.rest.issues.create({
-                owner: context.repo.owner,
-                repo: context.repo.repo,
-                title: `제품 아이디어 — ${new Date().toISOString().split('T')[0]}`,
-                body: content.slice(0, 60000),
-                labels: ['idea']
-              });
-            }
+            const file = '${{ steps.check.outputs.file }}';
+            const content = fs.readFileSync(file, 'utf8');
+            const today = new Date().toISOString().split('T')[0];
+            const issue = await github.rest.issues.create({
+              owner: context.repo.owner,
+              repo: context.repo.repo,
+              title: `제품 아이디어 — ${today}`,
+              body: content.slice(0, 60000),
+              labels: ['idea']
+            });
+            console.log(`이슈 생성 완료: ${issue.data.html_url}`);
 
       - name: Notify Slack (optional)
-        if: env.SLACK_WEBHOOK != ''
+        if: steps.check.outputs.created == 'true' && env.SLACK_WEBHOOK != ''
         env:
           SLACK_WEBHOOK: ${{ secrets.SLACK_WEBHOOK_URL }}
         run: |
-          FILE=$(ls -t ideas/*.md 2>/dev/null | head -1)
-          if [ -n "$FILE" ]; then
-            TITLE=$(head -1 "$FILE")
-            PREVIEW=$(head -20 "$FILE" | tail -15)
-            curl -s -X POST "$SLACK_WEBHOOK" \
-              -H 'Content-type: application/json' \
-              -d "{\"text\": \"$TITLE\n\`\`\`\n$PREVIEW\n\`\`\`\"}"
-          fi
+          FILE="${{ steps.check.outputs.file }}"
+          TITLE=$(head -1 "$FILE")
+          PREVIEW=$(head -20 "$FILE" | tail -15)
+          curl -s -X POST "$SLACK_WEBHOOK" \
+            -H 'Content-type: application/json' \
+            -d "{\"text\": \"$TITLE\n\`\`\`\n$PREVIEW\n\`\`\`\"}"
 
       - name: Commit idea file
+        if: steps.check.outputs.created == 'true'
         run: |
           git config user.name 'Simulo Agent'
           git config user.email 'agent@simulo.dev'
           git add ideas/
           git diff --staged --quiet || git commit -m "chore: 자동 아이디어 리포트 $(date +%Y-%m-%d)"
           git push
+
+      - name: Report failure
+        if: steps.idea.outcome == 'failure' || steps.check.outputs.created == 'false'
+        uses: actions/github-script@v7
+        with:
+          script: |
+            const today = new Date().toISOString().split('T')[0];
+            await github.rest.issues.create({
+              owner: context.repo.owner,
+              repo: context.repo.repo,
+              title: `[에이전트 오류] 아이디어 생성 실패 — ${today}`,
+              body: `## 아이디어 에이전트 실행 실패\n\n- **날짜**: ${today}\n- **실행 ID**: ${{ github.run_id }}\n- **원인**: idea-agent.ts 실행 중 오류 발생 또는 파일 미생성\n\n### 확인 사항\n- [ ] \`ANTHROPIC_API_KEY\` 시크릿 설정 확인\n- [ ] [Actions 로그 확인](https://github.com/${{ github.repository }}/actions/runs/${{ github.run_id }})\n- [ ] 수동 재실행: Actions → Auto QA + Idea Agent → Run workflow`,
+              labels: ['bug', 'idea-agent']
+            });
