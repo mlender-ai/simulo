@@ -1,7 +1,7 @@
 // lib/improvement/index.ts
 // Provider dispatch: IMPROVEMENT_MODEL env var로 generator 선택
 //
-// 현재:  IMPROVEMENT_MODEL=claude-opus-4-5  (또는 미설정 시 기본값)
+// 현재:  IMPROVEMENT_MODEL=claude-opus-4-6  (또는 미설정 시 기본값)
 // 향후:  IMPROVEMENT_MODEL=claude-design    → claudeDesignGenerator로 자동 전환
 
 import type { GenerateImproveParams, GenerateImproveResult } from "./opusGenerator";
@@ -9,7 +9,7 @@ import type { GenerateImproveParams, GenerateImproveResult } from "./opusGenerat
 export async function generateImprovement(
   input: GenerateImproveParams
 ): Promise<GenerateImproveResult> {
-  const provider = process.env.IMPROVEMENT_MODEL ?? "claude-opus-4-5";
+  const provider = process.env.IMPROVEMENT_MODEL ?? "claude-opus-4-6";
 
   if (provider === "claude-design") {
     // Claude Design API 전환 시 아래 파일 생성 후 주석 해제

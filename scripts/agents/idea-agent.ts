@@ -1,12 +1,12 @@
 /**
  * 자율 아이디어 에이전트
  *
- * GitHub Actions cron으로 매일 실행되며:
+ * GitHub Actions cron으로 매일 KST 9시 실행:
  * 1. 최근 git log를 분석
  * 2. 코드베이스 구조를 파악
  * 3. 에러 기록과 QA 리포트를 읽음
  * 4. Claude API로 제품 개선 아이디어를 생성
- * 5. ideas/ 폴더에 저장 + GitHub Issue 생성
+ * 5. ideas/ 폴더에 저장 → GitHub Issue는 워크플로우에서 생성
  */
 
 import Anthropic from "@anthropic-ai/sdk";
@@ -24,31 +24,39 @@ function run(cmd: string): string {
   }
 }
 
-function readFileIfExists(filePath: string): string {
+function readFileIfExists(filePath: string, maxBytes = 3000): string {
   const full = path.resolve(ROOT, filePath);
   if (fs.existsSync(full)) {
     const content = fs.readFileSync(full, "utf-8");
-    return content.slice(0, 3000); // 토큰 절약
+    return content.slice(0, maxBytes);
   }
   return "(파일 없음)";
 }
 
 function collectContext(): string {
+  console.log("[idea-agent] 컨텍스트 수집 중...");
+
   // 1. 최근 7일 git log
   const gitLog = run("git log --oneline --since='7 days ago' 2>/dev/null") || "(커밋 없음)";
 
   // 2. 핫스팟 파일 (최근 20커밋에서 가장 많이 변경된 파일)
-  const hotspots = run(
-    "git log --pretty=format: --name-only -20 2>/dev/null | sort | uniq -c | sort -rn | head -10"
-  ) || "(데이터 없음)";
+  const hotspots =
+    run(
+      "git log --pretty=format: --name-only -20 2>/dev/null | sort | uniq -c | sort -rn | head -10"
+    ) || "(데이터 없음)";
 
   // 3. fix 커밋 비율
-  const totalCommits = run("git log --oneline --since='7 days ago' 2>/dev/null | wc -l").trim();
-  const fixCommits = run("git log --oneline --since='7 days ago' --grep='fix' 2>/dev/null | wc -l").trim();
+  const totalCommitsRaw = run("git log --oneline --since='7 days ago' 2>/dev/null | wc -l").trim();
+  const fixCommitsRaw = run(
+    "git log --oneline --since='7 days ago' --grep='fix' 2>/dev/null | wc -l"
+  ).trim();
+  const totalCommits = parseInt(totalCommitsRaw) || 0;
+  const fixCommits = parseInt(fixCommitsRaw) || 0;
 
   // 4. 프로젝트 구조
-  const appStructure = run("find app -name '*.tsx' -o -name '*.ts' 2>/dev/null | head -30");
-  const componentList = run("ls components/*.tsx 2>/dev/null");
+  const appStructure =
+    run("find app -name '*.tsx' -o -name '*.ts' 2>/dev/null | head -30") || "(없음)";
+  const componentList = run("ls components/*.tsx 2>/dev/null") || "(없음)";
 
   // 5. 에러 기록
   const errors = readFileIfExists(".claude/memory/errors.md");
@@ -57,14 +65,25 @@ function collectContext(): string {
   const patterns = readFileIfExists(".claude/memory/patterns.md");
 
   // 7. QA 리포트 (최신)
-  const qaReports = run("ls -t qa-reports/*.md 2>/dev/null | head -1");
-  const latestQA = qaReports ? readFileIfExists(qaReports) : "(QA 리포트 없음)";
+  const latestQAPath = run("ls -t qa-reports/*.md 2>/dev/null | head -1");
+  const latestQA = latestQAPath ? readFileIfExists(latestQAPath) : "(QA 리포트 없음)";
 
   // 8. CLAUDE.md (프로젝트 컨텍스트)
   const claudeMd = readFileIfExists("CLAUDE.md");
 
-  // 9. package.json 의존성
-  const deps = readFileIfExists("package.json");
+  // 9. 최근 이슈 아이디어 (중복 방지)
+  const recentIdeas = run("ls -t ideas/*.md 2>/dev/null | head -3")
+    .split("\n")
+    .filter(Boolean)
+    .map((f) => {
+      const content = readFileIfExists(f.trim(), 500);
+      return `### ${path.basename(f.trim())}\n${content}`;
+    })
+    .join("\n\n");
+
+  console.log(
+    `[idea-agent] git log: ${totalCommits}개 커밋, fix: ${fixCommits}개 (${totalCommits > 0 ? ((fixCommits / totalCommits) * 100).toFixed(0) : 0}%)`
+  );
 
   return `
 ## 최근 7일 Git Log
@@ -76,7 +95,7 @@ ${hotspots}
 ## 커밋 통계
 - 총 커밋: ${totalCommits}
 - fix 커밋: ${fixCommits}
-- fix 비율: ${totalCommits !== "0" ? ((parseInt(fixCommits) / parseInt(totalCommits)) * 100).toFixed(0) : 0}%
+- fix 비율: ${totalCommits > 0 ? ((fixCommits / totalCommits) * 100).toFixed(0) : 0}%
 
 ## 앱 구조
 ${appStructure}
@@ -96,8 +115,8 @@ ${latestQA}
 ## 프로젝트 설정 (CLAUDE.md)
 ${claudeMd}
 
-## 의존성 (package.json)
-${deps}
+## 최근 아이디어 (중복 방지용 참고)
+${recentIdeas || "(없음)"}
 `.trim();
 }
 
@@ -111,14 +130,17 @@ async function generateIdeas(): Promise<string> {
   const context = collectContext();
   const today = new Date().toISOString().split("T")[0];
 
+  console.log("[idea-agent] Claude API 호출 중...");
+
   const response = await client.messages.create({
-    model: "claude-haiku-4-5-20251001",
+    model: "claude-sonnet-4-6",
     max_tokens: 4096,
+    system:
+      "당신은 Simulo (AI UX Testing Tool) 프로젝트의 시니어 제품 전략가입니다. 프로젝트 데이터를 분석해 실행 가능한 제품 개선 아이디어를 생성합니다. 반드시 데이터에 기반한 구체적인 아이디어만 제시하고, 최근 아이디어와 중복되지 않는 새로운 관점을 제시하세요.",
     messages: [
       {
         role: "user",
-        content: `당신은 Simulo (AI UX Testing Tool) 프로젝트의 시니어 제품 전략가입니다.
-아래 프로젝트 데이터를 분석하여 제품 개선 아이디어 3개를 생성하세요.
+        content: `아래 프로젝트 데이터를 분석하여 제품 개선 아이디어 3개를 생성하세요.
 
 분석 기준:
 1. 반복되는 에러 패턴 → 근본적 아키텍처 개선
@@ -126,8 +148,6 @@ async function generateIdeas(): Promise<string> {
 3. 누락된 기능 → 사용자 경험 향상
 4. 코드 품질 → 자동화/테스트 강화 기회
 5. UX 마찰 → 기존 플로우의 개선점
-
-반드시 데이터에 기반한 구체적 아이디어만 제시하세요. 추측하지 마세요.
 
 ---
 
@@ -181,29 +201,43 @@ ${context}
   });
 
   const textBlock = response.content.find((b) => b.type === "text");
-  return textBlock ? textBlock.text : "아이디어 생성 실패";
+  if (!textBlock || textBlock.type !== "text") {
+    throw new Error("Claude API가 텍스트 응답을 반환하지 않았습니다.");
+  }
+  return textBlock.text;
 }
 
 async function main() {
-  console.log("[idea-agent] 컨텍스트 수집 중...");
+  const today = new Date().toISOString().split("T")[0].replace(/-/g, "");
+  const outDir = path.join(ROOT, "ideas");
+  const outPath = path.join(outDir, `ideas-${today}.md`);
+
+  // 오늘 이미 생성된 경우 스킵 (재실행 방지)
+  if (fs.existsSync(outPath)) {
+    console.log(`[idea-agent] 오늘 아이디어가 이미 존재합니다: ${outPath}`);
+    console.log("[idea-agent] 기존 파일을 사용합니다.");
+    const existing = fs.readFileSync(outPath, "utf-8");
+    console.log("\n--- IDEA REPORT ---\n");
+    console.log(existing);
+    return;
+  }
 
   const ideas = await generateIdeas();
 
   // 파일 저장
-  const today = new Date().toISOString().split("T")[0].replace(/-/g, "");
-  const outDir = path.join(ROOT, "ideas");
   fs.mkdirSync(outDir, { recursive: true });
-
-  const outPath = path.join(outDir, `ideas-${today}.md`);
   fs.writeFileSync(outPath, ideas, "utf-8");
   console.log(`[idea-agent] 저장 완료: ${outPath}`);
 
-  // stdout에 출력 (GitHub Actions에서 캡처용)
+  // stdout에 출력 (GitHub Actions 로그용)
   console.log("\n--- IDEA REPORT ---\n");
   console.log(ideas);
 }
 
 main().catch((err) => {
   console.error("[idea-agent] 실패:", err.message);
+  if (err.stack) {
+    console.error(err.stack);
+  }
   process.exit(1);
 });

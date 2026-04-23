@@ -1,13 +1,13 @@
 import { NextRequest, NextResponse } from "next/server";
-import { analyzeWithClaude, analyzeFlowWithClaude, analyzeComparisonWithClaude } from "@/lib/claude";
-import type { ComparisonProduct, AnalysisMode, AnalysisOptions } from "@/lib/claude";
+import type { AnalysisMode, AnalysisOptions, ModelTier, AnalysisPerspectiveInput } from "@/lib/claude";
 import { v4 as uuidv4 } from "uuid";
 import { Prisma } from "@prisma/client";
 import { preprocessImages } from "@/lib/imagePreprocess";
 import { extractTextFromImages, validateOCRResults, formatOCRForPrompt } from "@/lib/ocr";
-
-interface VideoFrame { base64: string; name: string; timestamp: number; index: number; }
-interface UploadedVideo { fileName: string; duration: number; frameCount: number; interval: number; frames: VideoFrame[]; }
+import { handleImageAnalysis } from "./handlers/image";
+import { handleFlowAnalysis } from "./handlers/flow";
+import { handleFigmaAnalysis } from "./handlers/figma";
+import { handleComparisonAnalysis } from "./handlers/comparison";
 
 console.log("[analyze] ENV ANTHROPIC_API_KEY prefix:", process.env.ANTHROPIC_API_KEY?.slice(0, 8) || "(not set)");
 
@@ -42,23 +42,15 @@ export async function POST(request: NextRequest) {
       isImprovement: rawIsImprovement,
     } = body;
 
-    // Merge video frames into images array
-    const videoFrameImages: string[] = Array.isArray(videos)
-      ? (videos as UploadedVideo[]).flatMap((v) => v.frames.map((f) => f.base64))
-      : [];
-    const images: string[] = [...(Array.isArray(rawImages) ? rawImages : []), ...videoFrameImages];
-    const hasVideos = videoFrameImages.length > 0;
+    const images: string[] = Array.isArray(rawImages) ? rawImages : [];
 
-    // ── Pass 1: Image preprocessing + Pass 2: OCR extraction ──
-    // Skip for comparison/figma — those paths use their own image sets
-    // ocrReview: client-sent pre-validated OCR results (when user has confirmed them in UI)
+    // ── OCR pipeline (Skip for comparison/figma) ──
     let ocrContext: string | undefined;
     const shouldRunOCR = inputType !== "comparison" && inputType !== "figma" && images.length > 0;
     if (shouldRunOCR) {
       try {
         let finalOCR;
         if (ocrReview && Array.isArray(ocrReview) && ocrReview.length > 0) {
-          // User manually reviewed and confirmed OCR — skip Pass 1+2, use as-is
           console.log("[analyze] Using client-reviewed OCR results:", ocrReview.length, "screens");
           finalOCR = ocrReview;
         } else {
@@ -71,7 +63,6 @@ export async function POST(request: NextRequest) {
         ocrContext = formatOCRForPrompt(finalOCR, locale || "ko");
         console.log("[analyze] OCR context ready:", ocrContext.slice(0, 120));
       } catch (ocrErr) {
-        // OCR failure is non-fatal — analysis proceeds without OCR context
         console.warn("[analyze] OCR pass failed (non-fatal):", ocrErr);
       }
     }
@@ -90,188 +81,56 @@ export async function POST(request: NextRequest) {
           accessibility: rawAnalysisOptions?.accessibility ?? false,
         };
 
-    const effectiveTargetUser = mode === "usability"
+    const effectiveTargetUser: string = mode === "usability"
       ? (targetUser?.trim() || "40-50대 한국 여성 (야핏무브 핵심 타깃)")
-      : targetUser;
+      : (targetUser as string);
 
-    if (mode === "hypothesis") {
-      if (!hypothesis || !targetUser) {
-        return NextResponse.json(
-          { error: "Hypothesis and target user are required" },
-          { status: 400 }
-        );
-      }
+    if (mode === "hypothesis" && (!hypothesis || !targetUser)) {
+      return NextResponse.json(
+        { error: "Hypothesis and target user are required" },
+        { status: 400 }
+      );
     }
 
     const effectiveKey = apiKey || process.env.ANTHROPIC_API_KEY;
-    console.log("[analyze] Request received | inputType:", inputType || "image");
-    console.log("[analyze] Effective key prefix:", effectiveKey?.slice(0, 10) || "(none)", "| Model:", model || "haiku");
+    console.log("[analyze] inputType:", inputType || "image", "| key prefix:", effectiveKey?.slice(0, 10) || "(none)", "| model:", model || "haiku");
 
-    let result;
-    let thumbnailUrls: string[] = [];
-    let savedFlowSteps = undefined;
-    let isComparison = false;
-    let comparisonData: unknown = null;
+    const baseParams = {
+      hypothesis,
+      targetUser: effectiveTargetUser,
+      task,
+      locale,
+      apiKey,
+      model: model as ModelTier | undefined,
+      mode,
+      analysisOptions,
+      screenDescription,
+      analysisPerspective: analysisPerspective as AnalysisPerspectiveInput | undefined,
+      ocrContext,
+    };
 
+    // ── Route to input-type handler ──
+    let handlerResult;
     if (inputType === "comparison" && ours && Array.isArray(competitors)) {
-      // Merge video frames into each product's images
-      const mergeProductMedia = (p: { productName: string; images: string[]; videos?: UploadedVideo[]; description?: string }): ComparisonProduct => ({
-        productName: p.productName,
-        description: p.description,
-        images: [
-          ...(p.images ?? []),
-          ...(p.videos ?? []).flatMap((v) => v.frames.map((f) => f.base64)),
-        ],
-      });
-
-      const oursWithFrames = mergeProductMedia(ours as { productName: string; images: string[]; videos?: UploadedVideo[]; description?: string });
-      const competitorsWithFrames = (competitors as Array<{ productName: string; images: string[]; videos?: UploadedVideo[]; description?: string }>).map(mergeProductMedia);
-
-      if (!oursWithFrames.productName || oursWithFrames.images.length === 0) {
-        return NextResponse.json(
-          { error: "Our product requires productName and at least one image or video" },
-          { status: 400 }
-        );
-      }
-      if (competitorsWithFrames.length === 0) {
-        return NextResponse.json(
-          { error: "At least one competitor is required" },
-          { status: 400 }
-        );
-      }
-      for (const c of competitorsWithFrames) {
-        if (!c.productName || c.images.length === 0) {
-          return NextResponse.json(
-            { error: "Each competitor requires productName and at least one image or video" },
-            { status: 400 }
-          );
-        }
-      }
-
-      console.log(
-        "[analyze] Comparison analysis | ours:",
-        oursWithFrames.productName,
-        "| competitors:",
-        competitorsWithFrames.map((c) => c.productName).join(", ")
-      );
-
-      result = await analyzeComparisonWithClaude({
-        ours: oursWithFrames,
-        competitors: competitorsWithFrames,
-        hypothesis,
-        targetUser: effectiveTargetUser,
-        comparisonFocus,
-        locale,
-        apiKey,
-        model,
-        analysisPerspective,
-        mode,
-        analysisOptions,
-      });
-
-      isComparison = true;
-      comparisonData = { ...(result as Record<string, unknown>), mode };
-      thumbnailUrls = [
-        ...oursWithFrames.images.map((b64) => `data:image/png;base64,${b64}`),
-        ...competitorsWithFrames.flatMap((c) =>
-          c.images.map((b64) => `data:image/png;base64,${b64}`)
-        ),
-      ];
+      handlerResult = await handleComparisonAnalysis({ ...baseParams, ours, competitors, comparisonFocus });
     } else if (inputType === "figma" && figmaToken && figmaFileKey && figmaFrameIds?.length > 0) {
       console.log("[analyze] Figma analysis with", figmaFrameIds.length, "frames");
-
-      const ids = figmaFrameIds.join(",");
-      const imgRes = await fetch(
-        `https://api.figma.com/v1/images/${figmaFileKey}?ids=${encodeURIComponent(ids)}&format=png&scale=2`,
-        { headers: { "X-Figma-Token": figmaToken } }
-      );
-
-      if (!imgRes.ok) {
-        const status = imgRes.status;
-        return NextResponse.json({ error: `Figma image fetch failed (${status})` }, { status });
-      }
-
-      const imgData = await imgRes.json();
-      const imageUrls: string[] = figmaFrameIds
-        .map((id: string) => imgData.images?.[id])
-        .filter(Boolean);
-
-      if (imageUrls.length === 0) {
-        return NextResponse.json({ error: "Failed to get frame images from Figma" }, { status: 500 });
-      }
-
-      const base64Images: string[] = [];
-      for (const url of imageUrls) {
-        const imgFetch = await fetch(url);
-        const buffer = Buffer.from(await imgFetch.arrayBuffer());
-        base64Images.push(buffer.toString("base64"));
-      }
-
-      console.log("[analyze] Fetched", base64Images.length, "Figma frame images");
-
-      result = await analyzeWithClaude({
-        images: base64Images,
-        hypothesis,
-        targetUser: effectiveTargetUser,
-        task,
-        locale,
-        apiKey,
-        model,
-        mode,
-        analysisOptions,
-        screenDescription,
-      });
-      thumbnailUrls = imageUrls;
+      handlerResult = await handleFigmaAnalysis({ ...baseParams, figmaToken, figmaFileKey, figmaFrameIds });
     } else if (inputType === "flow" && flowSteps && flowSteps.length >= 2) {
       console.log("[analyze] Flow analysis with", flowSteps.length, "steps");
-      result = await analyzeFlowWithClaude({
-        flowSteps,
-        hypothesis,
-        targetUser: effectiveTargetUser,
-        task,
-        locale,
-        apiKey,
-        model,
-        mode,
-        analysisOptions,
-        screenDescription,
-        ocrContext,
-      });
-      thumbnailUrls = flowSteps.map((s: { image: string }) => `data:image/png;base64,${s.image}`);
-      savedFlowSteps = flowSteps.map((s: { stepNumber: number; stepName: string }) => ({
-        stepNumber: s.stepNumber,
-        stepName: s.stepName,
-        image: "",
-      }));
+      handlerResult = await handleFlowAnalysis({ ...baseParams, flowSteps });
     } else {
       if (!images || images.length === 0) {
-        return NextResponse.json(
-          { error: "At least one image is required" },
-          { status: 400 }
-        );
+        return NextResponse.json({ error: "At least one image is required" }, { status: 400 });
       }
-      console.log("[analyze] Image analysis with", images.length, "images (includes video frames:", videoFrameImages.length, ")");
-      const videoContext = hasVideos
-        ? "\n\nSome of the provided screens are extracted frames from a video recording of actual app usage. Frame names include timestamps (e.g. '프레임 1 (0:02)'). When analyzing video frames: note the temporal sequence of user interactions, identify moments where the user appears to pause or struggle, compare early frames vs later frames for flow continuity, and flag any frames showing loading states, error states, or unexpected transitions."
-        : "";
-      result = await analyzeWithClaude({
-        images,
-        hypothesis,
-        targetUser: effectiveTargetUser,
-        task,
-        locale,
-        apiKey,
-        model,
-        mode,
-        analysisOptions,
-        screenDescription: (screenDescription || "") + videoContext,
-        ocrContext,
-      });
-      thumbnailUrls = images.map((b64: string) => `data:image/png;base64,${b64}`);
+      console.log("[analyze] Image analysis with", images.length, "images");
+      handlerResult = await handleImageAnalysis({ ...baseParams, images, videos });
     }
 
-    // For comparison: derive top-level summary/verdict/score from the winning product
-    // so history cards and list views keep working with existing fields.
+    const { result, thumbnailUrls, savedFlowSteps, isComparison, comparisonData } = handlerResult;
+    const r = result;
+
+    // ── Normalize top-level fields ──
     let topLevel: {
       verdict: string;
       score: number;
@@ -287,9 +146,6 @@ export async function POST(request: NextRequest) {
       adFriction?: unknown;
     };
 
-    // Cast to a loose shape so field access is typed throughout this block
-    const r = result as Record<string, unknown>;
-
     if (isComparison) {
       const products = (Array.isArray(r.products) ? r.products : []) as Array<{
         productName: string;
@@ -303,14 +159,11 @@ export async function POST(request: NextRequest) {
         verdict: String(ourProduct.verdict ?? "Partial"),
         score: Number(ourProduct.score ?? 0),
         summary: comparison.winnerReason || String(ourProduct.summary ?? ""),
-        // Comparison analyses don't have top-level issues/strengths/thinkAloud —
-        // always set to empty arrays so storage.save() never crashes on .map()
         strengths: [],
         thinkAloud: [],
         issues: [],
       };
     } else {
-      // Map each issue's screenIndex to the corresponding thumbnail URL
       const issuesWithImages = Array.isArray(r.issues)
         ? (r.issues as Array<{ screenIndex?: number; [key: string]: unknown }>).map((issue) => ({
             ...issue,
@@ -322,8 +175,6 @@ export async function POST(request: NextRequest) {
         : (r.issues as unknown[]);
 
       if (mode === "usability") {
-        // Usability mode has no verdict/taskSuccess/thinkAloud/verdictReason.
-        // Map grade into the verdict slot so history cards keep working.
         topLevel = {
           verdict: String(r.grade ?? "개선 필요"),
           score: Number(r.score ?? 0),
@@ -351,8 +202,6 @@ export async function POST(request: NextRequest) {
       }
     }
 
-    // For usability mode, bundle user-selected options + non-column result fields
-    // into analysisOptions (single JSON column per the schema addition in Step 7).
     const usabilityResultBundle = mode === "usability"
       ? {
           options: analysisOptions,
@@ -408,7 +257,7 @@ export async function POST(request: NextRequest) {
         : {}),
     };
 
-    // Persist to DB if configured
+    // ── Persist to DB ──
     if (process.env.DATABASE_URL) {
       try {
         const { prisma } = await import("@/lib/db");
@@ -437,7 +286,7 @@ export async function POST(request: NextRequest) {
             scoreBreakdown: isComparison ? Prisma.JsonNull : ((r.scoreBreakdown as Prisma.InputJsonValue) ?? Prisma.JsonNull),
             verdictReason: isComparison ? null : ((r.verdictReason as string) ?? null),
             flowAnalysis: isComparison ? Prisma.JsonNull : ((r.flowAnalysis as Prisma.InputJsonValue) ?? Prisma.JsonNull),
-            flowSteps: savedFlowSteps ?? null,
+            flowSteps: savedFlowSteps ? (savedFlowSteps as Prisma.InputJsonValue) : Prisma.JsonNull,
             isComparison,
             comparisonData: (comparisonData as object) ?? null,
             previousAnalysisId: analysis.previousAnalysisId,

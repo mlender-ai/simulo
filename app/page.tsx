@@ -82,7 +82,7 @@ export default function Home() {
     accessibility: true,
   });
   const [mode, setMode] = useState<AnalysisMode>("hypothesis");
-  const [pendingOCRReview, setPendingOCRReview] = useState<{ results: OCRResult[]; body: Record<string, unknown> } | null>(null);
+  const [pendingOCRReview, setPendingOCRReview] = useState<{ results: OCRResult[]; images: string[]; body: Record<string, unknown> } | null>(null);
   const [ocrLoading, setOcrLoading] = useState(false);
   const [analysisOptions, setAnalysisOptions] = useState<AnalysisOptionsState>({
     usability: true,
@@ -204,7 +204,7 @@ export default function Home() {
         });
         if (!ocrRes.ok) throw new Error("OCR extraction failed");
         const { ocrResults } = await ocrRes.json();
-        setPendingOCRReview({ results: ocrResults, body: buildAnalysisBody() as Record<string, unknown> });
+        setPendingOCRReview({ results: ocrResults, images, body: buildAnalysisBody() as Record<string, unknown> });
       } catch (err) {
         // OCR failure — fall through to direct analysis
         console.warn("OCR extraction failed, proceeding without review:", err);
@@ -343,6 +343,7 @@ export default function Home() {
     {pendingOCRReview && (
       <OCRReviewModal
         ocrResults={pendingOCRReview.results}
+        images={pendingOCRReview.images}
         onConfirm={handleOCRConfirm}
         onCancel={() => setPendingOCRReview(null)}
       />

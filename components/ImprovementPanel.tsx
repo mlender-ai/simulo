@@ -42,6 +42,7 @@ export function ImprovementPanel({
   const [loadingMsgIdx, setLoadingMsgIdx] = useState(0);
   const [generateResult, setGenerateResult] = useState<ImproveResult | null>(null);
   const [improvedAnalysis, setImprovedAnalysis] = useState<AnalysisResult | null>(null);
+  const [error, setError] = useState<string | null>(null);
 
   // Options state
   const [optCriticalOnly, setOptCriticalOnly] = useState(false);
@@ -76,12 +77,19 @@ export function ImprovementPanel({
   // ── Generate improvement ──────────────────────────────────────────────────
   async function handleGenerate() {
     setPanelState("generating");
+    setError(null);
     try {
       const res = await fetch("/api/generate-improvement", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({
           analysisId: originalAnalysis.id,
+          analysis: {
+            score: originalAnalysis.score,
+            issues: originalAnalysis.issues,
+            thumbnailUrls: originalAnalysis.thumbnailUrls,
+            analysisOptions: originalAnalysis.analysisOptions,
+          },
           options: {
             criticalOnly: optCriticalOnly,
             desireAlignment: optDesireAlignment,
@@ -91,12 +99,16 @@ export function ImprovementPanel({
           roundNumber,
         }),
       });
-      if (!res.ok) throw new Error("개선안 생성 실패");
+      if (!res.ok) {
+        const errData = await res.json().catch(() => ({}));
+        throw new Error(errData.detail || errData.error || `개선안 생성 실패 (${res.status})`);
+      }
       const data: ImproveResult = await res.json();
       setGenerateResult(data);
       setPanelState("result");
     } catch (err) {
       console.error("[improve] generate:", err);
+      setError(err instanceof Error ? err.message : "개선안 생성 실패");
       setPanelState("idle");
     }
   }
@@ -263,6 +275,12 @@ export function ImprovementPanel({
           />
         </div>
 
+        {error && (
+          <div className="mb-3 px-3 py-2 rounded-md bg-red-500/10 border border-red-500/20">
+            <p className="text-xs text-red-400">{error}</p>
+          </div>
+        )}
+
         <button
           onClick={handleGenerate}
           className="w-full py-2.5 rounded-md bg-white text-black text-sm font-medium hover:bg-white/90 transition-colors"
@@ -270,7 +288,7 @@ export function ImprovementPanel({
           개선안 생성하기
         </button>
         <p className="text-center text-[11px] text-white/25 mt-2">
-          Opus 4.7 기반 생성 · 약 20-40초 소요
+          Opus 4.6 기반 생성 · 약 20-40초 소요
         </p>
       </div>
     );

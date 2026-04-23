@@ -5,11 +5,12 @@ import type { OCRResult } from "@/lib/ocr";
 
 interface Props {
   ocrResults: OCRResult[];
+  images?: string[];
   onConfirm: (results: OCRResult[]) => void;
   onCancel: () => void;
 }
 
-export default function OCRReviewModal({ ocrResults, onConfirm, onCancel }: Props) {
+export default function OCRReviewModal({ ocrResults, images, onConfirm, onCancel }: Props) {
   const [editing, setEditing] = useState<OCRResult[]>(
     ocrResults.map((r) => ({ ...r, texts: [...r.texts] }))
   );
@@ -34,48 +35,92 @@ export default function OCRReviewModal({ ocrResults, onConfirm, onCancel }: Prop
     );
   };
 
+  const addText = (screenIdx: number) => {
+    setEditing((prev) =>
+      prev.map((r) =>
+        r.screenIndex === screenIdx ? { ...r, texts: [...r.texts, ""] } : r
+      )
+    );
+  };
+
+  const totalTexts = editing.reduce((sum, r) => sum + r.texts.length, 0);
+
   return (
     <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/70">
-      <div className="bg-[var(--surface)] border border-[var(--border)] rounded-xl w-full max-w-2xl max-h-[80vh] flex flex-col mx-4">
-        <div className="px-6 pt-5 pb-3 border-b border-[var(--border)]">
-          <h2 className="text-base font-semibold">추출된 텍스트를 확인해주세요</h2>
-          <p className="text-xs text-[var(--muted)] mt-1">
-            잘못 읽힌 텍스트를 수정하거나 삭제할 수 있습니다. 확인 후 분석이 시작됩니다.
-          </p>
+      <div className="bg-[var(--surface)] border border-[var(--border)] rounded-xl w-full max-w-3xl max-h-[85vh] flex flex-col mx-4">
+        {/* Header */}
+        <div className="px-6 pt-5 pb-3 border-b border-[var(--border)] flex items-start justify-between">
+          <div>
+            <h2 className="text-base font-semibold">추출된 텍스트를 확인해주세요</h2>
+            <p className="text-xs text-[var(--muted)] mt-1">
+              잘못 읽힌 텍스트를 수정하거나 삭제할 수 있습니다. 확인 후 분석이 시작됩니다.
+            </p>
+          </div>
+          <span className="text-xs text-[var(--muted)] mt-1 ml-4 shrink-0">
+            {editing.length}개 화면 · {totalTexts}개 텍스트
+          </span>
         </div>
 
+        {/* Body */}
         <div className="overflow-y-auto flex-1 px-6 py-4 space-y-6">
-          {editing.map((result) => (
-            <div key={result.screenIndex}>
-              <p className="text-xs text-[var(--muted)] uppercase tracking-wider mb-2">
-                화면 {result.screenIndex + 1}
-              </p>
-              {result.texts.length === 0 ? (
-                <p className="text-xs text-[var(--muted)] italic">(추출된 텍스트 없음)</p>
-              ) : (
-                <div className="space-y-1.5">
-                  {result.texts.map((text, ti) => (
-                    <div key={ti} className="flex items-center gap-2">
-                      <input
-                        type="text"
-                        value={text}
-                        onChange={(e) => updateText(result.screenIndex, ti, e.target.value)}
-                        className="flex-1 px-3 py-1.5 text-sm bg-[var(--bg)] border border-[var(--border)] rounded-md focus:outline-none focus:border-white/30"
-                      />
-                      <button
-                        onClick={() => removeText(result.screenIndex, ti)}
-                        className="text-[var(--muted)] hover:text-white text-xs px-2 py-1 rounded transition-colors"
-                      >
-                        ✕
-                      </button>
+          {editing.map((result) => {
+            const thumbnail = images?.[result.screenIndex];
+            return (
+              <div key={result.screenIndex} className="flex gap-4">
+                {/* Thumbnail */}
+                {thumbnail && (
+                  <div className="shrink-0 w-24">
+                    <img
+                      src={`data:image/png;base64,${thumbnail}`}
+                      alt={`화면 ${result.screenIndex + 1}`}
+                      className="w-24 rounded-md border border-[var(--border)] object-cover"
+                    />
+                  </div>
+                )}
+
+                {/* Text editor */}
+                <div className="flex-1 min-w-0">
+                  <p className="text-xs text-[var(--muted)] uppercase tracking-wider mb-2">
+                    화면 {result.screenIndex + 1}
+                  </p>
+
+                  {result.texts.length === 0 ? (
+                    <p className="text-xs text-[var(--muted)] italic mb-2">(추출된 텍스트 없음)</p>
+                  ) : (
+                    <div className="space-y-1.5 mb-2">
+                      {result.texts.map((text, ti) => (
+                        <div key={ti} className="flex items-center gap-2">
+                          <input
+                            type="text"
+                            value={text}
+                            onChange={(e) => updateText(result.screenIndex, ti, e.target.value)}
+                            className="flex-1 px-3 py-1.5 text-sm bg-[var(--bg)] border border-[var(--border)] rounded-md focus:outline-none focus:border-white/30"
+                          />
+                          <button
+                            onClick={() => removeText(result.screenIndex, ti)}
+                            className="text-[var(--muted)] hover:text-white text-xs px-2 py-1 rounded transition-colors"
+                            title="삭제"
+                          >
+                            ✕
+                          </button>
+                        </div>
+                      ))}
                     </div>
-                  ))}
+                  )}
+
+                  <button
+                    onClick={() => addText(result.screenIndex)}
+                    className="text-xs text-[var(--muted)] hover:text-white border border-dashed border-[var(--border)] hover:border-white/30 px-3 py-1 rounded-md transition-colors"
+                  >
+                    + 텍스트 추가
+                  </button>
                 </div>
-              )}
-            </div>
-          ))}
+              </div>
+            );
+          })}
         </div>
 
+        {/* Footer */}
         <div className="px-6 py-4 border-t border-[var(--border)] flex justify-end gap-3">
           <button
             onClick={onCancel}

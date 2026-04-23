@@ -4,8 +4,6 @@
 
 import Anthropic from "@anthropic-ai/sdk";
 
-const anthropic = new Anthropic();
-
 export interface GenerateImproveParams {
   originalImage: string | null;
   issues: Array<{
@@ -36,6 +34,7 @@ export interface GenerateImproveResult {
 }
 
 export async function generateImprovement(input: GenerateImproveParams): Promise<GenerateImproveResult> {
+  const anthropic = new Anthropic({ apiKey: process.env.ANTHROPIC_API_KEY });
   const { originalImage, issues, desire, options, score, roundNumber } = input;
 
   // eslint-disable-next-line @typescript-eslint/no-explicit-any
@@ -61,11 +60,15 @@ export async function generateImprovement(input: GenerateImproveParams): Promise
   });
 
   const response = await anthropic.messages.create({
-    model: "claude-opus-4-5",
-    max_tokens: 8000,
+    model: "claude-opus-4-6",
+    max_tokens: 16000,
     system: buildSystemPrompt(options),
     messages: [{ role: "user", content }],
   });
+
+  if (response.stop_reason === "max_tokens") {
+    console.warn("[opusGenerator] Response hit max_tokens limit — HTML may be truncated");
+  }
 
   const responseText =
     response.content[0].type === "text" ? response.content[0].text : "";
@@ -85,12 +88,13 @@ Core design principles for this target:
 3. LOSS AVERSION (손실회피): Show streak counts, daily deadlines, "don't miss out" cues
 
 Technical requirements:
-- Single complete HTML file with all CSS inline in <style> tag
+- Single complete HTML file. ALL styles must be in ONE <style> block in <head>. NO inline style attributes.
 - Mobile-first: fixed width 375px, scrollable height
 - Korean text only
 - No external resources, fonts, or images (use CSS shapes/gradients for visuals)
 - Use the same color palette visible in the original image
 - Smooth, app-like feel with subtle shadows and rounded corners
+- Keep CSS concise — use class selectors, avoid repetition
 ${
   options.restructureLayout
     ? "- You may significantly restructure the layout"
@@ -168,9 +172,27 @@ function parseResponse(text: string): GenerateImproveResult {
     .map((line) => line.replace(/^[•\-*]\s*/, "").trim())
     .filter(Boolean);
 
-  // HTML 파싱
-  const htmlMatch = text.match(/<HTML>([\s\S]*?)<\/HTML>/);
-  const html = htmlMatch?.[1]?.trim() ?? text;
+  // HTML 파싱 — <!DOCTYPE html> 기반 추출
+  // max_tokens 초과로 잘린 경우에도 동작하며, </HTML> 포맷 태그 없이도 추출 가능
+  let html = "";
+  const doctypeIdx = text.indexOf("<!DOCTYPE html>");
+  if (doctypeIdx !== -1) {
+    html = text.slice(doctypeIdx);
+    // 후행 </HTML> 포맷 태그 제거
+    html = html.replace(/<\/HTML>\s*$/, "").trim();
+    // 잘린 경우 닫는 태그 보완
+    if (!html.toLowerCase().includes("</html>")) {
+      html += "\n</body>\n</html>";
+    }
+  } else {
+    // Fallback: <HTML> 태그 방식 (그래도 없으면 에러)
+    const htmlMatch = text.match(/<HTML>([\s\S]+?)(?:<\/HTML>|$)/);
+    html = htmlMatch?.[1]?.trim() ?? "";
+  }
+
+  if (!html) {
+    throw new Error("HTML 생성 결과를 파싱할 수 없습니다. 다시 시도해주세요.");
+  }
 
   return { html, changes: changes.length > 0 ? changes : ["개선 완료"] };
 }
