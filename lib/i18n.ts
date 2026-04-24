@@ -197,13 +197,13 @@ const translations = {
       "화면의 정보 구조, 버튼 위치, 피드백 등 기본 사용성을 평가합니다. 모든 리포트에 기본 포함되는 필수 관점입니다.",
     perspectiveDesire: "욕망 충족도 분석",
     perspectiveDesireTooltip:
-      "4050 여성 유저의 3가지 욕망(효능감·건강과시·손실회피)을 기준으로 화면이 욕망을 얼마나 잘 충족하는지 평가합니다. 체크 해제 시 욕망 카드와 점수가 리포트에서 제외됩니다.",
+      "4060세대 유저의 3가지 욕망(효능감·건강과시·손실회피)을 기준으로 화면이 욕망을 얼마나 잘 충족하는지 평가합니다. 체크 해제 시 욕망 카드와 점수가 리포트에서 제외됩니다.",
     perspectiveComparison: "경쟁사 비교",
     perspectiveComparisonTooltip:
       "자사 제품 대비 경쟁사의 강점·약점·격차를 분석합니다. 비교 분석 탭에서는 항상 포함되어 해제할 수 없습니다.",
-    perspectiveAccessibility: "접근성 (4050)",
+    perspectiveAccessibility: "접근성 (4060)",
     perspectiveAccessibilityTooltip:
-      "40-50대 여성 유저 기준 시각 친화성(폰트·대비·버튼 크기)과 언어 친화성(용어·어조)을 평가합니다. 체크 해제 시 접근성 섹션이 리포트에서 제외됩니다.",
+      "40-60대 여성 유저 기준 시각 친화성(폰트·대비·버튼 크기)과 언어 친화성(용어·어조)을 평가합니다. 체크 해제 시 접근성 섹션이 리포트에서 제외됩니다.",
     perspectiveIncluded: "리포트에 포함됩니다",
     perspectiveExcluded: "리포트에서 제외됩니다",
     comparisonTabSummary: "비교 요약",
@@ -224,7 +224,7 @@ const translations = {
 
     // Desire Map & Retention
     desireAlignment: "욕망 충족도",
-    desireAlignmentSub: "야핏무브 핵심 유저(4050 여성)의 3가지 욕망 기준",
+    desireAlignmentSub: "야핏무브 핵심 유저(4060세대)의 3가지 욕망 기준",
     desireUtility: "효능감",
     desireUtilityDesc: "보상이 명확하게 인식되는가",
     desireHealthPride: "성취 & 과시",
@@ -308,10 +308,10 @@ const translations = {
     optionUsability: "사용성 전반",
     optionDesireAlignment: "욕망 충족도 분석",
     optionCompetitorComparison: "경쟁사 비교",
-    optionAccessibility: "접근성 (4050)",
+    optionAccessibility: "접근성 (4060)",
     targetUserOptional: "타깃 유저 (선택)",
     targetUserOptionalPlaceholder:
-      "선택사항. 비우면 야핏무브 핵심 타깃(4050 여성)으로 분석합니다.",
+      "선택사항. 비우면 야핏무브 핵심 타깃(4060세대)으로 분석합니다.",
 
     // Usability report
     usabilityReportTitle: "사용성 분석 결과",
@@ -319,7 +319,7 @@ const translations = {
     quickWinsTitle: "빠른 개선 우선순위",
     quickWinsEmpty: "제안된 빠른 개선 없음",
     quickWinsLowEffortHigh: "노력 낮음 · 임팩트 높음",
-    accessibility4050Title: "4050 접근성",
+    accessibility4050Title: "4060 접근성",
     fontReadabilityLabel: "폰트 가독성",
     touchTargetLabel: "터치 타깃",
     languageFriendlinessLabel: "언어 친화성",
@@ -538,7 +538,7 @@ const translations = {
 
     // Desire Map & Retention
     desireAlignment: "Desire Fulfillment",
-    desireAlignmentSub: "Based on 3 core desires of YafitMove's primary user (40-50s women)",
+    desireAlignmentSub: "Based on 3 core desires of YafitMove's primary user (40-60s)",
     desireUtility: "Utility",
     desireUtilityDesc: "Is the reward clearly perceived?",
     desireHealthPride: "Achievement & Pride",
@@ -633,7 +633,7 @@ const translations = {
     quickWinsTitle: "Quick Win Priorities",
     quickWinsEmpty: "No quick wins suggested",
     quickWinsLowEffortHigh: "Low effort · high impact",
-    accessibility4050Title: "40-50s Accessibility",
+    accessibility4050Title: "40-60s Accessibility",
     fontReadabilityLabel: "Font readability",
     touchTargetLabel: "Touch targets",
     languageFriendlinessLabel: "Language",

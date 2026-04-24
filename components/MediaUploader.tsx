@@ -28,6 +28,7 @@ interface MediaUploaderProps {
   onVideosChange: (videos: UploadedVideo[]) => void;
   label?: string;
   uploadZoneId: string;
+  showError?: boolean;
 }
 
 function formatTimestamp(seconds: number): string {
@@ -44,6 +45,7 @@ export function MediaUploader({
   onImagesChange,
   onVideosChange,
   uploadZoneId,
+  showError = false,
 }: MediaUploaderProps) {
   const [activeSubTab, setActiveSubTab] = useState<"image" | "video">("image");
   const [isDragging, setIsDragging] = useState(false);
@@ -197,11 +199,17 @@ export function MediaUploader({
             onDragLeave={() => setIsDragging(false)}
             onDrop={handleImageDrop}
             className={`border border-dashed rounded-lg p-6 text-center transition-colors cursor-pointer ${
-              isDragging ? "border-white/40 bg-white/5" : "border-[var(--border)] hover:border-white/20"
+              isDragging
+                ? "border-white/40 bg-white/5"
+                : showError && images.length === 0
+                  ? "border-red-500/60 hover:border-red-500/80"
+                  : "border-[var(--border)] hover:border-white/20"
             }`}
             onClick={() => document.getElementById(`${uploadZoneId}-img`)?.click()}
           >
-            <p className="text-sm text-[var(--muted)]">이미지를 드래그하거나 클릭해서 업로드</p>
+            <p className={`text-sm ${showError && images.length === 0 ? "text-red-400/80" : "text-[var(--muted)]"}`}>
+              {showError && images.length === 0 ? "이미지를 1장 이상 업로드해주세요 (필수)" : "이미지를 드래그하거나 클릭해서 업로드"}
+            </p>
             <p className="text-xs text-[var(--muted)] mt-1">
               JPG, PNG 지원 · 최대 {maxImages}장 ({images.length}/{maxImages})
             </p>

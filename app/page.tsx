@@ -84,6 +84,7 @@ export default function Home() {
   const [mode, setMode] = useState<AnalysisMode>("hypothesis");
   const [pendingOCRReview, setPendingOCRReview] = useState<{ results: OCRResult[]; images: string[]; body: Record<string, unknown> } | null>(null);
   const [ocrLoading, setOcrLoading] = useState(false);
+  const [showErrors, setShowErrors] = useState(false);
   const [analysisOptions, setAnalysisOptions] = useState<AnalysisOptionsState>({
     usability: true,
     desireAlignment: true,
@@ -186,7 +187,11 @@ export default function Home() {
   };
 
   const handleAnalyze = async () => {
-    if (!canSubmit) return;
+    if (!canSubmit) {
+      setShowErrors(true);
+      return;
+    }
+    setShowErrors(false);
 
     const ocrReviewEnabled = localStorage.getItem("simulo_ocr_review") === "true";
     const isImageMode = !isComparison && !isFlow && !isFigma && images.length > 0;
@@ -319,6 +324,9 @@ export default function Home() {
           onModeChange={setMode}
           analysisOptions={analysisOptions}
           onAnalysisOptionsChange={setAnalysisOptions}
+          showErrors={showErrors}
+          inputReady={inputReady}
+          contextReady={contextReady}
         />
 
         {error && (
@@ -329,12 +337,8 @@ export default function Home() {
 
         <button
           onClick={handleAnalyze}
-          disabled={!canSubmit || ocrLoading}
-          className={`mt-6 w-full py-3 rounded-md text-sm font-medium transition-colors ${
-            canSubmit && !ocrLoading
-              ? "bg-white text-black hover:bg-white/90"
-              : "bg-white/10 text-[var(--muted)] cursor-not-allowed"
-          }`}
+          disabled={ocrLoading}
+          className="mt-6 w-full py-3 rounded-md text-sm font-medium transition-colors bg-white text-black hover:bg-white/90 disabled:bg-white/10 disabled:text-[var(--muted)] disabled:cursor-not-allowed"
         >
           {ocrLoading ? "텍스트 추출 중..." : t("runAnalysis", locale)}
         </button>

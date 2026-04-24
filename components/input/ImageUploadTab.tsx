@@ -38,6 +38,7 @@ interface ImageUploadTabProps {
   onVideosChange?: (videos: UploadedVideo[]) => void;
   description?: string;
   onDescriptionChange?: (description: string) => void;
+  showError?: boolean;
 }
 
 export function ImageUploadTab({
@@ -48,6 +49,7 @@ export function ImageUploadTab({
   onVideosChange,
   description,
   onDescriptionChange,
+  showError = false,
 }: ImageUploadTabProps) {
   return (
     <div>
@@ -59,6 +61,7 @@ export function ImageUploadTab({
         videos={videos}
         onImagesChange={onImagesChange}
         onVideosChange={onVideosChange ?? (() => {})}
+        showError={showError}
       />
       <div className="mt-3">
         <label className="flex items-center text-xs text-[var(--muted)] mb-1.5 uppercase tracking-wider">
