@@ -12,6 +12,8 @@ export function ShareExportPanel({ analysisId }: ShareExportPanelProps) {
   const [pdfLoading, setPdfLoading] = useState(false);
   const [docxLoading, setDocxLoading] = useState(false);
   const [pngLoading, setPngLoading] = useState(false);
+  const [mdLoading, setMdLoading] = useState(false);
+  const [jiraLoading, setJiraLoading] = useState(false);
   const panelRef = useRef<HTMLDivElement>(null);
 
   const shareUrl =
@@ -78,6 +80,44 @@ export function ShareExportPanel({ analysisId }: ShareExportPanelProps) {
       console.error("[export] PNG failed:", err);
     } finally {
       setPngLoading(false);
+    }
+  }, [analysisId]);
+
+  const handleMarkdown = useCallback(async () => {
+    setMdLoading(true);
+    try {
+      const res = await fetch(`/api/export/md/${analysisId}`);
+      if (!res.ok) throw new Error("Markdown export failed");
+      const blob = await res.blob();
+      const url = URL.createObjectURL(blob);
+      const a = document.createElement("a");
+      a.href = url;
+      a.download = `simulo-report-${analysisId}.md`;
+      a.click();
+      URL.revokeObjectURL(url);
+    } catch (err) {
+      console.error("[export] Markdown failed:", err);
+    } finally {
+      setMdLoading(false);
+    }
+  }, [analysisId]);
+
+  const handleJira = useCallback(async () => {
+    setJiraLoading(true);
+    try {
+      const res = await fetch(`/api/export/jira/${analysisId}`);
+      if (!res.ok) throw new Error("Jira export failed");
+      const blob = await res.blob();
+      const url = URL.createObjectURL(blob);
+      const a = document.createElement("a");
+      a.href = url;
+      a.download = `simulo-jira-${analysisId}.md`;
+      a.click();
+      URL.revokeObjectURL(url);
+    } catch (err) {
+      console.error("[export] Jira failed:", err);
+    } finally {
+      setJiraLoading(false);
     }
   }, [analysisId]);
 
@@ -154,6 +194,42 @@ export function ShareExportPanel({ analysisId }: ShareExportPanelProps) {
                   <span className="w-3 h-3 border border-white/20 border-t-white/60 rounded-full animate-spin" />
                 ) : (
                   "PNG"
+                )}
+              </button>
+            </div>
+          </div>
+
+          {/* Action export section */}
+          <div className="p-4 border-b border-[var(--border)]">
+            <p className="text-xs font-medium text-white/80 mb-1">
+              실무 연결
+            </p>
+            <p className="text-[10px] text-white/40 mb-2">
+              분석 결과를 바로 업무에 활용
+            </p>
+            <div className="flex gap-2">
+              <button
+                onClick={handleMarkdown}
+                disabled={mdLoading}
+                className="flex-1 flex items-center justify-center gap-1.5 px-3 py-2 rounded text-[11px] font-medium bg-white/10 hover:bg-white/15 text-white transition-colors disabled:opacity-50"
+                title="Markdown 파일로 내보내기"
+              >
+                {mdLoading ? (
+                  <span className="w-3 h-3 border border-white/20 border-t-white/60 rounded-full animate-spin" />
+                ) : (
+                  "Markdown"
+                )}
+              </button>
+              <button
+                onClick={handleJira}
+                disabled={jiraLoading}
+                className="flex-1 flex items-center justify-center gap-1.5 px-3 py-2 rounded text-[11px] font-medium bg-white/10 hover:bg-white/15 text-white transition-colors disabled:opacity-50"
+                title="Jira 티켓 드래프트 생성"
+              >
+                {jiraLoading ? (
+                  <span className="w-3 h-3 border border-white/20 border-t-white/60 rounded-full animate-spin" />
+                ) : (
+                  "Jira 드래프트"
                 )}
               </button>
             </div>

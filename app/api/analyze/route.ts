@@ -4,10 +4,8 @@ import { v4 as uuidv4 } from "uuid";
 import { Prisma } from "@prisma/client";
 import { preprocessImages } from "@/lib/imagePreprocess";
 import { extractTextFromImages, validateOCRResults, formatOCRForPrompt } from "@/lib/ocr";
-import { handleImageAnalysis } from "./handlers/image";
-import { handleFlowAnalysis } from "./handlers/flow";
-import { handleFigmaAnalysis } from "./handlers/figma";
-import { handleComparisonAnalysis } from "./handlers/comparison";
+import { resolvePlugin } from "./registry";
+import { validateImages, validateFigmaInputs, validateFlowSteps, logPreflightWarnings } from "@/lib/preflight";
 
 console.log("[analyze] ENV ANTHROPIC_API_KEY prefix:", process.env.ANTHROPIC_API_KEY?.slice(0, 8) || "(not set)");
 
@@ -43,6 +41,27 @@ export async function POST(request: NextRequest) {
     } = body;
 
     const images: string[] = Array.isArray(rawImages) ? rawImages : [];
+
+    // ── Pre-flight validation ──
+    if (inputType === "figma") {
+      const pf = validateFigmaInputs(figmaToken, figmaFileKey, figmaFrameIds);
+      logPreflightWarnings(pf.warnings, "figma");
+      if (!pf.ok) {
+        return NextResponse.json({ error: pf.errors[0].message, details: pf.errors }, { status: 400 });
+      }
+    } else if (inputType === "flow") {
+      const pf = validateFlowSteps(flowSteps);
+      logPreflightWarnings(pf.warnings, "flow");
+      if (!pf.ok) {
+        return NextResponse.json({ error: pf.errors[0].message, details: pf.errors }, { status: 400 });
+      }
+    } else if (inputType !== "comparison") {
+      const pf = validateImages(images);
+      logPreflightWarnings(pf.warnings, "image");
+      if (!pf.ok) {
+        return NextResponse.json({ error: pf.errors[0].message, details: pf.errors }, { status: 400 });
+      }
+    }
 
     // ── OCR pipeline (Skip for comparison/figma) ──
     let ocrContext: string | undefined;
@@ -82,7 +101,7 @@ export async function POST(request: NextRequest) {
         };
 
     const effectiveTargetUser: string = mode === "usability"
-      ? (targetUser?.trim() || "40-50대 한국 여성 (야핏무브 핵심 타깃)")
+      ? (targetUser?.trim() || "40-60대 한국 여성 (야핏무브 핵심 타깃)")
       : (targetUser as string);
 
     if (mode === "hypothesis" && (!hypothesis || !targetUser)) {
@@ -109,23 +128,40 @@ export async function POST(request: NextRequest) {
       ocrContext,
     };
 
-    // ── Route to input-type handler ──
-    let handlerResult;
-    if (inputType === "comparison" && ours && Array.isArray(competitors)) {
-      handlerResult = await handleComparisonAnalysis({ ...baseParams, ours, competitors, comparisonFocus });
-    } else if (inputType === "figma" && figmaToken && figmaFileKey && figmaFrameIds?.length > 0) {
-      console.log("[analyze] Figma analysis with", figmaFrameIds.length, "frames");
-      handlerResult = await handleFigmaAnalysis({ ...baseParams, figmaToken, figmaFileKey, figmaFrameIds });
-    } else if (inputType === "flow" && flowSteps && flowSteps.length >= 2) {
-      console.log("[analyze] Flow analysis with", flowSteps.length, "steps");
-      handlerResult = await handleFlowAnalysis({ ...baseParams, flowSteps });
-    } else {
-      if (!images || images.length === 0) {
-        return NextResponse.json({ error: "At least one image is required" }, { status: 400 });
-      }
-      console.log("[analyze] Image analysis with", images.length, "images");
-      handlerResult = await handleImageAnalysis({ ...baseParams, images, videos });
+    // ── Route to input-type handler via plugin registry ──
+    const plugin = resolvePlugin({
+      images,
+      videos,
+      inputType,
+      flowSteps,
+      figmaToken,
+      figmaFileKey,
+      figmaFrameIds,
+      ours,
+      competitors,
+      comparisonFocus,
+    });
+
+    if (!plugin) {
+      return NextResponse.json(
+        { error: "At least one image is required" },
+        { status: 400 }
+      );
     }
+
+    console.log("[analyze] Dispatching to plugin:", plugin.id);
+    const handlerResult = await plugin.handle(baseParams, {
+      images,
+      videos,
+      inputType,
+      flowSteps,
+      figmaToken,
+      figmaFileKey,
+      figmaFrameIds,
+      ours,
+      competitors,
+      comparisonFocus,
+    });
 
     const { result, thumbnailUrls, savedFlowSteps, isComparison, comparisonData } = handlerResult;
     const r = result;
