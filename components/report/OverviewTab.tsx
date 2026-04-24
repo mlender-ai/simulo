@@ -101,6 +101,57 @@ export function OverviewTab({ data, locale, issueCountPerScreen, isFlow, onScree
         <p className="text-sm leading-relaxed">{data.summary}</p>
       </div>
 
+      {(data.evidenceFor?.length || data.evidenceAgainst?.length) && (
+        <div>
+          <h3 className="text-xs text-[var(--muted)] uppercase tracking-wider mb-3">{t("hypothesisEvidence", locale)}</h3>
+          <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
+            {data.evidenceFor && data.evidenceFor.length > 0 && (
+              <div className="p-4 rounded-lg border border-[var(--border)] bg-[var(--surface)]">
+                <h4 className="text-xs font-medium mb-2 flex items-center gap-1.5" style={{ color: "#22c55e" }}>
+                  <span>&#10003;</span> {t("evidenceFor", locale)}
+                </h4>
+                <ul className="space-y-1.5">
+                  {data.evidenceFor.map((e, i) => (
+                    <li key={i} className="text-sm flex gap-2">
+                      <span className="text-emerald-400 shrink-0">+</span>
+                      <span style={{ color: "#aaa" }}>{e}</span>
+                    </li>
+                  ))}
+                </ul>
+              </div>
+            )}
+            {data.evidenceAgainst && data.evidenceAgainst.length > 0 && (
+              <div className="p-4 rounded-lg border border-[var(--border)] bg-[var(--surface)]">
+                <h4 className="text-xs font-medium mb-2 flex items-center gap-1.5" style={{ color: "#ef4444" }}>
+                  <span>&#10007;</span> {t("evidenceAgainst", locale)}
+                </h4>
+                <ul className="space-y-1.5">
+                  {data.evidenceAgainst.map((e, i) => (
+                    <li key={i} className="text-sm flex gap-2">
+                      <span className="text-red-400 shrink-0">&minus;</span>
+                      <span style={{ color: "#aaa" }}>{e}</span>
+                    </li>
+                  ))}
+                </ul>
+              </div>
+            )}
+          </div>
+          {data.confidence && (
+            <div className="mt-3 p-3 rounded-lg border border-[var(--border)] bg-[var(--surface)]">
+              <span className="text-xs text-[var(--muted)]">{t("confidenceLabel", locale)}: </span>
+              <span className={`text-sm font-medium ${
+                data.confidence === "High" ? "text-emerald-400" : data.confidence === "Medium" ? "text-amber-400" : "text-red-400"
+              }`}>
+                {t(data.confidence as "High" | "Medium" | "Low", locale)}
+              </span>
+              {data.confidenceReason && (
+                <span style={{ fontSize: "13px", color: "#888", marginLeft: "8px" }}>&mdash; {data.confidenceReason}</span>
+              )}
+            </div>
+          )}
+        </div>
+      )}
+
       <div>
         <h3 className="text-xs text-[var(--muted)] uppercase tracking-wider mb-2">{t("taskSuccessReasoning", locale)}</h3>
         <p className="text-sm text-[var(--muted)] leading-relaxed">{data.taskSuccessReason}</p>

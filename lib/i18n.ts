@@ -333,6 +333,17 @@ const translations = {
     filterModeAll: "전체 방식",
     filterModeHypothesis: "가설 검증",
     filterModeUsability: "사용성 분석",
+
+    // Hypothesis evidence & backfire
+    hypothesisEvidence: "가설 검증 근거",
+    evidenceFor: "전환을 지지하는 근거",
+    evidenceAgainst: "전환을 저해하는 근거",
+    confidenceLabel: "분석 확신도",
+    backfireWarning: "이 권고는 역효과 위험이 있습니다",
+    backfireAlternative: "대안",
+    hypothesisRelevanceFilter: "가설 관련 이슈만 보기",
+    lowRelevanceTag: "가설과 관련도 낮음",
+    heatmapRelevanceFilter: "가설 관련 영역만 보기",
   },
   en: {
     history: "History",
@@ -647,6 +658,17 @@ const translations = {
     filterModeAll: "All modes",
     filterModeHypothesis: "Hypothesis",
     filterModeUsability: "Usability",
+
+    // Hypothesis evidence & backfire
+    hypothesisEvidence: "Hypothesis Evidence",
+    evidenceFor: "Evidence supporting conversion",
+    evidenceAgainst: "Evidence against conversion",
+    confidenceLabel: "Analysis Confidence",
+    backfireWarning: "This recommendation has backfire risk",
+    backfireAlternative: "Alternative",
+    hypothesisRelevanceFilter: "Hypothesis-related issues only",
+    lowRelevanceTag: "Low relevance to hypothesis",
+    heatmapRelevanceFilter: "Hypothesis-related zones only",
   },
 } as const;
 

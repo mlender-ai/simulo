@@ -154,6 +154,10 @@ export interface AnalysisResult {
     issue: string;
     recommendation: string;
     retentionImpact?: string;
+    backfireRisk?: "High" | "Medium" | "Low" | "None";
+    backfireReason?: string | null;
+    alternative?: string | null;
+    relevanceToHypothesis?: "High" | "Medium" | "Low";
     heatZone?: HeatZone | null;
     thumbnailUrl?: string | null;
   }[];
@@ -166,6 +170,10 @@ export interface AnalysisResult {
     feedback: { score: number; reason: string };
     efficiency: { score: number; reason: string };
   };
+  evidenceFor?: string[];
+  evidenceAgainst?: string[];
+  confidence?: "High" | "Medium" | "Low";
+  confidenceReason?: string;
   verdictReason?: string;
   moneyLoopStage?: string;
   desireAlignment?: DesireAlignment;

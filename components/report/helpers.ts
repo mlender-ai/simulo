@@ -16,6 +16,7 @@ export function groupIssuesByScreen(
       issue: issue.issue,
       recommendation: issue.recommendation,
       retentionImpact: issue.retentionImpact,
+      relevanceToHypothesis: issue.relevanceToHypothesis,
       heatZone: issue.heatZone ?? null,
     });
   });

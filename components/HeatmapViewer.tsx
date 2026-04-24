@@ -11,6 +11,7 @@ export interface HeatmapIssue {
   issue: string;
   recommendation: string;
   retentionImpact?: string;
+  relevanceToHypothesis?: string;
   heatZone: HeatZone | null;
 }
 
@@ -22,6 +23,7 @@ interface HeatmapViewerProps {
   onIssueClick: (index: number | null) => void;
   onIssueHover: (index: number | null) => void;
   hoveredIssueIndex: number | null;
+  hypothesisRelevanceFilter?: boolean;
 }
 
 const SEVERITY_OVERLAY: Record<string, { bg: string; border: string; bgSolid: string }> = {
@@ -76,6 +78,7 @@ export function HeatmapViewer({
   onIssueClick,
   onIssueHover,
   hoveredIssueIndex,
+  hypothesisRelevanceFilter = false,
 }: HeatmapViewerProps) {
   const [tooltipIssue, setTooltipIssue] = useState<HeatmapIssue | null>(null);
   const [tooltipPos, setTooltipPos] = useState<{ x: number; y: number }>({ x: 0, y: 0 });
@@ -97,7 +100,11 @@ export function HeatmapViewer({
     setTooltipIssue(null);
   }, [onIssueHover]);
 
-  const issuesWithZones = issues.filter((iss) => iss.heatZone);
+  const issuesWithZones = issues.filter((iss) => {
+    if (!iss.heatZone) return false;
+    if (hypothesisRelevanceFilter && iss.relevanceToHypothesis === "Low") return false;
+    return true;
+  });
 
   return (
     <div style={{ maxWidth: 640, width: "100%" }}>
