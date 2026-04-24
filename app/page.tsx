@@ -123,6 +123,20 @@ export default function Home() {
       : hypothesis.trim() !== "" && targetUser.trim() !== "";
   const canSubmit = inputReady && contextReady;
 
+  const validationErrors: string[] = [];
+  if (showErrors && !canSubmit) {
+    if (!inputReady) {
+      if (isFlow) validationErrors.push("플로우 단계마다 이미지를 업로드해주세요 (최소 2단계)");
+      else if (isFigma) validationErrors.push("Figma 프레임을 1개 이상 선택해주세요");
+      else if (isComparison) validationErrors.push("자사/경쟁사 제품명과 이미지를 모두 입력해주세요");
+      else validationErrors.push("화면 이미지를 1장 이상 업로드해주세요");
+    }
+    if (mode === "hypothesis") {
+      if (!hypothesis.trim()) validationErrors.push("가설을 입력해주세요");
+      if (!targetUser.trim()) validationErrors.push("타깃 유저를 입력해주세요");
+    }
+  }
+
   const loadingKeys = isComparison
     ? COMPARISON_LOADING_STEP_KEYS
     : isFlow
@@ -335,10 +349,24 @@ export default function Home() {
           </div>
         )}
 
+        {validationErrors.length > 0 && (
+          <div className="mt-4 p-3 rounded-md border" style={{ background: "rgba(239,68,68,0.08)", borderColor: "rgba(239,68,68,0.25)" }}>
+            <p className="text-xs font-medium mb-1.5" style={{ color: "#f87171" }}>필수 항목을 입력해주세요</p>
+            <ul className="space-y-1">
+              {validationErrors.map((msg, i) => (
+                <li key={i} className="flex items-center gap-1.5 text-sm" style={{ color: "#f87171" }}>
+                  <span style={{ fontSize: 10 }}>●</span>
+                  {msg}
+                </li>
+              ))}
+            </ul>
+          </div>
+        )}
+
         <button
           onClick={handleAnalyze}
           disabled={ocrLoading}
-          className="mt-6 w-full py-3 rounded-md text-sm font-medium transition-colors bg-white text-black hover:bg-white/90 disabled:bg-white/10 disabled:text-[var(--muted)] disabled:cursor-not-allowed"
+          className="mt-4 w-full py-3 rounded-md text-sm font-medium transition-colors bg-white text-black hover:bg-white/90 disabled:bg-white/10 disabled:text-[var(--muted)] disabled:cursor-not-allowed"
         >
           {ocrLoading ? "텍스트 추출 중..." : t("runAnalysis", locale)}
         </button>

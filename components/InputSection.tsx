@@ -353,47 +353,63 @@ export function InputSection({
       <div className="space-y-3">
         {mode === "hypothesis" && (
           <div>
-            <label className="flex items-center text-xs mb-1.5 uppercase tracking-wider" style={{ color: showErrors && !hypothesis.trim() ? "#f87171" : "var(--muted)" }}>
-              {t("hypothesis", locale)}
-              {showErrors && !hypothesis.trim() && <span className="ml-1 normal-case font-normal">— 필수 항목입니다</span>}
-              <Tooltip content={t("tooltipHypothesis", locale)} />
-            </label>
-            <textarea
-              value={hypothesis}
-              onChange={(e) => onHypothesisChange(e.target.value)}
-              placeholder={showErrors && !hypothesis.trim() ? "가설을 입력해주세요 (필수)" : t("hypothesisPlaceholder", locale)}
-              rows={2}
-              className={`w-full px-4 py-2.5 bg-white/[0.03] border rounded-md text-sm focus:outline-none resize-none transition-colors ${
-                showErrors && !hypothesis.trim()
-                  ? "border-red-500/60 focus:border-red-500/80 placeholder:text-red-400/60"
-                  : "border-[var(--border)] focus:border-white/30"
-              }`}
-            />
+            {(() => {
+              const hasErr = showErrors && !hypothesis.trim();
+              return (
+                <>
+                  <label
+                    className="flex items-center text-xs mb-1.5 uppercase tracking-wider"
+                    style={{ color: hasErr ? "#f87171" : "var(--muted)" }}
+                  >
+                    {t("hypothesis", locale)}
+                    {hasErr && <span className="ml-1 normal-case font-normal">— 필수 항목입니다</span>}
+                    <Tooltip content={t("tooltipHypothesis", locale)} />
+                  </label>
+                  <textarea
+                    value={hypothesis}
+                    onChange={(e) => onHypothesisChange(e.target.value)}
+                    placeholder={t("hypothesisPlaceholder", locale)}
+                    rows={2}
+                    className="w-full px-4 py-2.5 bg-white/[0.03] rounded-md text-sm focus:outline-none resize-none transition-colors"
+                    style={{
+                      border: `1px solid ${hasErr ? "rgba(239,68,68,0.6)" : "var(--border)"}`,
+                    }}
+                  />
+                </>
+              );
+            })()}
           </div>
         )}
 
         <div>
-          <label className="flex items-center mb-1.5 uppercase tracking-wider text-xs" style={{ color: showErrors && mode === "hypothesis" && !targetUser.trim() ? "#f87171" : "var(--muted)" }}>
-            {mode === "usability" ? t("targetUserOptional", locale) : t("targetUser", locale)}
-            {showErrors && mode === "hypothesis" && !targetUser.trim() && <span className="ml-1 normal-case font-normal">— 필수 항목입니다</span>}
-            <Tooltip content={t("tooltipTargetUser", locale)} />
-          </label>
-          <input
-            value={targetUser}
-            onChange={(e) => onTargetUserChange(e.target.value)}
-            placeholder={
-              showErrors && mode === "hypothesis" && !targetUser.trim()
-                ? "타깃 유저를 입력해주세요 (필수)"
-                : mode === "usability"
-                  ? t("targetUserOptionalPlaceholder", locale)
-                  : t("targetUserPlaceholder", locale)
-            }
-            className={`w-full px-4 py-2.5 bg-white/[0.03] border rounded-md text-sm focus:outline-none transition-colors ${
-              showErrors && mode === "hypothesis" && !targetUser.trim()
-                ? "border-red-500/60 focus:border-red-500/80 placeholder:text-red-400/60"
-                : "border-[var(--border)] focus:border-white/30"
-            }`}
-          />
+          {(() => {
+            const hasErr = showErrors && mode === "hypothesis" && !targetUser.trim();
+            return (
+              <>
+                <label
+                  className="flex items-center mb-1.5 uppercase tracking-wider text-xs"
+                  style={{ color: hasErr ? "#f87171" : "var(--muted)" }}
+                >
+                  {mode === "usability" ? t("targetUserOptional", locale) : t("targetUser", locale)}
+                  {hasErr && <span className="ml-1 normal-case font-normal">— 필수 항목입니다</span>}
+                  <Tooltip content={t("tooltipTargetUser", locale)} />
+                </label>
+                <input
+                  value={targetUser}
+                  onChange={(e) => onTargetUserChange(e.target.value)}
+                  placeholder={
+                    mode === "usability"
+                      ? t("targetUserOptionalPlaceholder", locale)
+                      : t("targetUserPlaceholder", locale)
+                  }
+                  className="w-full px-4 py-2.5 bg-white/[0.03] rounded-md text-sm focus:outline-none transition-colors"
+                  style={{
+                    border: `1px solid ${hasErr ? "rgba(239,68,68,0.6)" : "var(--border)"}`,
+                  }}
+                />
+              </>
+            );
+          })()}
         </div>
 
         {mode === "usability" && (

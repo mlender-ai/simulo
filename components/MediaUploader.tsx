@@ -194,34 +194,41 @@ export function MediaUploader({
       {/* Image tab */}
       {activeSubTab === "image" && (
         <div>
-          <div
-            onDragOver={(e) => { e.preventDefault(); setIsDragging(true); }}
-            onDragLeave={() => setIsDragging(false)}
-            onDrop={handleImageDrop}
-            className={`border border-dashed rounded-lg p-6 text-center transition-colors cursor-pointer ${
-              isDragging
-                ? "border-white/40 bg-white/5"
-                : showError && images.length === 0
-                  ? "border-red-500/60 hover:border-red-500/80"
-                  : "border-[var(--border)] hover:border-white/20"
-            }`}
-            onClick={() => document.getElementById(`${uploadZoneId}-img`)?.click()}
-          >
-            <p className={`text-sm ${showError && images.length === 0 ? "text-red-400/80" : "text-[var(--muted)]"}`}>
-              {showError && images.length === 0 ? "이미지를 1장 이상 업로드해주세요 (필수)" : "이미지를 드래그하거나 클릭해서 업로드"}
-            </p>
-            <p className="text-xs text-[var(--muted)] mt-1">
-              JPG, PNG 지원 · 최대 {maxImages}장 ({images.length}/{maxImages})
-            </p>
-            <input
-              id={`${uploadZoneId}-img`}
-              type="file"
-              accept="image/*"
-              multiple
-              className="hidden"
-              onChange={handleImageInput}
-            />
-          </div>
+          {(() => {
+            const hasErr = showError && images.length === 0;
+            return (
+              <div
+                onDragOver={(e) => { e.preventDefault(); setIsDragging(true); }}
+                onDragLeave={() => setIsDragging(false)}
+                onDrop={handleImageDrop}
+                className="border border-dashed rounded-lg p-6 text-center transition-colors cursor-pointer"
+                style={{
+                  borderColor: isDragging
+                    ? "rgba(255,255,255,0.4)"
+                    : hasErr
+                      ? "rgba(239,68,68,0.6)"
+                      : "var(--border)",
+                  background: isDragging ? "rgba(255,255,255,0.05)" : undefined,
+                }}
+                onClick={() => document.getElementById(`${uploadZoneId}-img`)?.click()}
+              >
+                <p className="text-sm" style={{ color: hasErr ? "#f87171" : "var(--muted)" }}>
+                  {hasErr ? "이미지를 1장 이상 업로드해주세요" : "이미지를 드래그하거나 클릭해서 업로드"}
+                </p>
+                <p className="text-xs mt-1" style={{ color: "var(--muted)" }}>
+                  JPG, PNG 지원 · 최대 {maxImages}장 ({images.length}/{maxImages})
+                </p>
+                <input
+                  id={`${uploadZoneId}-img`}
+                  type="file"
+                  accept="image/*"
+                  multiple
+                  className="hidden"
+                  onChange={handleImageInput}
+                />
+              </div>
+            );
+          })()}
           {images.length > 0 && (
             <div className="flex gap-2 mt-3 flex-wrap">
               {images.map((img, i) => (
