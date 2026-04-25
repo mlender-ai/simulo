@@ -88,6 +88,57 @@ function runChecks(): QAResults {
   const largeFiles = run("wc -l app/**/*.tsx app/**/*.ts components/*.tsx lib/*.ts 2>/dev/null | sort -rn | head -10").output;
   const errors = readFileIfExists(".claude/memory/errors.md");
 
+  // ── 기능별 정적 검사 (no-DB 환경 기준) ──
+  console.log("[qa-agent] 기능 정적 검사...");
+
+  // export API가 DB 없이도 POST로 동작하는지 확인
+  const exportRoutes = ["pdf", "docx", "md", "jira"].map((fmt) => {
+    const content = readFileIfExists(`app/api/export/${fmt}/[id]/route.ts`);
+    const hasPost = content.includes("export async function POST");
+    const hasResolve = content.includes("resolveAnalysis");
+    return `${fmt}: POST=${hasPost ? "✅" : "❌"} resolveAnalysis=${hasResolve ? "✅" : "❌"}`;
+  }).join("\n");
+
+  // ShareExportPanel이 analysisData prop을 받는지 확인
+  const sharePanelContent = readFileIfExists("components/ShareExportPanel.tsx");
+  const sharePanelHasDataProp = sharePanelContent.includes("analysisData");
+  const sharePanelHasFetchExport = sharePanelContent.includes("fetchExport");
+  const sharePanelHasShowPng = sharePanelContent.includes("showPng");
+
+  // 히스토리 페이지에서 analysisData를 넘기는지 확인
+  const historyPageContent = readFileIfExists("app/history/page.tsx");
+  const historyPassesData = historyPageContent.includes("analysisData={analysis}");
+
+  // 공유 페이지가 localStorage fallback을 갖는지 확인
+  const sharePageContent = readFileIfExists("app/share/[id]/page.tsx");
+  const sharePageHasFallback = sharePageContent.includes("storage.getById");
+
+  // URL 탭이 이미지 업로드 없이 URL만으로 분석 가능한지 확인
+  const urlHandlerExists = run("ls app/api/analyze/handlers/url.ts 2>/dev/null").exitCode === 0;
+  const urlPluginRegistered = readFileIfExists("app/api/analyze/registry.ts").includes("urlPlugin");
+
+  const featureChecks = `
+## 기능 정적 검사 (no-DB 환경 기준)
+
+### Export API — no-DB POST 지원
+${exportRoutes}
+
+### ShareExportPanel
+- analysisData prop: ${sharePanelHasDataProp ? "✅" : "❌ MISSING — export 패널이 localStorage 데이터를 받지 못함"}
+- fetchExport 헬퍼: ${sharePanelHasFetchExport ? "✅" : "❌ MISSING — POST/GET 분기 로직 없음"}
+- showPng 조건부 노출: ${sharePanelHasShowPng ? "✅" : "❌ MISSING — 히스토리에서도 PNG 버튼 노출됨"}
+
+### 히스토리 페이지
+- analysisData prop 전달: ${historyPassesData ? "✅" : "❌ MISSING — 히스토리에서 내보내기 불가"}
+
+### 공유 페이지 (/share/:id)
+- localStorage fallback: ${sharePageHasFallback ? "✅" : "❌ MISSING — DB 없는 환경에서 공유 링크 404"}
+
+### URL 분석
+- url.ts 핸들러: ${urlHandlerExists ? "✅" : "❌ MISSING"}
+- registry 등록: ${urlPluginRegistered ? "✅" : "❌ MISSING — URL 탭 분석 불가"}
+`.trim();
+
   const codeAnalysis = `
 ## 최근 변경 (git diff --stat HEAD~5)
 ${gitDiff}
@@ -103,6 +154,8 @@ ${unusedImports}
 
 ## 에러 기록
 ${errors}
+
+${featureChecks}
 `.trim();
 
   return {
@@ -127,11 +180,17 @@ async function analyzeAndSuggest(results: QAResults): Promise<string> {
 
   const prompt = `당신은 Simulo (AI UX Testing Tool)의 시니어 QA 엔지니어 겸 리팩토링 전문가입니다.
 
+Simulo의 핵심 전제: **DATABASE_URL 없는 로컬 환경에서도 모든 기능이 작동해야 한다.**
+데이터는 localStorage에 저장되고, export API는 POST body로 데이터를 받아 처리해야 한다.
+
 아래 자동 검사 결과와 코드 분석 데이터를 보고:
 1. 발견된 문제를 분류 (CRITICAL / HIGH / MEDIUM)
-2. 리팩토링 기회 제안
-3. 자동화할 수 있는 작업 식별
-4. 잠재적 버그 예측
+   - CRITICAL 기준: ① DB 없는 환경에서 기능 불가 ② 빌드/타입 실패 ③ 사용자가 마주치는 에러 UI
+   - HIGH 기준: ① UI에서 기능이 있는데 동작 안 함 ② API가 잘못된 상태코드 반환
+2. 기능 정적 검사 결과(아래 "기능 정적 검사" 섹션)에서 ❌ 항목을 CRITICAL/HIGH로 분류
+3. 리팩토링 기회 제안
+4. 자동화할 수 있는 작업 식별
+5. 잠재적 버그 예측
 
 ---
 
@@ -176,10 +235,13 @@ ${results.codeAnalysis}
 | Dev 서버 | PASS/FAIL |
 | 캐시 안전성 | PASS/FAIL |
 
+## 기능 정적 검사 요약
+(기능 정적 검사 섹션의 ✅/❌ 항목을 표로 정리. ❌가 하나라도 있으면 CRITICAL로 승격)
+
 ## 발견된 이슈
 
 ### CRITICAL (즉시 수정 필요)
-(없으면 "없음")
+(없으면 "없음". 기능 정적 검사 ❌ 항목 반드시 포함)
 
 ### HIGH (빠른 수정 권장)
 (없으면 "없음")
@@ -193,7 +255,7 @@ ${results.codeAnalysis}
 (테스트 추가, CI 개선, 반복 작업 자동화 등)
 
 ## 잠재적 버그 예측
-(에러 패턴 기반 예측)
+(기능 정적 검사 + 에러 패턴 기반 예측. "DB 없는 환경에서 작동하는가" 관점 필수 포함)
 `;
 
   const response = await client.messages.create({
