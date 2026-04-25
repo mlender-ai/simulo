@@ -8,6 +8,7 @@ import { ImageUploadTab } from "./input/ImageUploadTab";
 import { FigmaTab } from "./input/FigmaTab";
 import { FlowInputTab } from "./input/FlowInputTab";
 import { ComparisonTab } from "./input/ComparisonTab";
+import { useInputValidation } from "@/hooks/useInputValidation";
 export type { UploadedVideo, VideoFrame } from "./MediaUploader";
 
 // ─── Re-exported types (used by parent components) ──────────────────
@@ -132,10 +133,25 @@ export function InputSection({
   analysisOptions,
   onAnalysisOptionsChange,
   showErrors = false,
-  inputReady = false,
-  contextReady = false,
+  inputReady: inputReadyProp = false,
+  contextReady: contextReadyProp = false,
 }: InputSectionProps) {
   const [showAdvanced, setShowAdvanced] = useState(false);
+
+  const { fieldErrors, inputReady, contextReady } = useInputValidation({
+    mode,
+    activeTab,
+    hypothesis,
+    targetUser,
+    images,
+    videos,
+    flowSteps,
+    showErrors,
+  });
+
+  // Allow parent override (backward compat)
+  const resolvedInputReady = inputReadyProp || inputReady;
+  const resolvedContextReady = contextReadyProp || contextReady;
 
   // Auto-fill Figma token from settings
   useEffect(() => {
@@ -194,7 +210,7 @@ export function InputSection({
 
       {/* Tab content */}
       {activeTab === "image" && (
-        <ImageUploadTab locale={locale} images={images} onImagesChange={onImagesChange} videos={videos} onVideosChange={onVideosChange} description={screenDescription} onDescriptionChange={onScreenDescriptionChange} showError={showErrors && !inputReady} />
+        <ImageUploadTab locale={locale} images={images} onImagesChange={onImagesChange} videos={videos} onVideosChange={onVideosChange} description={screenDescription} onDescriptionChange={onScreenDescriptionChange} showError={showErrors && !resolvedInputReady} />
       )}
 
       {activeTab === "url" && (
@@ -354,7 +370,7 @@ export function InputSection({
         {mode === "hypothesis" && (
           <div>
             {(() => {
-              const hasErr = showErrors && !hypothesis.trim();
+              const hasErr = !!fieldErrors.hypothesis;
               return (
                 <>
                   <label
@@ -362,7 +378,7 @@ export function InputSection({
                     style={{ color: hasErr ? "#f87171" : "var(--muted)" }}
                   >
                     {t("hypothesis", locale)}
-                    {hasErr && <span className="ml-1 normal-case font-normal">— 필수 항목입니다</span>}
+                    {hasErr && <span className="ml-1 normal-case font-normal">— {fieldErrors.hypothesis}</span>}
                     <Tooltip content={t("tooltipHypothesis", locale)} />
                   </label>
                   <textarea
@@ -383,7 +399,7 @@ export function InputSection({
 
         <div>
           {(() => {
-            const hasErr = showErrors && mode === "hypothesis" && !targetUser.trim();
+            const hasErr = !!fieldErrors.targetUser;
             return (
               <>
                 <label
@@ -391,7 +407,7 @@ export function InputSection({
                   style={{ color: hasErr ? "#f87171" : "var(--muted)" }}
                 >
                   {mode === "usability" ? t("targetUserOptional", locale) : t("targetUser", locale)}
-                  {hasErr && <span className="ml-1 normal-case font-normal">— 필수 항목입니다</span>}
+                  {hasErr && <span className="ml-1 normal-case font-normal">— {fieldErrors.targetUser}</span>}
                   <Tooltip content={t("tooltipTargetUser", locale)} />
                 </label>
                 <input
