@@ -6,9 +6,11 @@ import type { AnalysisResult } from "@/lib/storage";
 interface ShareExportPanelProps {
   analysisId: string;
   analysisData?: AnalysisResult;
+  /** PNG 버튼 노출 여부 — 리포트 DOM이 있는 리포트 페이지에서만 true */
+  showPng?: boolean;
 }
 
-export function ShareExportPanel({ analysisId, analysisData }: ShareExportPanelProps) {
+export function ShareExportPanel({ analysisId, analysisData, showPng = false }: ShareExportPanelProps) {
   const [open, setOpen] = useState(false);
   const [copied, setCopied] = useState(false);
   const [pdfLoading, setPdfLoading] = useState(false);
@@ -212,13 +214,15 @@ export function ShareExportPanel({ analysisId, analysisData }: ShareExportPanelP
               >
                 {docxLoading ? <Spinner /> : "Word"}
               </button>
-              <button
-                onClick={handlePNG}
-                disabled={pngLoading}
-                className="flex-1 flex items-center justify-center gap-1.5 px-3 py-2 rounded text-[11px] font-medium bg-white/10 hover:bg-white/15 text-white transition-colors disabled:opacity-50"
-              >
-                {pngLoading ? <Spinner /> : "PNG"}
-              </button>
+              {showPng && (
+                <button
+                  onClick={handlePNG}
+                  disabled={pngLoading}
+                  className="flex-1 flex items-center justify-center gap-1.5 px-3 py-2 rounded text-[11px] font-medium bg-white/10 hover:bg-white/15 text-white transition-colors disabled:opacity-50"
+                >
+                  {pngLoading ? <Spinner /> : "PNG"}
+                </button>
+              )}
             </div>
           </div>
 
