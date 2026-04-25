@@ -147,7 +147,7 @@ function AnalysisCard({
               )}
               {!isChild && (
                 <div onClick={(e) => e.preventDefault()}>
-                  <ShareExportPanel analysisId={analysis.id} />
+                  <ShareExportPanel analysisId={analysis.id} analysisData={analysis} />
                 </div>
               )}
             </div>

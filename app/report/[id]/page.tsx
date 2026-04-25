@@ -91,7 +91,7 @@ export default function ReportPage() {
               {t("newAnalysis", locale)}
             </Link>
             <div className="ml-auto flex items-center gap-2">
-              <ShareExportPanel analysisId={data.id} />
+              <ShareExportPanel analysisId={data.id} analysisData={data} />
               <button
                 onClick={() => setIsPanelOpen((v) => !v)}
                 className="flex items-center gap-1.5 px-3 py-1.5 rounded-md text-xs transition-colors"

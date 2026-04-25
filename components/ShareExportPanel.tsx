@@ -1,12 +1,14 @@
 "use client";
 
 import { useState, useRef, useEffect, useCallback } from "react";
+import type { AnalysisResult } from "@/lib/storage";
 
 interface ShareExportPanelProps {
   analysisId: string;
+  analysisData?: AnalysisResult;
 }
 
-export function ShareExportPanel({ analysisId }: ShareExportPanelProps) {
+export function ShareExportPanel({ analysisId, analysisData }: ShareExportPanelProps) {
   const [open, setOpen] = useState(false);
   const [copied, setCopied] = useState(false);
   const [pdfLoading, setPdfLoading] = useState(false);
@@ -14,6 +16,7 @@ export function ShareExportPanel({ analysisId }: ShareExportPanelProps) {
   const [pngLoading, setPngLoading] = useState(false);
   const [mdLoading, setMdLoading] = useState(false);
   const [jiraLoading, setJiraLoading] = useState(false);
+  const [exportError, setExportError] = useState<string | null>(null);
   const panelRef = useRef<HTMLDivElement>(null);
 
   const shareUrl =
@@ -21,7 +24,6 @@ export function ShareExportPanel({ analysisId }: ShareExportPanelProps) {
       ? `${window.location.origin}/share/${analysisId}`
       : `/share/${analysisId}`;
 
-  // Close on outside click
   useEffect(() => {
     if (!open) return;
     const handler = (e: MouseEvent) => {
@@ -39,13 +41,39 @@ export function ShareExportPanel({ analysisId }: ShareExportPanelProps) {
     setTimeout(() => setCopied(false), 2000);
   }, [shareUrl]);
 
+  /** Fetch export file — POST with analysisData if available, otherwise GET */
+  const fetchExport = useCallback(
+    async (path: string): Promise<Response> => {
+      // Try to get analysisData: prop first, then localStorage fallback
+      let data = analysisData;
+      if (!data && typeof window !== "undefined") {
+        const { storage } = await import("@/lib/storage");
+        data = storage.getById(analysisId) ?? undefined;
+      }
+
+      if (data) {
+        return fetch(path, {
+          method: "POST",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify({ analysisData: data }),
+        });
+      }
+      return fetch(path);
+    },
+    [analysisId, analysisData]
+  );
+
   const handleDownload = useCallback(
     async (format: "pdf" | "docx") => {
       const setLoading = format === "pdf" ? setPdfLoading : setDocxLoading;
       setLoading(true);
+      setExportError(null);
       try {
-        const res = await fetch(`/api/export/${format}/${analysisId}`);
-        if (!res.ok) throw new Error("Export failed");
+        const res = await fetchExport(`/api/export/${format}/${analysisId}`);
+        if (!res.ok) {
+          const json = await res.json().catch(() => ({}));
+          throw new Error(json.error || "Export failed");
+        }
         const blob = await res.blob();
         const url = URL.createObjectURL(blob);
         const a = document.createElement("a");
@@ -55,20 +83,22 @@ export function ShareExportPanel({ analysisId }: ShareExportPanelProps) {
         URL.revokeObjectURL(url);
       } catch (err) {
         console.error(`[export] ${format} failed:`, err);
+        setExportError(err instanceof Error ? err.message : "내보내기에 실패했습니다");
       } finally {
         setLoading(false);
       }
     },
-    [analysisId]
+    [analysisId, fetchExport]
   );
 
   const handlePNG = useCallback(async () => {
     setPngLoading(true);
+    setExportError(null);
     try {
       const { toPng } = await import("html-to-image");
       const el = document.getElementById("overview-tab-content");
       if (!el) {
-        console.warn("[export] overview-tab-content element not found");
+        setExportError("리포트 화면이 열려있지 않아 PNG를 생성할 수 없습니다");
         return;
       }
       const dataUrl = await toPng(el, { quality: 0.95, backgroundColor: "#0a0a0a" });
@@ -78,6 +108,7 @@ export function ShareExportPanel({ analysisId }: ShareExportPanelProps) {
       a.click();
     } catch (err) {
       console.error("[export] PNG failed:", err);
+      setExportError(err instanceof Error ? err.message : "PNG 생성에 실패했습니다");
     } finally {
       setPngLoading(false);
     }
@@ -85,9 +116,13 @@ export function ShareExportPanel({ analysisId }: ShareExportPanelProps) {
 
   const handleMarkdown = useCallback(async () => {
     setMdLoading(true);
+    setExportError(null);
     try {
-      const res = await fetch(`/api/export/md/${analysisId}`);
-      if (!res.ok) throw new Error("Markdown export failed");
+      const res = await fetchExport(`/api/export/md/${analysisId}`);
+      if (!res.ok) {
+        const json = await res.json().catch(() => ({}));
+        throw new Error(json.error || "Markdown export failed");
+      }
       const blob = await res.blob();
       const url = URL.createObjectURL(blob);
       const a = document.createElement("a");
@@ -97,16 +132,21 @@ export function ShareExportPanel({ analysisId }: ShareExportPanelProps) {
       URL.revokeObjectURL(url);
     } catch (err) {
       console.error("[export] Markdown failed:", err);
+      setExportError(err instanceof Error ? err.message : "Markdown 내보내기에 실패했습니다");
     } finally {
       setMdLoading(false);
     }
-  }, [analysisId]);
+  }, [analysisId, fetchExport]);
 
   const handleJira = useCallback(async () => {
     setJiraLoading(true);
+    setExportError(null);
     try {
-      const res = await fetch(`/api/export/jira/${analysisId}`);
-      if (!res.ok) throw new Error("Jira export failed");
+      const res = await fetchExport(`/api/export/jira/${analysisId}`);
+      if (!res.ok) {
+        const json = await res.json().catch(() => ({}));
+        throw new Error(json.error || "Jira export failed");
+      }
       const blob = await res.blob();
       const url = URL.createObjectURL(blob);
       const a = document.createElement("a");
@@ -116,10 +156,11 @@ export function ShareExportPanel({ analysisId }: ShareExportPanelProps) {
       URL.revokeObjectURL(url);
     } catch (err) {
       console.error("[export] Jira failed:", err);
+      setExportError(err instanceof Error ? err.message : "Jira 내보내기에 실패했습니다");
     } finally {
       setJiraLoading(false);
     }
-  }, [analysisId]);
+  }, [analysisId, fetchExport]);
 
   return (
     <div className="relative" ref={panelRef}>
@@ -135,9 +176,7 @@ export function ShareExportPanel({ analysisId }: ShareExportPanelProps) {
         <div className="absolute right-0 top-full mt-2 w-80 rounded-xl border border-[var(--border)] bg-[var(--surface)] shadow-2xl z-50 overflow-hidden">
           {/* Share link section */}
           <div className="p-4 border-b border-[var(--border)]">
-            <p className="text-xs font-medium text-white/80 mb-2">
-              공유 링크
-            </p>
+            <p className="text-xs font-medium text-white/80 mb-2">공유 링크</p>
             <div className="flex gap-2">
               <input
                 readOnly
@@ -152,61 +191,41 @@ export function ShareExportPanel({ analysisId }: ShareExportPanelProps) {
                 {copied ? "복사됨" : "복사"}
               </button>
             </div>
-            <p className="text-[10px] text-white/30 mt-1.5">
-              로그인 없이 열람 가능
-            </p>
+            <p className="text-[10px] text-white/30 mt-1.5">로그인 없이 열람 가능</p>
           </div>
 
           {/* File export section */}
           <div className="p-4 border-b border-[var(--border)]">
-            <p className="text-xs font-medium text-white/80 mb-2">
-              파일로 내보내기
-            </p>
+            <p className="text-xs font-medium text-white/80 mb-2">파일로 내보내기</p>
             <div className="flex gap-2">
               <button
                 onClick={() => handleDownload("pdf")}
                 disabled={pdfLoading}
                 className="flex-1 flex items-center justify-center gap-1.5 px-3 py-2 rounded text-[11px] font-medium bg-white/10 hover:bg-white/15 text-white transition-colors disabled:opacity-50"
               >
-                {pdfLoading ? (
-                  <span className="w-3 h-3 border border-white/20 border-t-white/60 rounded-full animate-spin" />
-                ) : (
-                  "PDF"
-                )}
+                {pdfLoading ? <Spinner /> : "PDF"}
               </button>
               <button
                 onClick={() => handleDownload("docx")}
                 disabled={docxLoading}
                 className="flex-1 flex items-center justify-center gap-1.5 px-3 py-2 rounded text-[11px] font-medium bg-white/10 hover:bg-white/15 text-white transition-colors disabled:opacity-50"
               >
-                {docxLoading ? (
-                  <span className="w-3 h-3 border border-white/20 border-t-white/60 rounded-full animate-spin" />
-                ) : (
-                  "Word"
-                )}
+                {docxLoading ? <Spinner /> : "Word"}
               </button>
               <button
                 onClick={handlePNG}
                 disabled={pngLoading}
                 className="flex-1 flex items-center justify-center gap-1.5 px-3 py-2 rounded text-[11px] font-medium bg-white/10 hover:bg-white/15 text-white transition-colors disabled:opacity-50"
               >
-                {pngLoading ? (
-                  <span className="w-3 h-3 border border-white/20 border-t-white/60 rounded-full animate-spin" />
-                ) : (
-                  "PNG"
-                )}
+                {pngLoading ? <Spinner /> : "PNG"}
               </button>
             </div>
           </div>
 
           {/* Action export section */}
           <div className="p-4 border-b border-[var(--border)]">
-            <p className="text-xs font-medium text-white/80 mb-1">
-              실무 연결
-            </p>
-            <p className="text-[10px] text-white/40 mb-2">
-              분석 결과를 바로 업무에 활용
-            </p>
+            <p className="text-xs font-medium text-white/80 mb-1">실무 연결</p>
+            <p className="text-[10px] text-white/40 mb-2">분석 결과를 바로 업무에 활용</p>
             <div className="flex gap-2">
               <button
                 onClick={handleMarkdown}
@@ -214,11 +233,7 @@ export function ShareExportPanel({ analysisId }: ShareExportPanelProps) {
                 className="flex-1 flex items-center justify-center gap-1.5 px-3 py-2 rounded text-[11px] font-medium bg-white/10 hover:bg-white/15 text-white transition-colors disabled:opacity-50"
                 title="Markdown 파일로 내보내기"
               >
-                {mdLoading ? (
-                  <span className="w-3 h-3 border border-white/20 border-t-white/60 rounded-full animate-spin" />
-                ) : (
-                  "Markdown"
-                )}
+                {mdLoading ? <Spinner /> : "Markdown"}
               </button>
               <button
                 onClick={handleJira}
@@ -226,14 +241,17 @@ export function ShareExportPanel({ analysisId }: ShareExportPanelProps) {
                 className="flex-1 flex items-center justify-center gap-1.5 px-3 py-2 rounded text-[11px] font-medium bg-white/10 hover:bg-white/15 text-white transition-colors disabled:opacity-50"
                 title="Jira 티켓 드래프트 생성"
               >
-                {jiraLoading ? (
-                  <span className="w-3 h-3 border border-white/20 border-t-white/60 rounded-full animate-spin" />
-                ) : (
-                  "Jira 드래프트"
-                )}
+                {jiraLoading ? <Spinner /> : "Jira 드래프트"}
               </button>
             </div>
           </div>
+
+          {/* Error message */}
+          {exportError && (
+            <div className="px-4 py-2.5 bg-red-400/10 border-t border-red-400/20">
+              <p className="text-[11px] text-red-400">{exportError}</p>
+            </div>
+          )}
 
           {/* Note */}
           <div className="px-4 py-2.5">
@@ -245,4 +263,8 @@ export function ShareExportPanel({ analysisId }: ShareExportPanelProps) {
       )}
     </div>
   );
+}
+
+function Spinner() {
+  return <span className="w-3 h-3 border border-white/20 border-t-white/60 rounded-full animate-spin" />;
 }

@@ -19,17 +19,26 @@ export default function SharePage() {
     setLocale(getLocale());
     const id = params.id as string;
 
-    fetch(`/api/report?id=${id}`)
-      .then((r) => {
-        if (r.status === 404) { setNotFound(true); return null; }
-        if (!r.ok) { setNotFound(true); return null; }
-        return r.json();
-      })
-      .then((d) => {
+    async function load() {
+      // 1. Try localStorage first (no-DB environments)
+      const { storage } = await import("@/lib/storage");
+      const local = storage.getById(id);
+      if (local) { setData(local); return; }
+
+      // 2. Fall back to DB via API
+      try {
+        const r = await fetch(`/api/report?id=${id}`);
+        if (r.status === 404 || r.status === 503) { setNotFound(true); return; }
+        if (!r.ok) { setNotFound(true); return; }
+        const d = await r.json();
         if (d) setData(d as AnalysisResult);
         else setNotFound(true);
-      })
-      .catch(() => setNotFound(true));
+      } catch {
+        setNotFound(true);
+      }
+    }
+
+    load();
   }, [params.id]);
 
   if (notFound) {
