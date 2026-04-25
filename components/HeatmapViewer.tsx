@@ -70,6 +70,32 @@ function getSeverityStyle(severity: string) {
   return SEVERITY_OVERLAY[severity] || SEVERITY_OVERLAY.Low;
 }
 
+const SEVERITY_ORDER = ["Critical", "심각", "Medium", "보통", "Low", "낮음"];
+
+function zoneOverlapArea(a: HeatZone, b: HeatZone): number {
+  const ox = Math.max(0, Math.min(a.x + a.width, b.x + b.width) - Math.max(a.x, b.x));
+  const oy = Math.max(0, Math.min(a.y + a.height, b.y + b.height) - Math.max(a.y, b.y));
+  return ox * oy;
+}
+
+function deduplicateZones(issues: HeatmapIssue[]): HeatmapIssue[] {
+  const OVERLAP_THRESHOLD = 0.4; // drop zone if >40% of its area overlaps a kept zone
+  const kept: HeatmapIssue[] = [];
+  const sorted = [...issues].sort(
+    (a, b) => SEVERITY_ORDER.indexOf(a.severity) - SEVERITY_ORDER.indexOf(b.severity)
+  );
+  for (const issue of sorted) {
+    const z = issue.heatZone!;
+    const area = z.width * z.height;
+    const overlaps = kept.some((k) => {
+      const ov = zoneOverlapArea(z, k.heatZone!);
+      return area > 0 && ov / area > OVERLAP_THRESHOLD;
+    });
+    if (!overlaps) kept.push(issue);
+  }
+  return kept;
+}
+
 export function HeatmapViewer({
   imageUrl,
   imageName,
@@ -100,11 +126,16 @@ export function HeatmapViewer({
     setTooltipIssue(null);
   }, [onIssueHover]);
 
-  const issuesWithZones = issues.filter((iss) => {
+  const filtered = issues.filter((iss) => {
     if (!iss.heatZone) return false;
     if (hypothesisRelevanceFilter && iss.relevanceToHypothesis === "Low") return false;
     return true;
   });
+  // Always keep active/hovered issue; deduplicate the rest
+  const issuesWithZones =
+    activeIssueIndex !== null || hoveredIssueIndex !== null
+      ? filtered
+      : deduplicateZones(filtered);
 
   return (
     <div style={{ maxWidth: 640, width: "100%" }}>
@@ -165,12 +196,12 @@ export function HeatmapViewer({
                 onMouseEnter={(e) => handleOverlayMouseEnter(issue, e)}
                 onMouseLeave={handleOverlayMouseLeave}
               >
-                {/* Top-left label badge */}
+                {/* Label badge — inside zone at top-left, or below if zone is near top */}
                 <div
                   style={{
                     position: "absolute",
-                    top: -12,
-                    left: 0,
+                    top: zone.y < 8 ? "calc(100% + 2px)" : 2,
+                    left: 2,
                     fontSize: 10,
                     fontWeight: 600,
                     padding: "2px 6px",
@@ -180,6 +211,9 @@ export function HeatmapViewer({
                     color: "#fff",
                     lineHeight: "14px",
                     pointerEvents: "none",
+                    maxWidth: "calc(100% - 4px)",
+                    overflow: "hidden",
+                    textOverflow: "ellipsis",
                   }}
                 >
                   {zone.label}

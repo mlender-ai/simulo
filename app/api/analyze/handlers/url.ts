@@ -27,7 +27,7 @@ export async function handleUrlAnalysis(params: UrlHandlerParams): Promise<Handl
     await browser.close();
   }
 
-  const urlContext = `\n\n[분석 대상 URL: ${url}]`;
+  const urlContext = `\n\n[분석 대상 URL: ${url}]\n[스크린샷 해상도: 1440×900px — heatZone 좌표는 이 해상도 기준 퍼센트값으로 계산하세요]`;
   const result = await analyzeWithClaude({
     images: [screenshotBase64],
     hypothesis,
