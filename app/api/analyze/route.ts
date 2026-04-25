@@ -38,9 +38,12 @@ export async function POST(request: NextRequest) {
       previousAnalysisId,
       roundNumber: rawRoundNumber,
       isImprovement: rawIsImprovement,
+      url: rawUrl,
     } = body;
 
     const images: string[] = Array.isArray(rawImages) ? rawImages : [];
+
+    const url: string | undefined = typeof rawUrl === "string" ? rawUrl : undefined;
 
     // ── Pre-flight validation ──
     if (inputType === "figma") {
@@ -55,6 +58,10 @@ export async function POST(request: NextRequest) {
       if (!pf.ok) {
         return NextResponse.json({ error: pf.errors[0].message, details: pf.errors }, { status: 400 });
       }
+    } else if (inputType === "url") {
+      if (!url) {
+        return NextResponse.json({ error: "URL이 필요합니다" }, { status: 400 });
+      }
     } else if (inputType !== "comparison") {
       const pf = validateImages(images);
       logPreflightWarnings(pf.warnings, "image");
@@ -65,7 +72,7 @@ export async function POST(request: NextRequest) {
 
     // ── OCR pipeline (Skip for comparison/figma) ──
     let ocrContext: string | undefined;
-    const shouldRunOCR = inputType !== "comparison" && inputType !== "figma" && images.length > 0;
+    const shouldRunOCR = inputType !== "comparison" && inputType !== "figma" && inputType !== "url" && images.length > 0;
     if (shouldRunOCR) {
       try {
         let finalOCR;
@@ -133,6 +140,7 @@ export async function POST(request: NextRequest) {
       images,
       videos,
       inputType,
+      url,
       flowSteps,
       figmaToken,
       figmaFileKey,
@@ -154,6 +162,7 @@ export async function POST(request: NextRequest) {
       images,
       videos,
       inputType,
+      url,
       flowSteps,
       figmaToken,
       figmaFileKey,

@@ -75,6 +75,8 @@ interface InputSectionProps {
   onVideosChange: (videos: import("./MediaUploader").UploadedVideo[]) => void;
   screenDescription: string;
   onScreenDescriptionChange: (value: string) => void;
+  urlInput: string;
+  onUrlInputChange: (value: string) => void;
   hypothesis: string;
   onHypothesisChange: (value: string) => void;
   targetUser: string;
@@ -110,6 +112,8 @@ export function InputSection({
   onVideosChange,
   screenDescription,
   onScreenDescriptionChange,
+  urlInput,
+  onUrlInputChange,
   hypothesis,
   onHypothesisChange,
   targetUser,
@@ -214,9 +218,15 @@ export function InputSection({
       )}
 
       {activeTab === "url" && (
-        <div>
-          <input type="url" placeholder={t("urlPlaceholder", locale)} className="w-full px-4 py-2.5 bg-white/[0.03] border border-[var(--border)] rounded-md text-sm focus:outline-none focus:border-white/30" />
-          <p className="text-xs text-[var(--muted)] mt-2">{t("urlHint", locale)}</p>
+        <div className="space-y-2">
+          <input
+            type="url"
+            value={urlInput}
+            onChange={(e) => onUrlInputChange(e.target.value)}
+            placeholder={t("urlPlaceholder", locale)}
+            className="w-full px-4 py-2.5 bg-white/[0.03] border border-[var(--border)] rounded-md text-sm focus:outline-none focus:border-white/30"
+          />
+          <p className="text-xs text-[var(--muted)]">{t("tooltipUrl", locale)}</p>
         </div>
       )}
 

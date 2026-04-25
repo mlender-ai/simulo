@@ -34,6 +34,7 @@ export interface AnalysisRequestBody {
   images?: string[];
   videos?: UploadedVideo[];
   inputType?: string;
+  url?: string;
   flowSteps?: { stepNumber: number; stepName: string; image: string }[];
   figmaToken?: string;
   figmaFileKey?: string;
@@ -111,6 +112,20 @@ const flowPlugin: AnalysisPlugin = {
   },
 };
 
+const urlPlugin: AnalysisPlugin = {
+  id: "url",
+  description: "URL 라이브 분석 — 스크린샷 캡처 후 이미지 분석",
+  requiredInputs: ["inputType=url", "url"],
+  accepts(body) {
+    return body.inputType === "url" && typeof body.url === "string" && body.url.length > 0;
+  },
+  async handle(params, body) {
+    const { handleUrlAnalysis } = await import("./handlers/url");
+    console.log("[registry] URL analysis:", body.url);
+    return handleUrlAnalysis({ ...params, url: body.url as string });
+  },
+};
+
 const imagePlugin: AnalysisPlugin = {
   id: "image",
   description: "이미지/영상 분석 — images 1개 이상 필요 (기본 폴백)",
@@ -139,6 +154,7 @@ const PLUGINS: AnalysisPlugin[] = [
   comparisonPlugin,
   figmaPlugin,
   flowPlugin,
+  urlPlugin,
   imagePlugin,
 ];
 

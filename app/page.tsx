@@ -55,6 +55,7 @@ export default function Home() {
   const [loadingStep, setLoadingStep] = useState(0);
   const [error, setError] = useState<string | null>(null);
   const [activeTab, setActiveTab] = useState<InputTab>("image");
+  const [urlInput, setUrlInput] = useState("");
   const [bannerOpen, setBannerOpen] = useState(false);
   const [flowSteps, setFlowSteps] = useState<FlowStepInput[]>([
     { stepNumber: 1, stepName: "", image: "" },
@@ -97,11 +98,12 @@ export default function Home() {
     const dismissed = localStorage.getItem("simulo_onboarding_dismissed");
     setBannerOpen(!dismissed);
 
-    const handler = () => setBannerOpen(true);
-    window.addEventListener("simulo:open-guide", handler);
-    return () => window.removeEventListener("simulo:open-guide", handler);
+    const guideHandler = () => setBannerOpen(true);
+    window.addEventListener("simulo:open-guide", guideHandler);
+    return () => window.removeEventListener("simulo:open-guide", guideHandler);
   }, []);
 
+  const isUrl = activeTab === "url";
   const isFlow = activeTab === "flow";
   const isFigma = activeTab === "figma";
   const isComparison = activeTab === "comparison";
@@ -115,8 +117,9 @@ export default function Home() {
     comparison.competitors.every(
       (c) => c.productName.trim() !== "" && c.images.length > 0
     );
-  const imageReady = !isFlow && !isFigma && !isComparison && images.length > 0;
-  const inputReady = imageReady || flowReady || figmaReady || comparisonReady;
+  const urlReady = isUrl && urlInput.trim().length > 0;
+  const imageReady = !isFlow && !isFigma && !isComparison && !isUrl && images.length > 0;
+  const inputReady = imageReady || urlReady || flowReady || figmaReady || comparisonReady;
   const contextReady =
     mode === "usability"
       ? true
@@ -129,6 +132,7 @@ export default function Home() {
       if (isFlow) validationErrors.push("플로우 단계마다 이미지를 업로드해주세요 (최소 2단계)");
       else if (isFigma) validationErrors.push("Figma 프레임을 1개 이상 선택해주세요");
       else if (isComparison) validationErrors.push("자사/경쟁사 제품명과 이미지를 모두 입력해주세요");
+      else if (isUrl) validationErrors.push("분석할 URL을 입력해주세요");
       else validationErrors.push("화면 이미지를 1장 이상 업로드해주세요");
     }
     if (mode === "hypothesis") {
@@ -169,7 +173,9 @@ export default function Home() {
         ? { ...commonBody, inputType: "flow", flowSteps }
         : isFigma
           ? { ...commonBody, inputType: "figma", figmaToken: figma.token, figmaFileKey: figma.fileKey, figmaFrameIds: figma.selectedFrameIds }
-          : { ...commonBody, inputType: "image", images, videos };
+          : isUrl
+            ? { ...commonBody, inputType: "url", url: urlInput }
+            : { ...commonBody, inputType: "image", images, videos };
   };
 
   const runAnalysis = async (body: Record<string, unknown>) => {
@@ -316,6 +322,8 @@ export default function Home() {
           onVideosChange={setVideos}
           screenDescription={screenDescription}
           onScreenDescriptionChange={setScreenDescription}
+          urlInput={urlInput}
+          onUrlInputChange={setUrlInput}
           hypothesis={hypothesis}
           onHypothesisChange={setHypothesis}
           targetUser={targetUser}
