@@ -142,13 +142,23 @@ function ScoreTooltip({ active, payload }: { active?: boolean; payload?: Array<{
   );
 }
 
+const EMPTY_STATS: DashboardStats = {
+  totalAnalyses: 0, prevTotalAnalyses: 0,
+  avgScore: 0, prevAvgScore: 0,
+  avgDesire: { utility: 0, healthPride: 0, lossAversion: 0 },
+  resolvedIssueRate: 0,
+  scoreTimeline: [], topIssues: [], keywords: [], desireTimeline: [],
+  projectTags: [],
+};
+
 // ─── Main Component ───────────────────────────────────────
 export default function DashboardPage() {
   const router = useRouter();
   const [period, setPeriod] = useState<Period>("30d");
   const [projectTag, setProjectTag] = useState<string>("");
-  const [stats, setStats] = useState<DashboardStats | null>(null);
+  const [stats, setStats] = useState<DashboardStats>(EMPTY_STATS);
   const [loadingStats, setLoadingStats] = useState(true);
+  const [statsError, setStatsError] = useState<string | null>(null);
   const [insights, setInsights] = useState<Insights | null>(null);
   const [loadingInsights, setLoadingInsights] = useState(false);
   const [insightsCached, setInsightsCached] = useState(false);
@@ -164,17 +174,29 @@ export default function DashboardPage() {
 
   const fetchStats = useCallback(async () => {
     setLoadingStats(true);
+    setStatsError(null);
     setInsights(null);
     try {
+      const controller = new AbortController();
+      const timer = setTimeout(() => controller.abort(), 10000);
       const res = await fetch("/api/dashboard/stats", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({ period, projectTag: projectTag || undefined }),
+        signal: controller.signal,
       });
-      const data = await res.json();
+      clearTimeout(timer);
+      if (!res.ok) {
+        setStatsError(`API 오류 (${res.status})`);
+        return;
+      }
+      const data: DashboardStats = await res.json();
       setStats(data);
-    } catch {
-      // ignore
+    } catch (err) {
+      const msg = err instanceof Error && err.name === "AbortError"
+        ? "요청 시간 초과 (10초)"
+        : "데이터를 불러올 수 없습니다";
+      setStatsError(msg);
     } finally {
       setLoadingStats(false);
     }
@@ -206,7 +228,7 @@ export default function DashboardPage() {
   // ── Score timeline: merge by date across project tags ──
   const timelineByDate: Record<string, Record<string, number>> = {};
   const allProjectTags = new Set<string>();
-  (stats?.scoreTimeline ?? []).forEach((p) => {
+  stats.scoreTimeline.forEach((p) => {
     const tag = p.projectTag ?? "기타";
     allProjectTags.add(tag);
     if (!timelineByDate[p.date]) timelineByDate[p.date] = {};
@@ -220,7 +242,7 @@ export default function DashboardPage() {
 
   // For desire overlay lines, merge by date
   const desireByDate: Record<string, { utility?: number; healthPride?: number; lossAversion?: number }> = {};
-  (stats?.desireTimeline ?? []).forEach((p) => {
+  stats.desireTimeline.forEach((p) => {
     if (!desireByDate[p.date]) desireByDate[p.date] = {};
     desireByDate[p.date] = { utility: p.utility, healthPride: p.healthPride, lossAversion: p.lossAversion };
   });
@@ -252,13 +274,13 @@ export default function DashboardPage() {
 
   // ── Radar data ──
   const radarData = [
-    { axis: "효능감", value: (stats?.avgDesire.utility ?? 0) * 10 },
-    { axis: "성취·과시", value: (stats?.avgDesire.healthPride ?? 0) * 10 },
-    { axis: "손실회피", value: (stats?.avgDesire.lossAversion ?? 0) * 10 },
+    { axis: "효능감", value: stats.avgDesire.utility * 10 },
+    { axis: "성취·과시", value: stats.avgDesire.healthPride * 10 },
+    { axis: "손실회피", value: stats.avgDesire.lossAversion * 10 },
   ];
 
   // keywords top 10
-  const topKeywords = (stats?.keywords ?? []).slice(0, 10);
+  const topKeywords = stats.keywords.slice(0, 10);
   const maxKwCount = topKeywords[0]?.count ?? 1;
 
   const PERIODS: { key: Period; label: string }[] = [
@@ -268,11 +290,11 @@ export default function DashboardPage() {
     { key: "all", label: "전체" },
   ];
 
-  const tags = stats?.projectTags ?? [];
+  const tags = stats.projectTags;
 
   // ── Score card ──
   const lowestDesireKey =
-    stats && stats.avgDesire.utility > 0
+    stats.avgDesire.utility > 0 || stats.avgDesire.healthPride > 0 || stats.avgDesire.lossAversion > 0
       ? (["utility", "healthPride", "lossAversion"] as const).reduce((a, b) =>
           stats.avgDesire[a] < stats.avgDesire[b] ? a : b
         )
@@ -331,6 +353,17 @@ export default function DashboardPage() {
           <div className="flex items-center justify-center h-64 text-[var(--muted)] text-sm">
             데이터 집계 중...
           </div>
+        ) : statsError ? (
+          <div className="flex flex-col items-center justify-center h-64 gap-3">
+            <p className="text-sm text-red-400">{statsError}</p>
+            <p className="text-xs text-[var(--muted)]">DATABASE_URL 환경변수 또는 서버 연결을 확인하세요</p>
+            <button
+              onClick={fetchStats}
+              className="px-4 py-1.5 text-sm border border-[var(--border)] rounded-md hover:bg-white/5 transition-colors"
+            >
+              다시 시도
+            </button>
+          </div>
         ) : (
           <>
             {/* ── Section 1: Summary Cards ── */}
@@ -338,21 +371,17 @@ export default function DashboardPage() {
               {/* Card A: 총 분석 횟수 */}
               <div className="bg-[var(--surface)] border border-[var(--border)] rounded-lg p-5">
                 <div className="text-xs text-[var(--muted)] mb-2">총 분석 횟수</div>
-                <div className="text-3xl font-bold font-mono mb-1">{stats?.totalAnalyses ?? 0}</div>
+                <div className="text-3xl font-bold font-mono mb-1">{stats.totalAnalyses}</div>
                 <div className="text-xs text-[var(--muted)] mb-1">건</div>
-                {stats && (
-                  <Delta current={stats.totalAnalyses} prev={stats.prevTotalAnalyses} unit="건" />
-                )}
+                <Delta current={stats.totalAnalyses} prev={stats.prevTotalAnalyses} unit="건" />
               </div>
 
               {/* Card B: 평균 사용성 점수 */}
               <div className="bg-[var(--surface)] border border-[var(--border)] rounded-lg p-5">
                 <div className="text-xs text-[var(--muted)] mb-2">평균 사용성 점수</div>
-                <div className="text-3xl font-bold font-mono mb-1">{stats?.avgScore ?? 0}</div>
+                <div className="text-3xl font-bold font-mono mb-1">{stats.avgScore}</div>
                 <div className="text-xs text-[var(--muted)] mb-1">/ 100</div>
-                {stats && (
-                  <Delta current={stats.avgScore} prev={stats.prevAvgScore} unit="점" />
-                )}
+                <Delta current={stats.avgScore} prev={stats.prevAvgScore} unit="점" />
               </div>
 
               {/* Card C: 욕망 충족도 */}
@@ -366,7 +395,7 @@ export default function DashboardPage() {
                         <span className="text-amber-400">최저</span>
                       )}
                     </div>
-                    <MiniBar value={stats?.avgDesire.utility ?? 0} color="#60a5fa" />
+                    <MiniBar value={stats.avgDesire.utility} color="#60a5fa" />
                   </div>
                   <div>
                     <div className="flex justify-between text-[10px] text-[var(--muted)] mb-1">
@@ -375,7 +404,7 @@ export default function DashboardPage() {
                         <span className="text-amber-400">최저</span>
                       )}
                     </div>
-                    <MiniBar value={stats?.avgDesire.healthPride ?? 0} color="#a78bfa" />
+                    <MiniBar value={stats.avgDesire.healthPride} color="#a78bfa" />
                   </div>
                   <div>
                     <div className="flex justify-between text-[10px] text-[var(--muted)] mb-1">
@@ -384,7 +413,7 @@ export default function DashboardPage() {
                         <span className="text-amber-400">최저</span>
                       )}
                     </div>
-                    <MiniBar value={stats?.avgDesire.lossAversion ?? 0} color="#f97316" />
+                    <MiniBar value={stats.avgDesire.lossAversion} color="#f97316" />
                   </div>
                 </div>
                 {lowestDesireKey && (
@@ -404,12 +433,12 @@ export default function DashboardPage() {
                       <circle
                         cx="18" cy="18" r="15.9" fill="none"
                         stroke="#34d399" strokeWidth="3"
-                        strokeDasharray={`${(stats?.resolvedIssueRate ?? 0)} ${100 - (stats?.resolvedIssueRate ?? 0)}`}
+                        strokeDasharray={`${stats.resolvedIssueRate} ${100 - stats.resolvedIssueRate}`}
                         strokeLinecap="round"
                       />
                     </svg>
                     <span className="absolute inset-0 flex items-center justify-center text-sm font-bold font-mono">
-                      {stats?.resolvedIssueRate ?? 0}%
+                      {stats.resolvedIssueRate}%
                     </span>
                   </div>
                 </div>
@@ -549,12 +578,12 @@ export default function DashboardPage() {
             <div className="grid grid-cols-1 lg:grid-cols-2 gap-6 mb-6">
               {/* Section 3: 반복 이슈 TOP */}
               <div className="bg-[var(--surface)] border border-[var(--border)] rounded-lg p-6">
-                <h2 className="text-sm font-semibold mb-4">반복 이슈 TOP {stats?.topIssues.length ?? 0}</h2>
-                {(stats?.topIssues.length ?? 0) === 0 ? (
+                <h2 className="text-sm font-semibold mb-4">반복 이슈 TOP {stats.topIssues.length}</h2>
+                {stats.topIssues.length === 0 ? (
                   <p className="text-sm text-[var(--muted)]">분석 데이터가 없습니다</p>
                 ) : (
                   <div className="space-y-2">
-                    {stats?.topIssues.map((issue, idx) => (
+                    {stats.topIssues.map((issue, idx) => (
                       <div key={idx}>
                         <button
                           onClick={() =>
@@ -642,7 +671,7 @@ export default function DashboardPage() {
             {/* ── Section 5: 욕망 레이더 차트 ── */}
             <div className="bg-[var(--surface)] border border-[var(--border)] rounded-lg p-6 mb-6">
               <h2 className="text-sm font-semibold mb-4">욕망 충족도 레이더</h2>
-              {stats && (stats.avgDesire.utility > 0 || stats.avgDesire.healthPride > 0 || stats.avgDesire.lossAversion > 0) ? (
+              {(stats.avgDesire.utility > 0 || stats.avgDesire.healthPride > 0 || stats.avgDesire.lossAversion > 0) ? (
                 <div className="flex flex-col md:flex-row items-center gap-8">
                   <div className="w-full md:w-64 h-56">
                     <ResponsiveContainer width="100%" height="100%">
@@ -722,7 +751,7 @@ export default function DashboardPage() {
                 </div>
                 <button
                   onClick={generateInsights}
-                  disabled={loadingInsights || !stats || stats.totalAnalyses === 0}
+                  disabled={loadingInsights || stats.totalAnalyses === 0}
                   className="px-4 py-2 bg-white text-black text-sm font-medium rounded-md hover:bg-white/90 disabled:opacity-40 disabled:cursor-not-allowed transition-colors"
                 >
                   {loadingInsights ? "분석 중..." : "인사이트 생성하기"}
