@@ -46,3 +46,11 @@ model FlowAnalysis {
   result     Json
   projectTag String?
 }
+
+model DashboardInsight {
+  id         String   @id @default(uuid())
+  period     String
+  projectTag String?
+  insights   Json
+  createdAt  DateTime @default(now())
+}

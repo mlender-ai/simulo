@@ -36,6 +36,7 @@ export function Sidebar() {
   }, []);
 
   const navItems = [
+    { href: "/dashboard", label: "대시보드", icon: "◈" },
     { href: "/history", label: t("history", locale), icon: "≡" },
     { href: "/flow-builder", label: t("flowBuilder", locale), icon: "◇" },
     { href: "/code-to-figma", label: "코드 → Figma", icon: "⟨⟩" },
