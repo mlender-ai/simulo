@@ -5,6 +5,7 @@ import { Prisma } from "@prisma/client";
 import { preprocessImages } from "@/lib/imagePreprocess";
 import { extractTextFromImages, validateOCRResults, formatOCRForPrompt } from "@/lib/ocr";
 import { resolvePlugin } from "./registry";
+import { validateHandlerOutput } from "./outputSchema";
 import { validateImages, validateFigmaInputs, validateFlowSteps, logPreflightWarnings } from "@/lib/preflight";
 
 console.log("[analyze] ENV ANTHROPIC_API_KEY prefix:", process.env.ANTHROPIC_API_KEY?.slice(0, 8) || "(not set)");
@@ -173,6 +174,14 @@ export async function POST(request: NextRequest) {
     });
 
     const { result, thumbnailUrls, savedFlowSteps, isComparison, comparisonData } = handlerResult;
+
+    // ── Output schema validation ──
+    const validation = validateHandlerOutput(result, isComparison);
+    if (!validation.ok) {
+      console.warn(`[analyze] Handler "${plugin.id}" output schema mismatch:`, validation.errors);
+      // Non-fatal: log but proceed — the report page handles missing fields gracefully
+    }
+
     const r = result;
 
     // ── Normalize top-level fields ──
@@ -189,6 +198,10 @@ export async function POST(request: NextRequest) {
       verdictReason?: string;
       flowAnalysis?: unknown;
       adFriction?: unknown;
+      evidenceFor?: string[];
+      evidenceAgainst?: string[];
+      confidence?: string;
+      confidenceReason?: string;
     };
 
     if (isComparison) {
@@ -243,6 +256,10 @@ export async function POST(request: NextRequest) {
           verdictReason: r.verdictReason as string | undefined,
           flowAnalysis: r.flowAnalysis,
           adFriction: r.adFriction,
+          evidenceFor: r.evidenceFor as string[] | undefined,
+          evidenceAgainst: r.evidenceAgainst as string[] | undefined,
+          confidence: r.confidence as string | undefined,
+          confidenceReason: r.confidenceReason as string | undefined,
         };
       }
     }
@@ -288,6 +305,10 @@ export async function POST(request: NextRequest) {
       ...(topLevel.verdictReason ? { verdictReason: topLevel.verdictReason } : {}),
       ...(topLevel.flowAnalysis ? { flowAnalysis: topLevel.flowAnalysis } : {}),
       ...(topLevel.adFriction ? { adFriction: topLevel.adFriction } : {}),
+      ...(topLevel.evidenceFor ? { evidenceFor: topLevel.evidenceFor } : {}),
+      ...(topLevel.evidenceAgainst ? { evidenceAgainst: topLevel.evidenceAgainst } : {}),
+      ...(topLevel.confidence ? { confidence: topLevel.confidence } : {}),
+      ...(topLevel.confidenceReason ? { confidenceReason: topLevel.confidenceReason } : {}),
       ...(savedFlowSteps ? { flowSteps: savedFlowSteps } : {}),
       ...(isComparison ? { isComparison: true, comparisonData } : {}),
       ...(mode === "usability"

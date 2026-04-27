@@ -334,6 +334,23 @@ const translations = {
     filterModeHypothesis: "가설 검증",
     filterModeUsability: "사용성 분석",
 
+    // History: input type filter & re-analyze
+    filterInputType: "입력 타입",
+    filterInputTypeAll: "전체 타입",
+    inputTypeImage: "이미지",
+    inputTypeUrl: "URL",
+    inputTypeFlow: "플로우",
+    inputTypeFigma: "Figma",
+    inputTypeComparison: "비교",
+    inputTypeVideo: "영상",
+    inputTypeCode: "코드",
+    reanalyze: "동일 조건 재분석",
+    bulkDelete: "선택 삭제",
+    selectAll: "전체 선택",
+    deselectAll: "선택 해제",
+    deleteSelected: "선택 항목 삭제",
+    deleteSelectedConfirm: "선택한 분석을 삭제하시겠습니까? 이 작업은 되돌릴 수 없습니다.",
+
     // Hypothesis evidence & backfire
     hypothesisEvidence: "가설 검증 근거",
     evidenceFor: "전환을 지지하는 근거",
@@ -658,6 +675,23 @@ const translations = {
     filterModeAll: "All modes",
     filterModeHypothesis: "Hypothesis",
     filterModeUsability: "Usability",
+
+    // History: input type filter & re-analyze
+    filterInputType: "Input Type",
+    filterInputTypeAll: "All types",
+    inputTypeImage: "Image",
+    inputTypeUrl: "URL",
+    inputTypeFlow: "Flow",
+    inputTypeFigma: "Figma",
+    inputTypeComparison: "Comparison",
+    inputTypeVideo: "Video",
+    inputTypeCode: "Code",
+    reanalyze: "Re-analyze",
+    bulkDelete: "Bulk Delete",
+    selectAll: "Select All",
+    deselectAll: "Deselect All",
+    deleteSelected: "Delete Selected",
+    deleteSelectedConfirm: "Delete selected analyses? This cannot be undone.",
 
     // Hypothesis evidence & backfire
     hypothesisEvidence: "Hypothesis Evidence",

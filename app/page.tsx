@@ -98,6 +98,25 @@ export default function Home() {
     const dismissed = localStorage.getItem("simulo_onboarding_dismissed");
     setBannerOpen(!dismissed);
 
+    // Restore params from re-analyze
+    const reanalyzeRaw = sessionStorage.getItem("simulo_reanalyze");
+    if (reanalyzeRaw) {
+      sessionStorage.removeItem("simulo_reanalyze");
+      try {
+        const params = JSON.parse(reanalyzeRaw);
+        if (params.hypothesis) setHypothesis(params.hypothesis);
+        if (params.targetUser) setTargetUser(params.targetUser);
+        if (params.task) setTask(params.task);
+        if (params.projectTag) setProjectTag(params.projectTag);
+        if (params.mode) setMode(params.mode);
+        if (params.inputType === "flow") setActiveTab("flow");
+        else if (params.inputType === "figma") setActiveTab("figma");
+        else if (params.inputType === "comparison") setActiveTab("comparison");
+        else if (params.inputType === "url") setActiveTab("url");
+        else setActiveTab("image");
+      } catch { /* ignore parse errors */ }
+    }
+
     const guideHandler = () => setBannerOpen(true);
     window.addEventListener("simulo:open-guide", guideHandler);
     return () => window.removeEventListener("simulo:open-guide", guideHandler);
