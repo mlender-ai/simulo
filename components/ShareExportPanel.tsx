@@ -2,6 +2,7 @@
 
 import { useState, useRef, useEffect, useCallback } from "react";
 import type { AnalysisResult } from "@/lib/storage";
+import { useExportStatus } from "@/hooks/useExportStatus";
 
 interface ShareExportPanelProps {
   analysisId: string;
@@ -13,13 +14,12 @@ interface ShareExportPanelProps {
 export function ShareExportPanel({ analysisId, analysisData, showPng = false }: ShareExportPanelProps) {
   const [open, setOpen] = useState(false);
   const [copied, setCopied] = useState(false);
-  const [pdfLoading, setPdfLoading] = useState(false);
-  const [docxLoading, setDocxLoading] = useState(false);
-  const [pngLoading, setPngLoading] = useState(false);
-  const [mdLoading, setMdLoading] = useState(false);
-  const [jiraLoading, setJiraLoading] = useState(false);
-  const [exportError, setExportError] = useState<string | null>(null);
   const panelRef = useRef<HTMLDivElement>(null);
+  const { get, isActive, run, clearError } = useExportStatus();
+
+  // Collect any active error to display
+  const formats = ["pdf", "docx", "png", "md", "jira"] as const;
+  const activeError = formats.map((f) => get(f)).find((s) => s.stage === "error")?.error ?? null;
 
   const shareUrl =
     typeof window !== "undefined"
@@ -46,7 +46,6 @@ export function ShareExportPanel({ analysisId, analysisData, showPng = false }: 
   /** Fetch export file — POST with analysisData if available, otherwise GET */
   const fetchExport = useCallback(
     async (path: string): Promise<Response> => {
-      // Try to get analysisData: prop first, then localStorage fallback
       let data = analysisData;
       if (!data && typeof window !== "undefined") {
         const { storage } = await import("@/lib/storage");
@@ -65,104 +64,63 @@ export function ShareExportPanel({ analysisId, analysisData, showPng = false }: 
     [analysisId, analysisData]
   );
 
+  const triggerDownload = (blob: Blob, filename: string) => {
+    const url = URL.createObjectURL(blob);
+    const a = document.createElement("a");
+    a.href = url;
+    a.download = filename;
+    a.click();
+    URL.revokeObjectURL(url);
+  };
+
   const handleDownload = useCallback(
-    async (format: "pdf" | "docx") => {
-      const setLoading = format === "pdf" ? setPdfLoading : setDocxLoading;
-      setLoading(true);
-      setExportError(null);
-      try {
-        const res = await fetchExport(`/api/export/${format}/${analysisId}`);
-        if (!res.ok) {
-          const json = await res.json().catch(() => ({}));
-          throw new Error(json.error || "Export failed");
-        }
-        const blob = await res.blob();
-        const url = URL.createObjectURL(blob);
-        const a = document.createElement("a");
-        a.href = url;
-        a.download = `simulo-report-${analysisId}.${format}`;
-        a.click();
-        URL.revokeObjectURL(url);
-      } catch (err) {
-        console.error(`[export] ${format} failed:`, err);
-        setExportError(err instanceof Error ? err.message : "내보내기에 실패했습니다");
-      } finally {
-        setLoading(false);
-      }
+    (format: "pdf" | "docx") => {
+      run(
+        format,
+        () => fetchExport(`/api/export/${format}/${analysisId}`),
+        (blob) => triggerDownload(blob, `simulo-report-${analysisId}.${format}`)
+      );
     },
-    [analysisId, fetchExport]
+    [analysisId, fetchExport, run]
   );
 
   const handlePNG = useCallback(async () => {
-    setPngLoading(true);
-    setExportError(null);
-    try {
-      const { toPng } = await import("html-to-image");
-      const el = document.getElementById("overview-tab-content");
-      if (!el) {
-        setExportError("리포트 화면이 열려있지 않아 PNG를 생성할 수 없습니다");
-        return;
-      }
-      const dataUrl = await toPng(el, { quality: 0.95, backgroundColor: "#0a0a0a" });
-      const a = document.createElement("a");
-      a.download = `simulo-overview-${analysisId}.png`;
-      a.href = dataUrl;
-      a.click();
-    } catch (err) {
-      console.error("[export] PNG failed:", err);
-      setExportError(err instanceof Error ? err.message : "PNG 생성에 실패했습니다");
-    } finally {
-      setPngLoading(false);
-    }
-  }, [analysisId]);
+    run(
+      "png",
+      async () => {
+        const { toPng } = await import("html-to-image");
+        const el = document.getElementById("overview-tab-content");
+        if (!el) throw new Error("리포트 화면이 열려있지 않아 PNG를 생성할 수 없습니다");
+        const dataUrl = await toPng(el, { quality: 0.95, backgroundColor: "#0a0a0a" });
+        // Return a synthetic Response wrapping the dataUrl blob
+        const res = await fetch(dataUrl);
+        return res;
+      },
+      (blob) => triggerDownload(blob, `simulo-overview-${analysisId}.png`)
+    );
+  }, [analysisId, run]);
 
-  const handleMarkdown = useCallback(async () => {
-    setMdLoading(true);
-    setExportError(null);
-    try {
-      const res = await fetchExport(`/api/export/md/${analysisId}`);
-      if (!res.ok) {
-        const json = await res.json().catch(() => ({}));
-        throw new Error(json.error || "Markdown export failed");
-      }
-      const blob = await res.blob();
-      const url = URL.createObjectURL(blob);
-      const a = document.createElement("a");
-      a.href = url;
-      a.download = `simulo-report-${analysisId}.md`;
-      a.click();
-      URL.revokeObjectURL(url);
-    } catch (err) {
-      console.error("[export] Markdown failed:", err);
-      setExportError(err instanceof Error ? err.message : "Markdown 내보내기에 실패했습니다");
-    } finally {
-      setMdLoading(false);
-    }
-  }, [analysisId, fetchExport]);
+  const handleMarkdown = useCallback(() => {
+    run(
+      "md",
+      () => fetchExport(`/api/export/md/${analysisId}`),
+      (blob) => triggerDownload(blob, `simulo-report-${analysisId}.md`)
+    );
+  }, [analysisId, fetchExport, run]);
 
-  const handleJira = useCallback(async () => {
-    setJiraLoading(true);
-    setExportError(null);
-    try {
-      const res = await fetchExport(`/api/export/jira/${analysisId}`);
-      if (!res.ok) {
-        const json = await res.json().catch(() => ({}));
-        throw new Error(json.error || "Jira export failed");
-      }
-      const blob = await res.blob();
-      const url = URL.createObjectURL(blob);
-      const a = document.createElement("a");
-      a.href = url;
-      a.download = `simulo-jira-${analysisId}.md`;
-      a.click();
-      URL.revokeObjectURL(url);
-    } catch (err) {
-      console.error("[export] Jira failed:", err);
-      setExportError(err instanceof Error ? err.message : "Jira 내보내기에 실패했습니다");
-    } finally {
-      setJiraLoading(false);
-    }
-  }, [analysisId, fetchExport]);
+  const handleJira = useCallback(() => {
+    run(
+      "jira",
+      () => fetchExport(`/api/export/jira/${analysisId}`),
+      (blob) => triggerDownload(blob, `simulo-jira-${analysisId}.md`)
+    );
+  }, [analysisId, fetchExport, run]);
+
+  const handleErrorDismiss = () => {
+    formats.forEach((f) => {
+      if (get(f).stage === "error") clearError(f);
+    });
+  };
 
   return (
     <div className="relative" ref={panelRef}>
@@ -200,28 +158,25 @@ export function ShareExportPanel({ analysisId, analysisData, showPng = false }: 
           <div className="p-4 border-b border-[var(--border)]">
             <p className="text-xs font-medium text-white/80 mb-2">파일로 내보내기</p>
             <div className="flex gap-2">
-              <button
+              <ExportButton
+                label="PDF"
+                status={get("pdf")}
+                disabled={isActive("pdf")}
                 onClick={() => handleDownload("pdf")}
-                disabled={pdfLoading}
-                className="flex-1 flex items-center justify-center gap-1.5 px-3 py-2 rounded text-[11px] font-medium bg-white/10 hover:bg-white/15 text-white transition-colors disabled:opacity-50"
-              >
-                {pdfLoading ? <Spinner /> : "PDF"}
-              </button>
-              <button
+              />
+              <ExportButton
+                label="Word"
+                status={get("docx")}
+                disabled={isActive("docx")}
                 onClick={() => handleDownload("docx")}
-                disabled={docxLoading}
-                className="flex-1 flex items-center justify-center gap-1.5 px-3 py-2 rounded text-[11px] font-medium bg-white/10 hover:bg-white/15 text-white transition-colors disabled:opacity-50"
-              >
-                {docxLoading ? <Spinner /> : "Word"}
-              </button>
+              />
               {showPng && (
-                <button
+                <ExportButton
+                  label="PNG"
+                  status={get("png")}
+                  disabled={isActive("png")}
                   onClick={handlePNG}
-                  disabled={pngLoading}
-                  className="flex-1 flex items-center justify-center gap-1.5 px-3 py-2 rounded text-[11px] font-medium bg-white/10 hover:bg-white/15 text-white transition-colors disabled:opacity-50"
-                >
-                  {pngLoading ? <Spinner /> : "PNG"}
-                </button>
+                />
               )}
             </div>
           </div>
@@ -231,29 +186,31 @@ export function ShareExportPanel({ analysisId, analysisData, showPng = false }: 
             <p className="text-xs font-medium text-white/80 mb-1">실무 연결</p>
             <p className="text-[10px] text-white/40 mb-2">분석 결과를 바로 업무에 활용</p>
             <div className="flex gap-2">
-              <button
+              <ExportButton
+                label="Markdown"
+                status={get("md")}
+                disabled={isActive("md")}
                 onClick={handleMarkdown}
-                disabled={mdLoading}
-                className="flex-1 flex items-center justify-center gap-1.5 px-3 py-2 rounded text-[11px] font-medium bg-white/10 hover:bg-white/15 text-white transition-colors disabled:opacity-50"
                 title="Markdown 파일로 내보내기"
-              >
-                {mdLoading ? <Spinner /> : "Markdown"}
-              </button>
-              <button
+              />
+              <ExportButton
+                label="Jira 드래프트"
+                status={get("jira")}
+                disabled={isActive("jira")}
                 onClick={handleJira}
-                disabled={jiraLoading}
-                className="flex-1 flex items-center justify-center gap-1.5 px-3 py-2 rounded text-[11px] font-medium bg-white/10 hover:bg-white/15 text-white transition-colors disabled:opacity-50"
                 title="Jira 티켓 드래프트 생성"
-              >
-                {jiraLoading ? <Spinner /> : "Jira 드래프트"}
-              </button>
+              />
             </div>
           </div>
 
           {/* Error message */}
-          {exportError && (
-            <div className="px-4 py-2.5 bg-red-400/10 border-t border-red-400/20">
-              <p className="text-[11px] text-red-400">{exportError}</p>
+          {activeError && (
+            <div
+              className="px-4 py-2.5 bg-red-400/10 border-t border-red-400/20 flex items-start justify-between gap-2 cursor-pointer"
+              onClick={handleErrorDismiss}
+            >
+              <p className="text-[11px] text-red-400">{activeError}</p>
+              <span className="text-[11px] text-red-400/60 shrink-0">✕</span>
             </div>
           )}
 
@@ -269,6 +226,37 @@ export function ShareExportPanel({ analysisId, analysisData, showPng = false }: 
   );
 }
 
+interface ExportButtonProps {
+  label: string;
+  status: { stage: string };
+  disabled: boolean;
+  onClick: () => void;
+  title?: string;
+}
+
+function ExportButton({ label, status, disabled, onClick, title }: ExportButtonProps) {
+  const { stage } = status;
+
+  const content = (() => {
+    if (stage === "validating") return <><Spinner /><span>확인 중</span></>;
+    if (stage === "generating") return <><Spinner /><span>생성 중</span></>;
+    if (stage === "ready") return <span className="text-emerald-400">✓ 완료</span>;
+    if (stage === "error") return <span className="text-red-400">✕ 실패</span>;
+    return <span>{label}</span>;
+  })();
+
+  return (
+    <button
+      onClick={onClick}
+      disabled={disabled}
+      title={title}
+      className="flex-1 flex items-center justify-center gap-1.5 px-3 py-2 rounded text-[11px] font-medium bg-white/10 hover:bg-white/15 text-white transition-colors disabled:opacity-50"
+    >
+      {content}
+    </button>
+  );
+}
+
 function Spinner() {
-  return <span className="w-3 h-3 border border-white/20 border-t-white/60 rounded-full animate-spin" />;
+  return <span className="w-3 h-3 border border-white/20 border-t-white/60 rounded-full animate-spin shrink-0" />;
 }
