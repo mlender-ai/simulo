@@ -35,6 +35,9 @@ jobs:
       - name: Run TypeScript type check
         run: npm run type-check
 
+      - name: Validate handler output schemas
+        run: npm run schema:validate
+
       - name: Run build
         run: npm run build
         env:

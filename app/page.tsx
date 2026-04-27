@@ -114,6 +114,28 @@ export default function Home() {
         else if (params.inputType === "comparison") setActiveTab("comparison");
         else if (params.inputType === "url") setActiveTab("url");
         else setActiveTab("image");
+
+        // Hydrate images from IndexedDB so the user doesn't have to re-upload
+        if (params.analysisId && params.inputType === "image") {
+          storage.getByIdWithImages(params.analysisId).then((analysis) => {
+            if (!analysis) return;
+            const imgs = (analysis.thumbnailUrls ?? []).filter(
+              (u) => u && u !== "__stripped__"
+            );
+            if (imgs.length > 0) setImages(imgs);
+          });
+        } else if (params.analysisId && params.inputType === "flow") {
+          storage.getByIdWithImages(params.analysisId).then((analysis) => {
+            if (!analysis?.flowSteps?.length) return;
+            setFlowSteps(
+              analysis.flowSteps.map((s, i) => ({
+                stepNumber: s.stepNumber ?? i + 1,
+                stepName: s.stepName ?? "",
+                image: s.image ?? "",
+              }))
+            );
+          });
+        }
       } catch { /* ignore parse errors */ }
     }
 

@@ -234,8 +234,10 @@ export default function HistoryPage() {
   }, []);
 
   const handleReanalyze = useCallback((analysis: AnalysisResult) => {
-    // Store params in sessionStorage so the main page can restore them
+    // Store params in sessionStorage so the main page can restore them.
+    // analysisId is included so the main page can hydrate images from IndexedDB.
     const params = {
+      analysisId: analysis.id,
       hypothesis: analysis.hypothesis,
       targetUser: analysis.targetUser,
       task: analysis.task,
