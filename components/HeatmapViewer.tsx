@@ -131,16 +131,33 @@ export function HeatmapViewer({
       : null;
 
   return (
-    <div style={{ maxWidth: 640, width: "100%" }}>
+    <div style={{ width: "100%" }}>
       {/* Image name */}
       <p style={{ fontSize: 13, color: "#888", marginBottom: 8 }}>{imageName}</p>
 
-      {/* Image + single-zone overlay */}
-      <div style={{ position: "relative", borderRadius: 8, overflow: "hidden", border: "1px solid #2a2a2a" }}>
+      {/* Image + single-zone overlay — fixed 375:812 aspect ratio */}
+      <div
+        style={{
+          position: "relative",
+          borderRadius: 8,
+          overflow: "hidden",
+          border: "1px solid #2a2a2a",
+          aspectRatio: "375 / 812",
+          background: "#0a0a0a",
+        }}
+      >
         <img
           src={imageUrl}
           alt={imageName}
-          style={{ width: "100%", height: "auto", display: "block" }}
+          style={{
+            position: "absolute",
+            top: 0,
+            left: 0,
+            width: "100%",
+            height: "100%",
+            objectFit: "contain",
+            display: "block",
+          }}
         />
 
         {/* Single zone overlay — only the selected/hovered issue */}
