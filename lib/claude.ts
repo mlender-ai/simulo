@@ -123,7 +123,10 @@ async function withRetry<T>(
 function getClient(apiKey?: string) {
   const key = apiKey || process.env.ANTHROPIC_API_KEY;
   if (!key) {
-    throw new Error("ANTHROPIC_API_KEY is not set. 설정 페이지에서 API 키를 입력해주세요.");
+    throw new Error(
+      "ANTHROPIC_API_KEY is not set. " +
+        "설정 페이지에서 API 키를 입력하거나 서버 환경변수를 설정해주세요."
+    );
   }
   return { client: new Anthropic({ apiKey: key }), key };
 }

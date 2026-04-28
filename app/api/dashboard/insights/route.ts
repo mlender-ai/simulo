@@ -1,8 +1,9 @@
 import { NextResponse } from "next/server";
 import Anthropic from "@anthropic-ai/sdk";
+import { env } from "@/lib/env";
 
 const client = new Anthropic({
-  apiKey: process.env.ANTHROPIC_API_KEY,
+  apiKey: env.ANTHROPIC_API_KEY,
 });
 
 const SYSTEM_PROMPT = `You are a product strategy advisor for YafitMove (야핏무브), a Korean health & reward app targeting 40-60s users.

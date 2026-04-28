@@ -8,7 +8,7 @@ import { resolvePlugin } from "./registry";
 import { validateHandlerOutput } from "./outputSchema";
 import { validateImages, validateFigmaInputs, validateFlowSteps, logPreflightWarnings } from "@/lib/preflight";
 
-console.log("[analyze] ENV ANTHROPIC_API_KEY prefix:", process.env.ANTHROPIC_API_KEY?.slice(0, 8) || "(not set)");
+// Note: ANTHROPIC_API_KEY presence is validated at request time via resolveApiKey()
 
 export async function POST(request: NextRequest) {
   try {

@@ -8,6 +8,8 @@
 
 import { NextRequest, NextResponse } from "next/server";
 import type { DesireAlignment } from "@/lib/storage";
+import { env } from "@/lib/env";
+import { extractApiError } from "@/lib/api-errors";
 
 interface ImprovementOptions {
   criticalOnly: boolean;
@@ -25,14 +27,12 @@ interface AnalysisData {
 
 export async function POST(req: NextRequest) {
   const body = await req.json();
-  const { analysisId, analysis: clientAnalysis, options, roundNumber } = body as {
-    analysisId?: string;
-    analysis?: AnalysisData;
-    options: ImprovementOptions;
-    roundNumber: number;
-  };
+  const analysisId: string | undefined = typeof body.analysisId === "string" ? body.analysisId : undefined;
+  const clientAnalysis: AnalysisData | undefined = body.analysis ?? undefined;
+  const options: ImprovementOptions = body.options ?? {};
+  const roundNumber: number = typeof body.roundNumber === "number" ? body.roundNumber : 1;
 
-  if (!process.env.ANTHROPIC_API_KEY) {
+  if (!env.ANTHROPIC_API_KEY) {
     return NextResponse.json({ error: "API key not configured" }, { status: 503 });
   }
 
@@ -97,17 +97,11 @@ export async function POST(req: NextRequest) {
       roundNumber,
     });
   } catch (err: unknown) {
-    const error = err as { status?: number; message?: string; error?: { message?: string } };
-    console.error("[generate-improvement] generation error:", error.message);
-    if (error.status) console.error("[generate-improvement] API status:", error.status);
-
+    const { status, message, cause } = extractApiError(err);
+    console.error("[generate-improvement] generation error:", message, cause);
     return NextResponse.json(
-      {
-        error: "개선안 생성 실패",
-        detail: error.message,
-        anthropicStatus: error.status,
-      },
-      { status: error.status || 500 }
+      { error: "개선안 생성 실패", detail: message },
+      { status }
     );
   }
 }

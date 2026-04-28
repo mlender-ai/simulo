@@ -5,11 +5,12 @@
 // 향후:  IMPROVEMENT_MODEL=claude-design    → claudeDesignGenerator로 자동 전환
 
 import type { GenerateImproveParams, GenerateImproveResult } from "./opusGenerator";
+import { env } from "@/lib/env";
 
 export async function generateImprovement(
   input: GenerateImproveParams
 ): Promise<GenerateImproveResult> {
-  const provider = process.env.IMPROVEMENT_MODEL ?? "claude-opus-4-6";
+  const provider = env.IMPROVEMENT_MODEL;
 
   if (provider === "claude-design") {
     // Claude Design API 전환 시 아래 파일 생성 후 주석 해제

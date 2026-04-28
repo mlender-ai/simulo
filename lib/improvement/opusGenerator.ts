@@ -3,6 +3,7 @@
 //    generate-improvement/route.ts의 import 경로만 변경하면 된다.
 
 import Anthropic from "@anthropic-ai/sdk";
+import { env } from "@/lib/env";
 
 export interface GenerateImproveParams {
   originalImage: string | null;
@@ -34,11 +35,10 @@ export interface GenerateImproveResult {
 }
 
 export async function generateImprovement(input: GenerateImproveParams): Promise<GenerateImproveResult> {
-  const anthropic = new Anthropic({ apiKey: process.env.ANTHROPIC_API_KEY });
+  const anthropic = new Anthropic({ apiKey: env.ANTHROPIC_API_KEY });
   const { originalImage, issues, desire, options, score, roundNumber } = input;
 
-  // eslint-disable-next-line @typescript-eslint/no-explicit-any
-  const content: any[] = [];
+  const content: Anthropic.MessageParam["content"] = [];
 
   // 원본 이미지 첨부 (있을 경우)
   if (originalImage) {
