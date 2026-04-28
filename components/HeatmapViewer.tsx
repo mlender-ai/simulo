@@ -70,6 +70,15 @@ function getSeverityStyle(severity: string) {
   return SEVERITY_OVERLAY[severity] || SEVERITY_OVERLAY.Low;
 }
 
+/** Clamp zone to valid [0-100] bounds and enforce minimum visible size. */
+function normalizeZone(zone: HeatZone): HeatZone {
+  const x = Math.max(0, Math.min(zone.x, 97));
+  const y = Math.max(0, Math.min(zone.y, 97));
+  const width = Math.max(4, Math.min(zone.width, 100 - x));
+  const height = Math.max(3, Math.min(zone.height, 100 - y));
+  return { ...zone, x, y, width, height };
+}
+
 const SEVERITY_ORDER = ["Critical", "심각", "Medium", "보통", "Low", "낮음"];
 
 function zoneOverlapArea(a: HeatZone, b: HeatZone): number {
@@ -85,10 +94,10 @@ function deduplicateZones(issues: HeatmapIssue[]): HeatmapIssue[] {
     (a, b) => SEVERITY_ORDER.indexOf(a.severity) - SEVERITY_ORDER.indexOf(b.severity)
   );
   for (const issue of sorted) {
-    const z = issue.heatZone!;
+    const z = normalizeZone(issue.heatZone!);
     const area = z.width * z.height;
     const overlaps = kept.some((k) => {
-      const ov = zoneOverlapArea(z, k.heatZone!);
+      const ov = zoneOverlapArea(z, normalizeZone(k.heatZone!));
       return area > 0 && ov / area > OVERLAP_THRESHOLD;
     });
     if (!overlaps) kept.push(issue);
@@ -152,12 +161,26 @@ export function HeatmapViewer({
 
         {/* Overlay container */}
         <div style={{ position: "absolute", top: 0, left: 0, width: "100%", height: "100%" }}>
-          {issuesWithZones.map((issue) => {
-            const zone = issue.heatZone!;
+          {issuesWithZones.map((issue, renderIdx) => {
+            const zone = normalizeZone(issue.heatZone!);
             const style = getSeverityStyle(issue.severity);
             const isActive = activeIssueIndex === issue.index;
             const isHovered = hoveredIssueIndex === issue.index;
             const highlighted = isActive || isHovered;
+
+            // Decide where to place the label badge to avoid clipping
+            const nearTop = zone.y < 10;
+            const nearBottom = zone.y + zone.height > 88;
+            const nearRight = zone.x + zone.width > 82;
+
+            const labelTop = nearBottom
+              ? "auto"
+              : nearTop
+              ? "calc(100% + 2px)"
+              : 2;
+            const labelBottom = nearBottom ? "calc(100% + 2px)" : "auto";
+            const labelLeft = nearRight ? "auto" : 2;
+            const labelRight = nearRight ? 2 : "auto";
 
             return (
               <div
@@ -196,12 +219,37 @@ export function HeatmapViewer({
                 onMouseEnter={(e) => handleOverlayMouseEnter(issue, e)}
                 onMouseLeave={handleOverlayMouseLeave}
               >
-                {/* Label badge — inside zone at top-left, or below if zone is near top */}
+                {/* Issue index dot — always visible at top-right inside zone */}
                 <div
                   style={{
                     position: "absolute",
-                    top: zone.y < 8 ? "calc(100% + 2px)" : 2,
-                    left: 2,
+                    top: 2,
+                    right: 2,
+                    width: 14,
+                    height: 14,
+                    borderRadius: "50%",
+                    background: style.bgSolid,
+                    color: "#fff",
+                    fontSize: 8,
+                    fontWeight: 700,
+                    display: "flex",
+                    alignItems: "center",
+                    justifyContent: "center",
+                    pointerEvents: "none",
+                    lineHeight: 1,
+                  }}
+                >
+                  {renderIdx + 1}
+                </div>
+
+                {/* Label badge — repositioned based on proximity to edges */}
+                <div
+                  style={{
+                    position: "absolute",
+                    top: labelTop,
+                    bottom: labelBottom,
+                    left: labelLeft,
+                    right: labelRight,
                     fontSize: 10,
                     fontWeight: 600,
                     padding: "2px 6px",
@@ -211,7 +259,7 @@ export function HeatmapViewer({
                     color: "#fff",
                     lineHeight: "14px",
                     pointerEvents: "none",
-                    maxWidth: "calc(100% - 4px)",
+                    maxWidth: "calc(100% - 20px)",
                     overflow: "hidden",
                     textOverflow: "ellipsis",
                   }}

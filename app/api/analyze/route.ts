@@ -223,13 +223,25 @@ export async function POST(request: NextRequest) {
       };
     } else {
       const issuesWithImages = Array.isArray(r.issues)
-        ? (r.issues as Array<{ screenIndex?: number; [key: string]: unknown }>).map((issue) => ({
-            ...issue,
-            thumbnailUrl:
-              typeof issue.screenIndex === "number" && thumbnailUrls[issue.screenIndex]
-                ? thumbnailUrls[issue.screenIndex]
-                : null,
-          }))
+        ? (r.issues as Array<{ screenIndex?: number; heatZone?: { x?: unknown; y?: unknown; width?: unknown; height?: unknown; label?: unknown } | null; [key: string]: unknown }>).map((issue) => {
+            // Normalize heatZone coordinates: clamp to [0,100] and enforce minimum size
+            let heatZone = issue.heatZone ?? null;
+            if (heatZone && typeof heatZone === "object") {
+              const x = Math.max(0, Math.min(Number(heatZone.x ?? 0), 97));
+              const y = Math.max(0, Math.min(Number(heatZone.y ?? 0), 97));
+              const width = Math.max(4, Math.min(Number(heatZone.width ?? 4), 100 - x));
+              const height = Math.max(3, Math.min(Number(heatZone.height ?? 3), 100 - y));
+              heatZone = { ...heatZone, x, y, width, height };
+            }
+            return {
+              ...issue,
+              heatZone,
+              thumbnailUrl:
+                typeof issue.screenIndex === "number" && thumbnailUrls[issue.screenIndex]
+                  ? thumbnailUrls[issue.screenIndex]
+                  : null,
+            };
+          })
         : (r.issues as unknown[]);
 
       if (mode === "usability") {

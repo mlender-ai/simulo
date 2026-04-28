@@ -78,17 +78,43 @@ The total score must equal the sum of the four breakdown scores.
 Issue Heat Zone Coordinates:
 For each issue, identify the specific region of the screen where the problem occurs.
 Return heatZone as percentage-based coordinates (0-100) relative to the image dimensions.
-x=0, y=0 is top-left; x=100, y=100 is bottom-right. If the issue spans the full width, set x=0, width=100.
+x=0, y=0 is top-left; x=100, y=100 is bottom-right.
 If you cannot identify a specific region, set heatZone to null.
 screenIndex must be the 0-based index of the image the issue refers to.
 
+Heat Zone Coordinate Method (follow these steps in order):
+Step 1. Name the exact UI element: "the blue CTA button", "the 3-line text paragraph", "the coin icon".
+Step 2. Estimate its vertical position using this mobile screen grid (portrait orientation):
+  - y 0–8%   : Status bar / OS chrome (skip — do not mark)
+  - y 8–18%  : App header / title / back button
+  - y 18–35% : Hero area / first content block
+  - y 35–55% : Mid content / main cards / lists
+  - y 55–72% : Lower content / secondary CTAs
+  - y 72–85% : Action area / sticky buttons
+  - y 85–100%: Bottom navigation bar
+Step 3. Estimate its horizontal position:
+  - Full width: x=0, width=100
+  - Left third: x=2–5, width=28–32
+  - Center: x=25–35, width=30–50
+  - Right third: x=65–75, width=25–30
+  - Icon/small button: width=10–18, height=5–9
+Step 4. Shrink the bbox to be as tight as possible — add at most 1–2% padding on each side.
+Step 5. Verify: does the zone's size match the element type? Use these reference sizes:
+  - Single icon or badge: width 8–15%, height 4–8%
+  - Small button (≤half-width): width 20–35%, height 5–9%
+  - Full-width CTA button: width 70–90%, height 6–10%
+  - Short label or caption: width 15–40%, height 3–6%
+  - Card or content block: width 80–96%, height 10–20%
+  - Tab bar (full-width nav): width 100%, height 7–10%
+  - Section header: width 60–90%, height 4–8%
+
 Heat Zone Precision Rules (MUST follow):
-- Each zone must be tight around the specific UI element with the problem — do NOT cover large areas of the screen
-- Maximum zone size: width ≤ 40%, height ≤ 20% (unless the issue is genuinely full-width, e.g., a navigation bar)
-- Zones for different issues MUST NOT overlap — choose distinct, non-overlapping areas
-- Prefer small, precise zones (5-20% width, 3-10% height) over large vague ones
-- For full-width elements (nav, header, footer), use height ≤ 10%
-- label must be ≤ 12 characters
+- Each zone must wrap the specific element tightly — no large vague areas
+- Absolute max: width ≤ 80%, height ≤ 18% (unless genuinely spanning the full screen width)
+- Preferred size: width 8–35%, height 4–10% for most single UI elements
+- Full-width-only exception: navigation bars, banners — still keep height ≤ 10%
+- Zones for different issues MUST NOT overlap
+- label must be ≤ 12 characters, in the language of the analysis
 
 CRITICAL ANALYSIS RULES:
 
@@ -142,17 +168,43 @@ const BASE_PROMPT_KO = `당신은 전문 UX 분석 에이전트입니다.
 이슈 Heat Zone 좌표:
 각 이슈마다 문제가 발생한 화면 영역을 특정하세요.
 heatZone은 이미지 크기에 대한 백분율(0-100) 좌표로 반환하세요.
-x=0, y=0은 좌상단, x=100, y=100은 우하단입니다. 이슈가 전체 너비를 덮으면 x=0, width=100으로 설정하세요.
+x=0, y=0은 좌상단, x=100, y=100은 우하단입니다.
 특정 영역을 지목할 수 없으면 heatZone을 null로 두세요.
 screenIndex는 이슈가 참조하는 이미지의 0-기반 인덱스입니다.
 
+Heat Zone 좌표 산출 방법 (순서대로 따르세요):
+1단계. 정확한 UI 요소 이름 명시: "파란 CTA 버튼", "3줄 텍스트 단락", "코인 아이콘".
+2단계. 세로 위치를 아래 모바일 화면 그리드(세로형)로 추정:
+  - y 0–8%   : 상태바 / OS 크롬 (건너뜀 — 표시 금지)
+  - y 8–18%  : 앱 헤더 / 제목 / 뒤로가기 버튼
+  - y 18–35% : 히어로 영역 / 첫 번째 콘텐츠 블록
+  - y 35–55% : 중간 콘텐츠 / 메인 카드·리스트
+  - y 55–72% : 하단 콘텐츠 / 보조 CTA
+  - y 72–85% : 액션 영역 / 고정 버튼
+  - y 85–100%: 하단 내비게이션 바
+3단계. 가로 위치 추정:
+  - 전폭: x=0, width=100
+  - 왼쪽 1/3: x=2–5, width=28–32
+  - 가운데: x=25–35, width=30–50
+  - 오른쪽 1/3: x=65–75, width=25–30
+  - 아이콘/작은 버튼: width=10–18, height=5–9
+4단계. 최대한 빡빡하게 bbox 축소 — 각 변에 최대 1–2%만 패딩 추가.
+5단계. 검증: zone 크기가 요소 유형에 맞는가? 아래 참고 크기 사용:
+  - 단일 아이콘·배지: width 8–15%, height 4–8%
+  - 소형 버튼(절반 너비 이하): width 20–35%, height 5–9%
+  - 전폭 CTA 버튼: width 70–90%, height 6–10%
+  - 짧은 레이블·캡션: width 15–40%, height 3–6%
+  - 카드·콘텐츠 블록: width 80–96%, height 10–20%
+  - 탭바(전폭 내비): width 100%, height 7–10%
+  - 섹션 헤더: width 60–90%, height 4–8%
+
 Heat Zone 정밀도 규칙 (반드시 준수):
-- 각 zone은 문제가 있는 특정 UI 요소를 딱 맞게 감싸야 합니다 — 화면의 넓은 영역을 덮으면 안 됩니다
-- 최대 zone 크기: width ≤ 40%, height ≤ 20% (내비게이션 바처럼 실제로 전폭 요소인 경우 제외)
-- 서로 다른 이슈의 zone은 겹치면 안 됩니다 — 겹치지 않는 별도 영역을 선택하세요
-- 넓고 막연한 zone보다 작고 정확한 zone(width 5~20%, height 3~10%)을 선호하세요
-- 전폭 요소(내비, 헤더, 푸터)는 height ≤ 10%로 설정하세요
-- label은 최대 12자 이내로 작성하세요
+- 각 zone은 특정 요소를 딱 맞게 감싸야 합니다 — 넓고 막연한 영역 금지
+- 절대 최대: width ≤ 80%, height ≤ 18% (실제 전폭 요소 제외)
+- 권장 크기: 대부분의 단일 UI 요소는 width 8–35%, height 4–10%
+- 전폭 예외: 내비게이션 바·배너만 — 이때도 height ≤ 10% 유지
+- 서로 다른 이슈의 zone은 겹치면 안 됩니다
+- label은 분석 언어로 최대 12자 이내
 
 핵심 분석 원칙:
 
