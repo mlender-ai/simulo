@@ -9,7 +9,7 @@ import { ComparisonReportTabs } from "@/components/ComparisonReportTabs";
 import { UsabilityReportTabs } from "@/components/UsabilityReportTabs";
 import { getLocale, t, type Locale } from "@/lib/i18n";
 import { ShareExportPanel } from "@/components/ShareExportPanel";
-import { ScreenshotPanel } from "@/components/ScreenshotPanel";
+import { ImprovementPanel } from "@/components/ImprovementPanel";
 
 export default function ReportPage() {
   const params = useParams();
@@ -17,6 +17,7 @@ export default function ReportPage() {
   const [locale, setLocale] = useState<Locale>("ko");
   const [notFound, setNotFound] = useState(false);
   const [isPanelOpen, setIsPanelOpen] = useState(false);
+  const [roundNumber, setRoundNumber] = useState(1);
 
   useEffect(() => {
     setLocale(getLocale());
@@ -102,7 +103,7 @@ export default function ReportPage() {
                 }}
               >
                 <span>✦</span>
-                {isPanelOpen ? "패널 닫기" : "스크린샷"}
+                {isPanelOpen ? "패널 닫기" : "개선안 생성"}
               </button>
             </div>
           </div>
@@ -133,7 +134,7 @@ export default function ReportPage() {
         )}
       </div>
 
-      {/* 우측: 스크린샷 패널 */}
+      {/* 우측: 개선안 패널 */}
       {isPanelOpen && (
         <div
           style={{
@@ -145,7 +146,11 @@ export default function ReportPage() {
             overflowY: "auto",
           }}
         >
-          <ScreenshotPanel analysisId={data.id} />
+          <ImprovementPanel
+            originalAnalysis={data}
+            roundNumber={roundNumber}
+            onNextRound={(n) => setRoundNumber(n)}
+          />
         </div>
       )}
     </div>

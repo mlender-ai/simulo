@@ -82,9 +82,18 @@ x=0, y=0 is top-left; x=100, y=100 is bottom-right.
 If you cannot identify a specific region, set heatZone to null.
 screenIndex must be the 0-based index of the image the issue refers to.
 
-Heat Zone Coordinate Method (follow these steps in order):
-Step 1. Name the exact UI element: "the blue CTA button", "the 3-line text paragraph", "the coin icon".
-Step 2. Estimate its vertical position using this mobile screen grid (portrait orientation):
+HEATZONE COORDINATE METHOD — FOLLOW IN ORDER:
+
+Step 1 — Use OCR coordinates (PRIMARY SOURCE):
+When OCR element data with coordinates is provided in the context, you MUST derive heatZone from it.
+  a. Find the OCR entry whose text matches the UI element you are citing in the issue.
+  b. Copy its x, y, w, h values directly as heatZone (x→x, y→y, w→width, h→height).
+  c. If the issue spans multiple adjacent OCR elements, merge: take min(x), min(y), max(x+w)-min(x) for width, max(y+h)-min(y) for height.
+  d. Add at most ±2% padding for context — do NOT expand more than that.
+  e. DO NOT use the grid estimate below when OCR data is available. OCR coordinates are ground truth.
+
+Step 2 — Visual estimate fallback (only when no OCR match exists):
+If no OCR element matches the cited element, estimate using this mobile screen grid (portrait):
   - y 0–8%   : Status bar / OS chrome (skip — do not mark)
   - y 8–18%  : App header / title / back button
   - y 18–35% : Hero area / first content block
@@ -92,14 +101,13 @@ Step 2. Estimate its vertical position using this mobile screen grid (portrait o
   - y 55–72% : Lower content / secondary CTAs
   - y 72–85% : Action area / sticky buttons
   - y 85–100%: Bottom navigation bar
-Step 3. Estimate its horizontal position:
+Horizontal fallback reference:
   - Full width: x=0, width=100
   - Left third: x=2–5, width=28–32
   - Center: x=25–35, width=30–50
   - Right third: x=65–75, width=25–30
-  - Icon/small button: width=10–18, height=5–9
-Step 4. Shrink the bbox to be as tight as possible — add at most 1–2% padding on each side.
-Step 5. Verify: does the zone's size match the element type? Use these reference sizes:
+
+Step 3 — Size sanity check:
   - Single icon or badge: width 8–15%, height 4–8%
   - Small button (≤half-width): width 20–35%, height 5–9%
   - Full-width CTA button: width 70–90%, height 6–10%
@@ -172,9 +180,18 @@ x=0, y=0은 좌상단, x=100, y=100은 우하단입니다.
 특정 영역을 지목할 수 없으면 heatZone을 null로 두세요.
 screenIndex는 이슈가 참조하는 이미지의 0-기반 인덱스입니다.
 
-Heat Zone 좌표 산출 방법 (순서대로 따르세요):
-1단계. 정확한 UI 요소 이름 명시: "파란 CTA 버튼", "3줄 텍스트 단락", "코인 아이콘".
-2단계. 세로 위치를 아래 모바일 화면 그리드(세로형)로 추정:
+HEATZONE 좌표 산출 방법 — 순서대로 따르세요:
+
+1단계 — OCR 좌표 사용 (최우선 출처):
+컨텍스트에 OCR 요소 좌표 데이터가 제공된 경우 반드시 그 좌표를 heatZone으로 사용하세요.
+  a. 이슈에서 언급한 UI 요소의 텍스트와 일치하는 OCR 항목을 찾으세요.
+  b. 해당 항목의 x, y, w, h 값을 heatZone에 직접 복사하세요 (x→x, y→y, w→width, h→height).
+  c. 이슈가 인접한 여러 OCR 요소에 걸친 경우, 병합: min(x), min(y), 전체 width/height로 확장.
+  d. 최대 ±2% 패딩만 추가 — 그 이상 확장 금지.
+  e. OCR 데이터가 있을 때는 아래 그리드 추정을 절대 사용하지 마세요. OCR 좌표가 정답입니다.
+
+2단계 — 시각적 추정 폴백 (OCR 일치 항목이 없을 때만):
+OCR 항목 중 언급한 요소와 일치하는 것이 없으면, 아래 모바일 화면 그리드(세로형)로 추정:
   - y 0–8%   : 상태바 / OS 크롬 (건너뜀 — 표시 금지)
   - y 8–18%  : 앱 헤더 / 제목 / 뒤로가기 버튼
   - y 18–35% : 히어로 영역 / 첫 번째 콘텐츠 블록
@@ -182,14 +199,13 @@ Heat Zone 좌표 산출 방법 (순서대로 따르세요):
   - y 55–72% : 하단 콘텐츠 / 보조 CTA
   - y 72–85% : 액션 영역 / 고정 버튼
   - y 85–100%: 하단 내비게이션 바
-3단계. 가로 위치 추정:
+가로 위치 폴백:
   - 전폭: x=0, width=100
   - 왼쪽 1/3: x=2–5, width=28–32
   - 가운데: x=25–35, width=30–50
   - 오른쪽 1/3: x=65–75, width=25–30
-  - 아이콘/작은 버튼: width=10–18, height=5–9
-4단계. 최대한 빡빡하게 bbox 축소 — 각 변에 최대 1–2%만 패딩 추가.
-5단계. 검증: zone 크기가 요소 유형에 맞는가? 아래 참고 크기 사용:
+
+3단계 — 크기 정합성 검증:
   - 단일 아이콘·배지: width 8–15%, height 4–8%
   - 소형 버튼(절반 너비 이하): width 20–35%, height 5–9%
   - 전폭 CTA 버튼: width 70–90%, height 6–10%
