@@ -171,28 +171,42 @@ export function ImprovementPanel({
   async function handleReanalyze() {
     const activeVariant = variants[activeVariantIdx];
     if (!activeVariant) return;
-    setPanelState("reanalyzing");
 
+    // ── Step 1: capture iframe BEFORE state change (iframe unmounts on reanalyzing state) ──
+    let capturedImage: string | null = null;
     try {
-      let capturedImage: string | null = null;
-      try {
-        const iframe = iframeRef.current;
-        const iframeBody = iframe?.contentDocument?.body;
+      const iframe = iframeRef.current;
+      // Wait for iframe to finish loading if needed
+      if (iframe) {
+        await new Promise<void>((resolve) => {
+          if (iframe.contentDocument?.readyState === "complete") { resolve(); return; }
+          iframe.addEventListener("load", () => resolve(), { once: true });
+          setTimeout(resolve, 3000); // fallback timeout
+        });
+        const iframeBody = iframe.contentDocument?.body;
         if (iframeBody) {
           const { toPng } = await import("html-to-image");
           capturedImage = await toPng(iframeBody, {
             quality: 0.9,
             backgroundColor: "#0f0f0f",
           });
+          console.log("[improve] iframe captured, dataUrl length:", capturedImage.length);
         }
-      } catch (captureErr) {
-        console.warn("[improve] iframe capture failed:", captureErr);
       }
+    } catch (captureErr) {
+      console.warn("[improve] iframe capture failed:", captureErr);
+    }
 
-      if (!capturedImage) {
-        capturedImage = "data:image/png;base64,iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAYAAAAfFcSJAAAADUlEQVR42mP8/5+hHgAHggJ/PchI6QAAAABJRU5ErkJggg==";
-      }
+    if (!capturedImage) {
+      setError("개선된 화면 캡처에 실패했습니다. iframe이 로드될 때까지 잠시 기다린 후 다시 시도해 주세요.");
+      return;
+    }
 
+    // ── Step 2: change state to loading AFTER capture ──
+    setPanelState("reanalyzing");
+    setError(null);
+
+    try {
       const base64Image = capturedImage.replace(/^data:image\/\w+;base64,/, "");
       const tag = originalAnalysis.projectTag
         ? `${originalAnalysis.projectTag} (개선 ${roundNumber}회차)`
@@ -217,12 +231,16 @@ export function ImprovementPanel({
         }),
       });
 
-      if (!res.ok) throw new Error("재분석 실패");
+      if (!res.ok) {
+        const errData = await res.json().catch(() => ({}));
+        throw new Error(errData.error || `재분석 실패 (${res.status})`);
+      }
       const improved: AnalysisResult = await res.json();
       setImprovedAnalysis(improved);
       setPanelState("comparison");
     } catch (err) {
       console.error("[improve] reanalyze:", err);
+      setError(err instanceof Error ? err.message : "재분석 실패");
       setPanelState("variants");
     }
   }
