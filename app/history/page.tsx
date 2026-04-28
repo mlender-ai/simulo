@@ -379,7 +379,7 @@ export default function HistoryPage() {
         )}
       </div>
 
-      <div className="space-y-2">
+      <div className="space-y-6">
         {(() => {
           // Group improvements under their parent
           const parentMap = new Map<string, AnalysisResult[]>();
@@ -395,41 +395,78 @@ export default function HistoryPage() {
             }
           }
 
-          return roots.map((analysis) => {
-            const children = parentMap.get(analysis.id) ?? [];
+          // Date group buckets
+          const now = new Date();
+          const todayStart = new Date(now.getFullYear(), now.getMonth(), now.getDate()).getTime();
+          const yesterdayStart = todayStart - 86400000;
+          const weekStart = todayStart - (now.getDay() === 0 ? 6 : now.getDay() - 1) * 86400000;
+
+          const getGroup = (createdAt: string) => {
+            const t = new Date(createdAt).getTime();
+            if (t >= todayStart) return "오늘";
+            if (t >= yesterdayStart) return "어제";
+            if (t >= weekStart) return "이번 주";
+            return "이전";
+          };
+
+          const GROUP_ORDER = ["오늘", "어제", "이번 주", "이전"];
+          const grouped: Record<string, AnalysisResult[]> = {};
+          for (const a of roots) {
+            const g = getGroup(a.createdAt);
+            if (!grouped[g]) grouped[g] = [];
+            grouped[g].push(a);
+          }
+
+          if (roots.length === 0) {
             return (
-              <div key={analysis.id} className="space-y-1">
-                <AnalysisCard
-                  analysis={analysis}
-                  locale={locale}
-                  isChild={false}
-                  selectable={bulkMode}
-                  selected={selectedIds.has(analysis.id)}
-                  onToggleSelect={toggleSelect}
-                  onReanalyze={handleReanalyze}
-                />
-                {children.map((child) => (
-                  <AnalysisCard
-                    key={child.id}
-                    analysis={child}
-                    locale={locale}
-                    isChild
-                    selectable={bulkMode}
-                    selected={selectedIds.has(child.id)}
-                    onToggleSelect={toggleSelect}
-                    onReanalyze={handleReanalyze}
-                  />
-                ))}
+              <div className="text-center py-16 text-[var(--muted)]">
+                <p className="text-sm">{t("noAnalysesFound", locale)}</p>
               </div>
             );
-          });
-        })()}
+          }
 
-        {filtered.length === 0 && (
-          <div className="text-center py-16 text-[var(--muted)]">
-            <p className="text-sm">{t("noAnalysesFound", locale)}</p>
-          </div>
-        )}
+          return GROUP_ORDER.filter((g) => grouped[g]?.length).map((group) => (
+            <div key={group}>
+              <div className="flex items-center gap-2 mb-2 px-1">
+                <span className="text-xs text-[var(--muted)] uppercase tracking-wider font-medium">
+                  {group}
+                </span>
+                <span className="text-xs text-[var(--muted)]">· {grouped[group].length}건</span>
+                <div className="flex-1 h-px bg-[var(--border)]" />
+              </div>
+              <div className="space-y-2">
+                {grouped[group].map((analysis) => {
+                  const children = parentMap.get(analysis.id) ?? [];
+                  return (
+                    <div key={analysis.id} className="space-y-1">
+                      <AnalysisCard
+                        analysis={analysis}
+                        locale={locale}
+                        isChild={false}
+                        selectable={bulkMode}
+                        selected={selectedIds.has(analysis.id)}
+                        onToggleSelect={toggleSelect}
+                        onReanalyze={handleReanalyze}
+                      />
+                      {children.map((child) => (
+                        <AnalysisCard
+                          key={child.id}
+                          analysis={child}
+                          locale={locale}
+                          isChild
+                          selectable={bulkMode}
+                          selected={selectedIds.has(child.id)}
+                          onToggleSelect={toggleSelect}
+                          onReanalyze={handleReanalyze}
+                        />
+                      ))}
+                    </div>
+                  );
+                })}
+              </div>
+            </div>
+          ));
+        })()}
       </div>
     </div>
   );
