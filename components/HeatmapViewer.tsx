@@ -1,7 +1,6 @@
 /* eslint-disable @next/next/no-img-element */
 "use client";
 
-import { useState, useCallback } from "react";
 import type { HeatZone } from "@/lib/storage";
 
 export interface HeatmapIssue {
@@ -115,43 +114,28 @@ export function HeatmapViewer({
   hoveredIssueIndex,
   hypothesisRelevanceFilter = false,
 }: HeatmapViewerProps) {
-  const [tooltipIssue, setTooltipIssue] = useState<HeatmapIssue | null>(null);
-  const [tooltipPos, setTooltipPos] = useState<{ x: number; y: number }>({ x: 0, y: 0 });
 
-  const handleOverlayMouseEnter = useCallback(
-    (issue: HeatmapIssue, e: React.MouseEvent) => {
-      onIssueHover(issue.index);
-      const rect = (e.currentTarget.parentElement as HTMLElement).getBoundingClientRect();
-      const x = e.clientX - rect.left;
-      const y = e.clientY - rect.top;
-      setTooltipIssue(issue);
-      setTooltipPos({ x, y });
-    },
-    [onIssueHover]
-  );
-
-  const handleOverlayMouseLeave = useCallback(() => {
-    onIssueHover(null);
-    setTooltipIssue(null);
-  }, [onIssueHover]);
-
-  const filtered = issues.filter((iss) => {
+  // Issues that have valid heatZones (respecting filter)
+  const issuesWithZones = issues.filter((iss) => {
     if (!iss.heatZone) return false;
     if (hypothesisRelevanceFilter && iss.relevanceToHypothesis === "Low") return false;
     return true;
   });
-  // Always keep active/hovered issue; deduplicate the rest
-  const issuesWithZones =
-    activeIssueIndex !== null || hoveredIssueIndex !== null
-      ? filtered
-      : deduplicateZones(filtered);
+
+  // Only the single active/hovered issue is rendered on the image
+  const activeIssue =
+    activeIssueIndex !== null
+      ? issuesWithZones.find((iss) => iss.index === activeIssueIndex) ?? null
+      : hoveredIssueIndex !== null
+      ? issuesWithZones.find((iss) => iss.index === hoveredIssueIndex) ?? null
+      : null;
 
   return (
     <div style={{ maxWidth: 640, width: "100%" }}>
       {/* Image name */}
       <p style={{ fontSize: 13, color: "#888", marginBottom: 8 }}>{imageName}</p>
 
-      {/* Image + overlays container */}
+      {/* Image + single-zone overlay */}
       <div style={{ position: "relative", borderRadius: 8, overflow: "hidden", border: "1px solid #2a2a2a" }}>
         <img
           src={imageUrl}
@@ -159,107 +143,92 @@ export function HeatmapViewer({
           style={{ width: "100%", height: "auto", display: "block" }}
         />
 
-        {/* Overlay container */}
-        <div style={{ position: "absolute", top: 0, left: 0, width: "100%", height: "100%" }}>
-          {issuesWithZones.map((issue, renderIdx) => {
-            const zone = normalizeZone(issue.heatZone!);
-            const style = getSeverityStyle(issue.severity);
-            const isActive = activeIssueIndex === issue.index;
-            const isHovered = hoveredIssueIndex === issue.index;
-            const highlighted = isActive || isHovered;
+        {/* Single zone overlay — only the selected/hovered issue */}
+        {activeIssue && (() => {
+          const zone = normalizeZone(activeIssue.heatZone!);
+          const style = getSeverityStyle(activeIssue.severity);
+          const nearTop = zone.y < 10;
+          const nearBottom = zone.y + zone.height > 88;
+          const nearRight = zone.x + zone.width > 82;
 
-            // Decide where to place the label badge to avoid clipping
-            const nearTop = zone.y < 10;
-            const nearBottom = zone.y + zone.height > 88;
-            const nearRight = zone.x + zone.width > 82;
-
-            const labelTop = nearBottom
-              ? "auto"
-              : nearTop
-              ? "calc(100% + 2px)"
-              : 2;
-            const labelBottom = nearBottom ? "calc(100% + 2px)" : "auto";
-            const labelLeft = nearRight ? "auto" : 2;
-            const labelRight = nearRight ? 2 : "auto";
-
-            return (
+          return (
+            <div
+              style={{
+                position: "absolute",
+                top: 0,
+                left: 0,
+                width: "100%",
+                height: "100%",
+                pointerEvents: "none",
+              }}
+            >
+              {/* Dim overlay — everything except the active zone */}
               <div
-                key={issue.index}
+                style={{
+                  position: "absolute",
+                  top: 0, left: 0, width: "100%", height: "100%",
+                  background: "rgba(0,0,0,0.45)",
+                  // Cut-out via clip-path inset
+                  clipPath: `polygon(
+                    0% 0%, 100% 0%, 100% 100%, 0% 100%,
+                    0% ${zone.y}%,
+                    ${zone.x}% ${zone.y}%,
+                    ${zone.x}% ${zone.y + zone.height}%,
+                    ${zone.x + zone.width}% ${zone.y + zone.height}%,
+                    ${zone.x + zone.width}% ${zone.y}%,
+                    100% ${zone.y}%,
+                    100% 0%, 0% 0%
+                  )`,
+                }}
+              />
+
+              {/* Zone highlight border */}
+              <div
                 role="button"
                 tabIndex={0}
-                aria-label={`${issue.severity}: ${issue.issue}`}
+                aria-label={`${activeIssue.severity}: ${activeIssue.issue}`}
                 style={{
                   position: "absolute",
                   left: `${zone.x}%`,
                   top: `${zone.y}%`,
                   width: `${zone.width}%`,
                   height: `${zone.height}%`,
-                  backgroundColor: highlighted
-                    ? style.bg.replace(/[\d.]+\)$/, (m) => `${Math.min(parseFloat(m) * 1.8, 0.7)})`)
-                    : style.bg,
-                  border: highlighted
-                    ? style.border.replace(/\d+px/, "3px")
-                    : style.border,
+                  border: style.border.replace(/\d+px/, "3px"),
                   borderRadius: 4,
+                  boxShadow: "0 0 0 1px rgba(255,255,255,0.15)",
+                  pointerEvents: "auto",
                   cursor: "pointer",
-                  transition: "all 0.15s",
-                  zIndex: highlighted ? 10 : 1,
                   outline: "none",
                 }}
                 onClick={(e) => {
                   e.stopPropagation();
-                  onIssueClick(isActive ? null : issue.index);
+                  onIssueClick(activeIssueIndex === activeIssue.index ? null : activeIssue.index);
                 }}
                 onKeyDown={(e) => {
                   if (e.key === "Enter" || e.key === " ") {
                     e.preventDefault();
-                    onIssueClick(isActive ? null : issue.index);
+                    onIssueClick(activeIssueIndex === activeIssue.index ? null : activeIssue.index);
                   }
                 }}
-                onMouseEnter={(e) => handleOverlayMouseEnter(issue, e)}
-                onMouseLeave={handleOverlayMouseLeave}
               >
-                {/* Issue index dot — always visible at top-right inside zone */}
+                {/* Label badge */}
                 <div
                   style={{
                     position: "absolute",
-                    top: 2,
-                    right: 2,
-                    width: 14,
-                    height: 14,
-                    borderRadius: "50%",
-                    background: style.bgSolid,
-                    color: "#fff",
-                    fontSize: 8,
-                    fontWeight: 700,
-                    display: "flex",
-                    alignItems: "center",
-                    justifyContent: "center",
-                    pointerEvents: "none",
-                    lineHeight: 1,
-                  }}
-                >
-                  {renderIdx + 1}
-                </div>
-
-                {/* Label badge — repositioned based on proximity to edges */}
-                <div
-                  style={{
-                    position: "absolute",
-                    top: labelTop,
-                    bottom: labelBottom,
-                    left: labelLeft,
-                    right: labelRight,
+                    top: nearBottom ? "auto" : nearTop ? "calc(100% + 3px)" : 2,
+                    bottom: nearBottom ? "calc(100% + 3px)" : "auto",
+                    left: nearRight ? "auto" : 2,
+                    right: nearRight ? 2 : "auto",
                     fontSize: 10,
-                    fontWeight: 600,
-                    padding: "2px 6px",
+                    fontWeight: 700,
+                    padding: "2px 8px",
                     borderRadius: 3,
                     whiteSpace: "nowrap",
                     background: style.bgSolid,
                     color: "#fff",
-                    lineHeight: "14px",
+                    lineHeight: "16px",
                     pointerEvents: "none",
-                    maxWidth: "calc(100% - 20px)",
+                    maxWidth: 160,
                     overflow: "hidden",
                     textOverflow: "ellipsis",
                   }}
@@ -267,59 +236,77 @@ export function HeatmapViewer({
                   {zone.label}
                 </div>
               </div>
+            </div>
+          );
+        })()}
+      </div>
+
+      {/* Issue picker pills — one per issue with a heatZone */}
+      {issuesWithZones.length > 0 && (
+        <div
+          style={{
+            marginTop: 10,
+            display: "flex",
+            gap: 6,
+            flexWrap: "wrap",
+          }}
+        >
+          {issuesWithZones.map((issue, idx) => {
+            const style = getSeverityStyle(issue.severity);
+            const isActive = activeIssueIndex === issue.index;
+            return (
+              <button
+                key={issue.index}
+                onClick={() => onIssueClick(isActive ? null : issue.index)}
+                onMouseEnter={() => onIssueHover(issue.index)}
+                onMouseLeave={() => onIssueHover(null)}
+                style={{
+                  display: "inline-flex",
+                  alignItems: "center",
+                  gap: 5,
+                  padding: "4px 10px",
+                  borderRadius: 20,
+                  border: isActive
+                    ? `1.5px solid ${style.border.replace(/.*?rgba/, "rgba").replace(/\).*/, ")")}`
+                    : "1.5px solid rgba(255,255,255,0.1)",
+                  background: isActive ? "rgba(255,255,255,0.08)" : "rgba(255,255,255,0.03)",
+                  color: isActive ? "#fff" : "#888",
+                  fontSize: 11,
+                  fontWeight: isActive ? 600 : 400,
+                  cursor: "pointer",
+                  transition: "all 0.12s",
+                  lineHeight: 1.4,
+                }}
+              >
+                {/* Severity dot */}
+                <span
+                  style={{
+                    width: 7,
+                    height: 7,
+                    borderRadius: "50%",
+                    background: style.bgSolid,
+                    flexShrink: 0,
+                    display: "inline-block",
+                  }}
+                />
+                <span style={{ fontFamily: "monospace", fontWeight: 700, opacity: 0.6 }}>
+                  {idx + 1}
+                </span>
+                <span
+                  style={{
+                    maxWidth: 120,
+                    overflow: "hidden",
+                    textOverflow: "ellipsis",
+                    whiteSpace: "nowrap",
+                  }}
+                >
+                  {issue.heatZone!.label}
+                </span>
+              </button>
             );
           })}
         </div>
-
-        {/* Hover tooltip */}
-        {tooltipIssue && tooltipIssue.index !== activeIssueIndex && (
-          <div
-            style={{
-              position: "absolute",
-              left: Math.min(tooltipPos.x + 12, 400),
-              top: tooltipPos.y + 12,
-              maxWidth: 280,
-              background: "rgba(20, 20, 20, 0.95)",
-              border: "1px solid #333",
-              borderRadius: 6,
-              padding: "10px 12px",
-              zIndex: 20,
-              pointerEvents: "none",
-            }}
-          >
-            <div style={{ display: "flex", gap: 6, alignItems: "center", marginBottom: 6 }}>
-              <span
-                style={{
-                  fontSize: 10,
-                  padding: "1px 5px",
-                  borderRadius: 3,
-                  background: getSeverityStyle(tooltipIssue.severity).bgSolid,
-                  color: "#fff",
-                }}
-              >
-                {tooltipIssue.severity}
-              </span>
-              {tooltipIssue.desireType && (
-                <span
-                  style={{
-                    fontSize: 10,
-                    padding: "1px 5px",
-                    borderRadius: 3,
-                    background: (DESIRE_TAG[tooltipIssue.desireType] || DESIRE_TAG.general).bg,
-                    color: (DESIRE_TAG[tooltipIssue.desireType] || DESIRE_TAG.general).color,
-                  }}
-                >
-                  {(DESIRE_TAG[tooltipIssue.desireType] || DESIRE_TAG.general).label}
-                </span>
-              )}
-            </div>
-            <p style={{ fontSize: 12, color: "#ddd", lineHeight: 1.5, margin: 0 }}>{tooltipIssue.issue}</p>
-            <p style={{ fontSize: 11, color: "#888", lineHeight: 1.4, marginTop: 4 }}>
-              💡 {tooltipIssue.recommendation}
-            </p>
-          </div>
-        )}
-      </div>
+      )}
     </div>
   );
 }
