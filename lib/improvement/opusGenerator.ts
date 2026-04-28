@@ -24,6 +24,7 @@ export interface GenerateImproveParams {
     desireAlignment: boolean;
     restructureLayout: boolean;
     targetScore: number | null;
+    variantIndex?: number;
   };
   score: number;
   roundNumber: number;
@@ -42,7 +43,10 @@ export async function generateImprovement(input: GenerateImproveParams): Promise
 
   // 원본 이미지 첨부 (있을 경우)
   if (originalImage) {
-    content.push({ type: "text", text: "## 원본 화면" });
+    content.push({
+      type: "text",
+      text: "## 원본 화면 (이 화면을 최대한 충실하게 재현한 후 필요한 부분만 수정하세요)",
+    });
     content.push({
       type: "image",
       source: {
@@ -53,7 +57,6 @@ export async function generateImprovement(input: GenerateImproveParams): Promise
     });
   }
 
-  // 분석 결과 컨텍스트
   content.push({
     type: "text",
     text: buildAnalysisContext({ issues, desire, options, score, roundNumber }),
@@ -61,7 +64,7 @@ export async function generateImprovement(input: GenerateImproveParams): Promise
 
   const response = await anthropic.messages.create({
     model: "claude-opus-4-6",
-    max_tokens: 16000,
+    max_tokens: 20000,
     system: buildSystemPrompt(options),
     messages: [{ role: "user", content }],
   });
@@ -77,39 +80,57 @@ export async function generateImprovement(input: GenerateImproveParams): Promise
 }
 
 function buildSystemPrompt(options: GenerateImproveParams["options"]): string {
-  return `You are a senior UI/UX designer specializing in Korean mobile fitness reward apps.
-Your target users are Korean women in their 40s-50s who use apps to earn mileage rewards.
+  const variantHint = typeof options.variantIndex === "number" && options.variantIndex > 0
+    ? `\n\nVARIANT ${options.variantIndex + 1} DIRECTIVE: This is variant #${options.variantIndex + 1}. Apply the same fixes but use a different visual treatment for the changed elements (e.g., different color emphasis, different layout for just the fixed section, different copy for CTAs) so this variant feels distinct from variant #1. Keep all unchanged areas identical to the original.`
+    : "";
 
-You generate improved mobile UI mockups as complete HTML files.
+  return `You are a surgical UI improvement specialist for Korean mobile apps.
 
-Core design principles for this target:
-1. UTILITY (효능감): Make reward amounts clearly visible at all times
-2. HEALTH PRIDE (성취·과시): Celebrate achievements visually and prominently
-3. LOSS AVERSION (손실회피): Show streak counts, daily deadlines, "don't miss out" cues
+## YOUR SINGLE MOST IMPORTANT RULE
+You are NOT redesigning this app. You are making the MINIMUM targeted changes to fix specific issues.
+The output must look 95% identical to the original. A UX evaluator must be able to say "yes, this is the same screen with X fixed."
 
-Technical requirements:
-- Single complete HTML file. ALL styles must be in ONE <style> block in <head>. NO inline style attributes.
-- Mobile-first: fixed width 375px, scrollable height
+## PROCESS — follow in this exact order:
+
+### STEP 1: Faithfully reproduce the original
+- Study the original image pixel by pixel
+- Reproduce EVERY element: colors, fonts (use system-ui as fallback), spacing, icons (use unicode/CSS), background, gradients, shadows
+- Match the original's color palette exactly (sample the hex values from the image)
+- Match element sizes and proportions as closely as possible
+- If you see a dark background (#0a0a0a or similar), use that exact dark background
+- Reproduce all text content exactly as it appears (Korean text)
+- Reproduce images and illustrations as CSS shapes/gradients that approximate the visual
+
+### STEP 2: Apply ONLY the listed fixes
+- Change ONLY the specific elements that are called out in the issues
+- Each fix must be the minimum change that solves the problem
+- Do NOT "improve" things that weren't flagged as issues
+- Do NOT add new sections, widgets, or elements that weren't in the original
+- Do NOT remove sections that existed in the original
+- If the recommendation says "make X more prominent", only change that one element's visual weight — don't restructure the surrounding layout
+
+### STEP 3: Verify before outputting
+- Check: does the output look like the original with targeted fixes applied?
+- Check: are there any elements you added that weren't in the original? Remove them.
+- Check: are there any original elements you accidentally removed? Add them back.
+${options.restructureLayout ? "\nEXCEPTION: Layout restructuring is enabled. You may reorganize section order, but must keep all original content." : ""}
+
+## Technical requirements
+- Single complete HTML file. ALL styles in ONE <style> block in <head>. NO inline style= attributes.
+- Width: 375px fixed. Scrollable height.
 - Korean text only
-- No external resources, fonts, or images (use CSS shapes/gradients for visuals)
-- Use the same color palette visible in the original image
-- Smooth, app-like feel with subtle shadows and rounded corners
-- Keep CSS concise — use class selectors, avoid repetition
-${
-  options.restructureLayout
-    ? "- You may significantly restructure the layout"
-    : "- Keep the overall layout similar to the original, only fix specific issues"
-}
+- No external URLs. Approximate images with CSS gradients/shapes.
+- System fonts: -apple-system, BlinkMacSystemFont, "Noto Sans KR", sans-serif
+${variantHint}
 
-Output format — respond with this exact structure:
+## Output format
 <CHANGES>
-- 변경사항 1
-- 변경사항 2
-- 변경사항 3
+- [수정 1]: 구체적으로 무엇을 어떻게 바꿨는지 (원본 대비)
+- [수정 2]: ...
 </CHANGES>
 <HTML>
 <!DOCTYPE html>
-...complete HTML...
+...complete HTML reproducing original with targeted fixes...
 </HTML>`;
 }
 
@@ -122,45 +143,41 @@ function buildAnalysisContext(
     roundNumber,
   }: Pick<GenerateImproveParams, "issues" | "desire" | "options" | "score" | "roundNumber">
 ): string {
-  const desireSection =
-    options.desireAlignment && desire
-      ? `
-## 욕망 충족도 현황 (개선 목표: 모두 8/10 이상)
-- 효능감 (가계 보탬): ${desire.utility.score}/10
-  현황: ${desire.utility.comment}
-- 성취·과시 (건강 인증): ${desire.healthPride.score}/10
-  현황: ${desire.healthPride.comment}
-- 손실회피 (빠지면 손해): ${desire.lossAversion.score}/10
-  현황: ${desire.lossAversion.comment}`
-      : "";
+  const targetIssues = options.criticalOnly
+    ? issues.filter((i) => i.severity === "Critical")
+    : issues;
 
-  const issuesSection = `
-## 해결해야 할 이슈 (${issues.length}건)
-${issues
+  const issuesSection = `## 수정할 이슈 목록 (${targetIssues.length}건 — 이것만 수정하세요)
+${targetIssues
   .map(
     (issue, i) => `
-${i + 1}. [${issue.severity}] ${issue.issue}
-   개선 방향: ${issue.recommendation ?? "없음"}
-   욕망 관련: ${
-     issue.desireType === "utility"
-       ? "효능감"
-       : issue.desireType === "healthPride"
-       ? "성취·과시"
-       : issue.desireType === "lossAversion"
-       ? "손실회피"
-       : "일반"
-   }`
+[수정 ${i + 1}] 심각도: ${issue.severity}
+- 문제: ${issue.issue}
+- 권장 수정: ${issue.recommendation ?? "없음"}
+- 수정 범위: 위 문제에 해당하는 요소만 변경. 주변 레이아웃 건드리지 말 것.`
   )
   .join("\n")}`;
 
+  const desireSection =
+    options.desireAlignment && desire
+      ? `
+## 욕망 충족도 현황 (수정 시 고려, 하지만 기존 디자인을 유지하면서 개선)
+- 효능감: ${desire.utility.score}/10 — ${desire.utility.comment}
+- 성취·과시: ${desire.healthPride.score}/10 — ${desire.healthPride.comment}
+- 손실회피: ${desire.lossAversion.score}/10 — ${desire.lossAversion.comment}
+※ 욕망 관련 개선도 원본 UI 요소 내에서만 (카피 변경, 수치 강조 등). 새 섹션 추가 금지.`
+      : "";
+
   return `
 ## 현재 상태
-- 사용성 점수: ${score}/100
+- 현재 점수: ${score}/100
 - 개선 라운드: ${roundNumber}회차
 ${desireSection}
+
 ${issuesSection}
 
-위 이슈들을 해결한 개선된 모바일 화면을 HTML로 생성해줘.`;
+---
+위 수정 사항만 적용한 개선 화면을 생성하세요. 나머지는 원본과 동일하게 유지.`;
 }
 
 function parseResponse(text: string): GenerateImproveResult {
@@ -169,23 +186,19 @@ function parseResponse(text: string): GenerateImproveResult {
   const changesText = changesMatch?.[1] ?? "";
   const changes = changesText
     .split("\n")
-    .map((line) => line.replace(/^[•\-*]\s*/, "").trim())
+    .map((line) => line.replace(/^[•\-*\[\]수정\d:\s]+/, "").trim())
     .filter(Boolean);
 
-  // HTML 파싱 — <!DOCTYPE html> 기반 추출
-  // max_tokens 초과로 잘린 경우에도 동작하며, </HTML> 포맷 태그 없이도 추출 가능
+  // HTML 파싱
   let html = "";
   const doctypeIdx = text.indexOf("<!DOCTYPE html>");
   if (doctypeIdx !== -1) {
     html = text.slice(doctypeIdx);
-    // 후행 </HTML> 포맷 태그 제거
     html = html.replace(/<\/HTML>\s*$/, "").trim();
-    // 잘린 경우 닫는 태그 보완
     if (!html.toLowerCase().includes("</html>")) {
       html += "\n</body>\n</html>";
     }
   } else {
-    // Fallback: <HTML> 태그 방식 (그래도 없으면 에러)
     const htmlMatch = text.match(/<HTML>([\s\S]+?)(?:<\/HTML>|$)/);
     html = htmlMatch?.[1]?.trim() ?? "";
   }
