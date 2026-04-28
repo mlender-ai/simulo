@@ -2,6 +2,7 @@
 
 import { useEffect, useState, useCallback } from "react";
 import { useRouter } from "next/navigation";
+import { storage, type AnalysisResult } from "@/lib/storage";
 import {
   LineChart,
   Line,
@@ -151,6 +152,119 @@ const EMPTY_STATS: DashboardStats = {
   projectTags: [],
 };
 
+function computeStatsFromLocal(analyses: AnalysisResult[], period: Period): DashboardStats {
+  const now = Date.now();
+  const days = period === "7d" ? 7 : period === "30d" ? 30 : period === "90d" ? 90 : null;
+  const cutoff = days ? now - days * 86400000 : null;
+  const prevCutoff = days ? now - days * 2 * 86400000 : null;
+
+  const filtered = analyses.filter((a) => {
+    if (a.isComparison) return false;
+    if (!cutoff) return true;
+    return new Date(a.createdAt).getTime() >= cutoff;
+  });
+  const prev = analyses.filter((a) => {
+    if (a.isComparison) return false;
+    if (!prevCutoff || !cutoff) return false;
+    const t = new Date(a.createdAt).getTime();
+    return t >= prevCutoff && t < cutoff;
+  });
+
+  const avg = (arr: number[]) =>
+    arr.length ? Math.round((arr.reduce((a, b) => a + b, 0) / arr.length) * 10) / 10 : 0;
+
+  // Desire scores (usability mode only)
+  const desireRows = filtered
+    .map((a) => {
+      const da = a.analysisOptions?.result?.desireAlignment ?? a.desireAlignment;
+      if (!da?.utility) return null;
+      return { utility: da.utility.score, healthPride: da.healthPride.score, lossAversion: da.lossAversion.score };
+    })
+    .filter((d): d is NonNullable<typeof d> => d !== null);
+
+  // Resolved issue rate
+  const improvedIds = new Set(
+    filtered.filter((a) => a.isImprovement && a.previousAnalysisId).map((a) => a.previousAnalysisId!)
+  );
+  const nonImprove = filtered.filter((a) => !a.isImprovement);
+
+  // Score timeline
+  const scoreTimeline: ScorePoint[] = filtered.map((a) => ({
+    date: a.createdAt.split("T")[0],
+    score: a.score,
+    projectTag: a.projectTag ?? null,
+    analysisId: a.id,
+    hypothesis: a.hypothesis.slice(0, 60),
+  }));
+
+  // Desire timeline
+  const desireTimeline: DesirePoint[] = filtered
+    .map((a) => {
+      const da = a.analysisOptions?.result?.desireAlignment ?? a.desireAlignment;
+      if (!da?.utility) return null;
+      return {
+        date: a.createdAt.split("T")[0],
+        utility: da.utility.score,
+        healthPride: da.healthPride.score,
+        lossAversion: da.lossAversion.score,
+      };
+    })
+    .filter((d): d is NonNullable<typeof d> => d !== null);
+
+  // Top issues
+  const issueMap: Record<string, { pattern: string; count: number; sevSum: number; screens: Set<string> }> = {};
+  for (const a of filtered) {
+    for (const issue of a.issues ?? []) {
+      const key = issue.issue.trim().slice(0, 40).toLowerCase();
+      if (!issueMap[key]) issueMap[key] = { pattern: issue.issue.trim(), count: 0, sevSum: 0, screens: new Set() };
+      issueMap[key].count++;
+      issueMap[key].sevSum += issue.severity === "Critical" ? 3 : issue.severity === "Medium" ? 2 : 1;
+      if (a.projectTag) issueMap[key].screens.add(a.projectTag);
+    }
+  }
+  const topIssues = Object.values(issueMap)
+    .sort((a, b) => b.count - a.count)
+    .slice(0, 10)
+    .map((e) => {
+      const s = e.sevSum / e.count;
+      return { pattern: e.pattern, count: e.count, avgSeverity: (s > 2.5 ? "Critical" : s > 1.5 ? "Medium" : "Low") as IssuePattern["avgSeverity"], screens: Array.from(e.screens) };
+    });
+
+  // Keywords
+  const allText = filtered.map((a) => a.hypothesis).join(" ");
+  const freqMap: Record<string, number> = {};
+  for (const word of allText.split(/\s+/)) {
+    const w = word.replace(/[^\uAC00-\uD7A3\w]/g, "").trim();
+    if (w.length < 2) continue;
+    freqMap[w] = (freqMap[w] ?? 0) + 1;
+  }
+  const keywords = Object.entries(freqMap)
+    .filter(([, c]) => c >= 2)
+    .sort(([, a], [, b]) => b - a)
+    .slice(0, 20)
+    .map(([word, count]) => ({ word, count }));
+
+  const projectTags = Array.from(new Set(analyses.map((a) => a.projectTag).filter((t): t is string => !!t)));
+
+  return {
+    totalAnalyses: filtered.length,
+    prevTotalAnalyses: prev.length,
+    avgScore: avg(filtered.map((a) => a.score)),
+    prevAvgScore: avg(prev.map((a) => a.score)),
+    avgDesire: {
+      utility: avg(desireRows.map((d) => d.utility)),
+      healthPride: avg(desireRows.map((d) => d.healthPride)),
+      lossAversion: avg(desireRows.map((d) => d.lossAversion)),
+    },
+    resolvedIssueRate: nonImprove.length > 0 ? Math.round((improvedIds.size / nonImprove.length) * 100) : 0,
+    scoreTimeline,
+    topIssues,
+    keywords,
+    desireTimeline,
+    projectTags,
+  };
+}
+
 // ─── Main Component ───────────────────────────────────────
 export default function DashboardPage() {
   const router = useRouter();
@@ -191,8 +305,25 @@ export default function DashboardPage() {
         return;
       }
       const data: DashboardStats = await res.json();
+
+      // DB에 데이터가 없으면 localStorage fallback
+      if (data.totalAnalyses === 0) {
+        const local = storage.getAll();
+        const filtered = projectTag ? local.filter((a) => a.projectTag === projectTag) : local;
+        if (filtered.length > 0) {
+          setStats(computeStatsFromLocal(filtered, period));
+          return;
+        }
+      }
       setStats(data);
     } catch (err) {
+      // fetch 자체가 실패하면 localStorage만으로 집계
+      const local = storage.getAll();
+      const filtered = projectTag ? local.filter((a) => a.projectTag === projectTag) : local;
+      if (filtered.length > 0) {
+        setStats(computeStatsFromLocal(filtered, period));
+        return;
+      }
       const msg = err instanceof Error && err.name === "AbortError"
         ? "요청 시간 초과 (10초)"
         : "데이터를 불러올 수 없습니다";
