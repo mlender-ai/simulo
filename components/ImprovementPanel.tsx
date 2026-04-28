@@ -47,13 +47,18 @@ export function ImprovementPanel({
   const [error, setError] = useState<string | null>(null);
   const [savingPng, setSavingPng] = useState(false);
 
-  // Options state
+  // ── Options ───────────────────────────────────────────────────────────────
+  const [variantCount, setVariantCount] = useState(1);
   const [optCriticalOnly, setOptCriticalOnly] = useState(false);
   const [optDesireAlignment, setOptDesireAlignment] = useState(true);
   const [optRestructureLayout, setOptRestructureLayout] = useState(false);
   const [targetScore, setTargetScore] = useState(
     Math.min(originalAnalysis.score + 15, 100)
   );
+
+  // Progress tracking during multi-variant generation
+  const [generatingCount, setGeneratingCount] = useState(0);
+  const [generatedCount, setGeneratedCount] = useState(0);
 
   const loadingIntervalRef = useRef<ReturnType<typeof setInterval> | null>(null);
   const iframeRef = useRef<HTMLIFrameElement>(null);
@@ -76,47 +81,59 @@ export function ImprovementPanel({
     };
   }, [panelState]); // eslint-disable-line react-hooks/exhaustive-deps
 
-  // ── Generate improvement ──────────────────────────────────────────────────
+  // ── Generate N variants sequentially ─────────────────────────────────────
   async function handleGenerate() {
-    if (variants.length >= MAX_VARIANTS) return;
     setPanelState("generating");
     setError(null);
-    try {
-      const res = await fetch("/api/generate-improvement", {
-        method: "POST",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({
-          analysisId: originalAnalysis.id,
-          analysis: {
-            score: originalAnalysis.score,
-            issues: originalAnalysis.issues,
-            thumbnailUrls: originalAnalysis.thumbnailUrls,
-            analysisOptions: originalAnalysis.analysisOptions,
-          },
-          options: {
-            criticalOnly: optCriticalOnly,
-            desireAlignment: optDesireAlignment,
-            restructureLayout: optRestructureLayout,
-            targetScore,
-          },
-          roundNumber,
-        }),
-      });
-      if (!res.ok) {
-        const errData = await res.json().catch(() => ({}));
-        throw new Error(errData.detail || errData.error || `개선안 생성 실패 (${res.status})`);
+    setGeneratingCount(variantCount);
+    setGeneratedCount(0);
+
+    const newVariants: ImproveResult[] = [];
+
+    for (let i = 0; i < variantCount; i++) {
+      try {
+        const res = await fetch("/api/generate-improvement", {
+          method: "POST",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify({
+            analysisId: originalAnalysis.id,
+            analysis: {
+              score: originalAnalysis.score,
+              issues: originalAnalysis.issues,
+              thumbnailUrls: originalAnalysis.thumbnailUrls,
+              analysisOptions: originalAnalysis.analysisOptions,
+            },
+            options: {
+              criticalOnly: optCriticalOnly,
+              desireAlignment: optDesireAlignment,
+              restructureLayout: optRestructureLayout,
+              targetScore,
+              variantIndex: i, // hint to API to generate distinct variants
+            },
+            roundNumber,
+          }),
+        });
+        if (!res.ok) {
+          const errData = await res.json().catch(() => ({}));
+          throw new Error(errData.detail || errData.error || `시안 ${i + 1} 생성 실패 (${res.status})`);
+        }
+        const data: ImproveResult = await res.json();
+        newVariants.push(data);
+        setGeneratedCount(i + 1);
+      } catch (err) {
+        console.error(`[improve] generate variant ${i + 1}:`, err);
+        setError(err instanceof Error ? err.message : `시안 ${i + 1} 생성 실패`);
+        // Continue with however many succeeded
+        break;
       }
-      const data: ImproveResult = await res.json();
-      setVariants((prev) => {
-        const next = [...prev, data];
-        setActiveVariantIdx(next.length - 1);
-        return next;
-      });
+    }
+
+    if (newVariants.length > 0) {
+      setVariants(newVariants);
+      setActiveVariantIdx(0);
       setPanelState("variants");
-    } catch (err) {
-      console.error("[improve] generate:", err);
-      setError(err instanceof Error ? err.message : "개선안 생성 실패");
-      setPanelState(variants.length > 0 ? "variants" : "idle");
+    } else {
+      setPanelState("idle");
     }
   }
 
@@ -127,7 +144,6 @@ export function ImprovementPanel({
     setSavingPng(true);
     try {
       const { toPng } = await import("html-to-image");
-      // Wait for iframe to be ready
       await new Promise<void>((resolve) => {
         if (iframe.contentDocument?.readyState === "complete") { resolve(); return; }
         iframe.addEventListener("load", () => resolve(), { once: true });
@@ -229,10 +245,34 @@ export function ImprovementPanel({
         <div className="mb-5">
           <p className="text-base font-medium text-white">✦ 개선안 생성</p>
           <p className="text-[13px] text-[var(--muted)] mt-0.5">
-            개선 라운드: {roundNumber}회차 · 최대 {MAX_VARIANTS}개 시안
+            개선 라운드: {roundNumber}회차
           </p>
         </div>
 
+        {/* Variant count selector */}
+        <div className="mb-5">
+          <p className="text-xs font-medium text-white/60 mb-2">시안 개수</p>
+          <div className="flex gap-1.5">
+            {[1, 2, 3].map((n) => (
+              <button
+                key={n}
+                onClick={() => setVariantCount(n)}
+                className={`flex-1 py-2 rounded-md text-sm font-medium transition-colors ${
+                  variantCount === n
+                    ? "bg-white text-black"
+                    : "bg-white/5 text-white/50 hover:bg-white/10 hover:text-white/80 border border-[var(--border)]"
+                }`}
+              >
+                {n}개
+              </button>
+            ))}
+          </div>
+          <p className="text-[11px] text-white/25 mt-1.5">
+            {variantCount === 1 ? "1개의 개선 시안을 생성합니다" : `서로 다른 ${variantCount}개의 시안을 순차 생성합니다`}
+          </p>
+        </div>
+
+        {/* Options */}
         <div className="mb-5">
           <p className="text-xs font-medium text-white/60 mb-2.5">개선 범위</p>
           <div className="space-y-2.5">
@@ -273,6 +313,7 @@ export function ImprovementPanel({
           </div>
         </div>
 
+        {/* Target score */}
         <div className="mb-6">
           <p className="text-xs font-medium text-white/60 mb-2">
             목표 점수 <span className="text-white/30">(선택)</span>
@@ -300,10 +341,10 @@ export function ImprovementPanel({
           onClick={handleGenerate}
           className="w-full py-2.5 rounded-md bg-white text-black text-sm font-medium hover:bg-white/90 transition-colors"
         >
-          개선안 생성하기
+          {variantCount === 1 ? "개선안 생성하기" : `개선안 ${variantCount}개 생성하기`}
         </button>
         <p className="text-center text-[11px] text-white/25 mt-2">
-          Opus 4.6 기반 생성 · 약 20-40초 소요
+          Opus 4.6 기반 · 시안당 약 20-40초 소요
         </p>
       </div>
     );
@@ -317,9 +358,9 @@ export function ImprovementPanel({
         <p className="text-sm text-white/60 text-center">
           {loadingMessages[loadingMsgIdx]}
         </p>
-        {panelState === "generating" && variants.length > 0 && (
-          <p className="text-[11px] text-white/30">
-            시안 {variants.length + 1} 생성 중…
+        {panelState === "generating" && generatingCount > 1 && (
+          <p className="text-[11px] text-white/30 mono">
+            {generatedCount} / {generatingCount} 시안 완료
           </p>
         )}
       </div>
@@ -345,19 +386,12 @@ export function ImprovementPanel({
               시안 {i + 1}
             </button>
           ))}
-          {variants.length < MAX_VARIANTS && (
-            <button
-              onClick={handleGenerate}
-              className="ml-auto px-3 py-1.5 rounded text-[11px] text-white/40 hover:text-white border border-dashed border-white/15 hover:border-white/30 transition-colors"
-            >
-              + 추가 생성
-            </button>
-          )}
-          {variants.length >= MAX_VARIANTS && (
-            <span className="ml-auto text-[11px] text-white/25 pr-1">
-              최대 {MAX_VARIANTS}개
-            </span>
-          )}
+          <button
+            onClick={() => { setVariants([]); setActiveVariantIdx(0); setError(null); setPanelState("idle"); }}
+            className="ml-auto text-[11px] text-white/25 hover:text-white/50 transition-colors px-1"
+          >
+            ↺ 다시
+          </button>
         </div>
 
         {/* Changes summary */}
