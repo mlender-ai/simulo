@@ -10,6 +10,7 @@ import {
   YAxis,
   Tooltip,
   Legend,
+  ReferenceLine,
   ResponsiveContainer,
   RadarChart,
   Radar,
@@ -84,6 +85,45 @@ interface Insights {
   nextAnalysisSuggestions: string[];
 }
 
+// ─── Scoring benchmarks ──────────────────────────────────
+const SCORE_TARGET = 70; // 목표 기준점 (차트 기준선)
+
+interface Grade {
+  label: string;
+  color: string;
+  bg: string;
+  border: string;
+}
+
+function getScoreGrade(score: number): Grade {
+  if (score >= 90) return { label: "우수", color: "#34d399", bg: "rgba(52,211,153,0.08)", border: "rgba(52,211,153,0.25)" };
+  if (score >= 70) return { label: "양호", color: "#60a5fa", bg: "rgba(96,165,250,0.08)", border: "rgba(96,165,250,0.25)" };
+  if (score >= 50) return { label: "개선 필요", color: "#f59e0b", bg: "rgba(245,158,11,0.08)", border: "rgba(245,158,11,0.25)" };
+  return { label: "미흡", color: "#ef4444", bg: "rgba(239,68,68,0.08)", border: "rgba(239,68,68,0.25)" };
+}
+
+function getDesireStatus(score: number): { label: string; color: string } {
+  if (score >= 7) return { label: "양호", color: "#34d399" };
+  if (score >= 5) return { label: "보통", color: "#f59e0b" };
+  return { label: "개선 필요", color: "#ef4444" };
+}
+
+/** +/- 2점 이하는 유지로 간주 */
+function getTrendLabel(current: number, prev: number): { label: string; color: string } | null {
+  if (prev === 0) return null;
+  const diff = current - prev;
+  if (diff > 2) return { label: "개선 중", color: "#34d399" };
+  if (diff < -2) return { label: "하락 주의", color: "#ef4444" };
+  return { label: "유지", color: "#888" };
+}
+
+function getResolvedRateStatus(rate: number): { label: string; color: string; desc: string } {
+  if (rate === 0) return { label: "재분석 없음", color: "#888", desc: "개선 분석을 실행하면 이슈 해결률이 집계됩니다" };
+  if (rate < 30) return { label: "낮음", color: "#ef4444", desc: "발견된 이슈 대비 개선 실행이 부족합니다" };
+  if (rate < 70) return { label: "보통", color: "#f59e0b", desc: "일부 이슈가 재분석으로 해결되고 있습니다" };
+  return { label: "활발", color: "#34d399", desc: "발견한 이슈를 지속적으로 개선하고 있습니다" };
+}
+
 // ─── Chart line colors per project tag ───────────────────
 const LINE_COLORS = [
   "#60a5fa", "#34d399", "#f59e0b", "#f472b6", "#a78bfa",
@@ -104,15 +144,44 @@ function Delta({ current, prev, unit = "" }: { current: number; prev: number; un
   );
 }
 
-function MiniBar({ value, max = 10, color }: { value: number; max?: number; color: string }) {
+function MiniBar({ value, max = 10, color, threshold }: { value: number; max?: number; color: string; threshold?: number }) {
   const pct = Math.min(100, (value / max) * 100);
+  const thresholdPct = threshold !== undefined ? Math.min(100, (threshold / max) * 100) : null;
   return (
     <div className="flex items-center gap-2">
-      <div className="flex-1 h-1.5 rounded-full bg-white/10 overflow-hidden">
+      <div className="flex-1 h-1.5 rounded-full bg-white/10 overflow-hidden relative">
         <div style={{ width: `${pct}%`, background: color }} className="h-full rounded-full transition-all" />
+        {thresholdPct !== null && (
+          <div
+            className="absolute top-0 bottom-0 w-px bg-white/30"
+            style={{ left: `${thresholdPct}%` }}
+          />
+        )}
       </div>
       <span className="text-xs font-mono text-white w-6 text-right">{value}</span>
     </div>
+  );
+}
+
+function GradeBadge({ score }: { score: number }) {
+  const grade = getScoreGrade(score);
+  return (
+    <span
+      className="text-[10px] px-2 py-0.5 rounded-full font-medium"
+      style={{ color: grade.color, background: grade.bg, border: `1px solid ${grade.border}` }}
+    >
+      {grade.label}
+    </span>
+  );
+}
+
+function DesireStatusDot({ score }: { score: number }) {
+  const { color } = getDesireStatus(score);
+  return (
+    <span
+      className="inline-block w-1.5 h-1.5 rounded-full shrink-0"
+      style={{ background: color }}
+    />
   );
 }
 
@@ -497,84 +566,172 @@ export default function DashboardPage() {
           </div>
         ) : (
           <>
+            {/* ── 상태 요약 배너 ── */}
+            {stats.totalAnalyses > 0 && (() => {
+              const grade = getScoreGrade(stats.avgScore);
+              const trend = getTrendLabel(stats.avgScore, stats.prevAvgScore);
+              return (
+                <div
+                  className="flex items-center gap-3 px-4 py-3 rounded-lg mb-6 text-sm"
+                  style={{ background: grade.bg, border: `1px solid ${grade.border}` }}
+                >
+                  <span style={{ color: grade.color }} className="font-semibold shrink-0">
+                    현재 상태: {grade.label}
+                  </span>
+                  <span className="text-[var(--muted)]">·</span>
+                  <span className="text-[var(--muted)]">
+                    평균 <span className="text-white font-mono">{stats.avgScore}</span>점
+                    {trend && (
+                      <>
+                        {" "}—{" "}
+                        <span style={{ color: trend.color }}>{trend.label}</span>
+                      </>
+                    )}
+                  </span>
+                  {stats.avgScore < SCORE_TARGET && (
+                    <>
+                      <span className="text-[var(--muted)]">·</span>
+                      <span className="text-[var(--muted)]">
+                        목표까지{" "}
+                        <span className="text-white font-mono">
+                          {(SCORE_TARGET - stats.avgScore).toFixed(1)}점
+                        </span>{" "}
+                        남음
+                      </span>
+                    </>
+                  )}
+                </div>
+              );
+            })()}
+
             {/* ── Section 1: Summary Cards ── */}
             <div className="grid grid-cols-2 md:grid-cols-4 gap-4 mb-8">
               {/* Card A: 총 분석 횟수 */}
               <div className="bg-[var(--surface)] border border-[var(--border)] rounded-lg p-5">
                 <div className="text-xs text-[var(--muted)] mb-2">총 분석 횟수</div>
                 <div className="text-3xl font-bold font-mono mb-1">{stats.totalAnalyses}</div>
-                <div className="text-xs text-[var(--muted)] mb-1">건</div>
+                <div className="text-xs text-[var(--muted)] mb-2">건</div>
                 <Delta current={stats.totalAnalyses} prev={stats.prevTotalAnalyses} unit="건" />
+                {stats.prevTotalAnalyses > 0 && (() => {
+                  const trend = getTrendLabel(stats.totalAnalyses, stats.prevTotalAnalyses);
+                  return trend ? (
+                    <span className="text-[10px] ml-1" style={{ color: trend.color }}>
+                      {trend.label}
+                    </span>
+                  ) : null;
+                })()}
               </div>
 
               {/* Card B: 평균 사용성 점수 */}
               <div className="bg-[var(--surface)] border border-[var(--border)] rounded-lg p-5">
                 <div className="text-xs text-[var(--muted)] mb-2">평균 사용성 점수</div>
-                <div className="text-3xl font-bold font-mono mb-1">{stats.avgScore}</div>
-                <div className="text-xs text-[var(--muted)] mb-1">/ 100</div>
+                <div className="flex items-baseline gap-2 mb-1">
+                  <span className="text-3xl font-bold font-mono">{stats.avgScore}</span>
+                  <span className="text-xs text-[var(--muted)]">/ 100</span>
+                </div>
+                <div className="flex items-center gap-2 mb-2">
+                  <GradeBadge score={stats.avgScore} />
+                  <span className="text-[10px] text-[var(--muted)]">목표 {SCORE_TARGET}점</span>
+                </div>
+                {/* Progress bar toward target */}
+                <div className="h-1 rounded-full bg-white/10 overflow-hidden mb-2">
+                  <div
+                    className="h-full rounded-full transition-all"
+                    style={{
+                      width: `${Math.min(100, (stats.avgScore / 100) * 100)}%`,
+                      background: getScoreGrade(stats.avgScore).color,
+                    }}
+                  />
+                </div>
                 <Delta current={stats.avgScore} prev={stats.prevAvgScore} unit="점" />
+                {stats.prevAvgScore > 0 && (() => {
+                  const trend = getTrendLabel(stats.avgScore, stats.prevAvgScore);
+                  return trend ? (
+                    <span className="text-[10px] ml-1" style={{ color: trend.color }}>
+                      {trend.label}
+                    </span>
+                  ) : null;
+                })()}
               </div>
 
               {/* Card C: 욕망 충족도 */}
               <div className="bg-[var(--surface)] border border-[var(--border)] rounded-lg p-5">
                 <div className="text-xs text-[var(--muted)] mb-3">욕망 충족도 평균</div>
-                <div className="space-y-2">
-                  <div>
-                    <div className="flex justify-between text-[10px] text-[var(--muted)] mb-1">
-                      <span>효능감</span>
-                      {lowestDesireKey === "utility" && (
-                        <span className="text-amber-400">최저</span>
-                      )}
-                    </div>
-                    <MiniBar value={stats.avgDesire.utility} color="#60a5fa" />
-                  </div>
-                  <div>
-                    <div className="flex justify-between text-[10px] text-[var(--muted)] mb-1">
-                      <span>성취·과시</span>
-                      {lowestDesireKey === "healthPride" && (
-                        <span className="text-amber-400">최저</span>
-                      )}
-                    </div>
-                    <MiniBar value={stats.avgDesire.healthPride} color="#a78bfa" />
-                  </div>
-                  <div>
-                    <div className="flex justify-between text-[10px] text-[var(--muted)] mb-1">
-                      <span>손실회피</span>
-                      {lowestDesireKey === "lossAversion" && (
-                        <span className="text-amber-400">최저</span>
-                      )}
-                    </div>
-                    <MiniBar value={stats.avgDesire.lossAversion} color="#f97316" />
-                  </div>
+                <div className="space-y-2.5">
+                  {([
+                    { key: "utility" as const, label: "효능감", color: "#60a5fa" },
+                    { key: "healthPride" as const, label: "성취·과시", color: "#a78bfa" },
+                    { key: "lossAversion" as const, label: "손실회피", color: "#f97316" },
+                  ]).map(({ key, label, color }) => {
+                    const val = stats.avgDesire[key];
+                    const status = getDesireStatus(val);
+                    return (
+                      <div key={key}>
+                        <div className="flex justify-between items-center text-[10px] mb-1">
+                          <div className="flex items-center gap-1.5">
+                            <DesireStatusDot score={val} />
+                            <span className="text-[var(--muted)]">{label}</span>
+                          </div>
+                          <span style={{ color: status.color }} className="font-medium">
+                            {val > 0 ? status.label : "—"}
+                          </span>
+                        </div>
+                        <MiniBar value={val} color={color} threshold={7} />
+                      </div>
+                    );
+                  })}
                 </div>
-                {lowestDesireKey && (
+                {lowestDesireKey && stats.avgDesire[lowestDesireKey] > 0 && (
                   <div className="mt-2 text-[10px] text-amber-400">
-                    ↓ {desireLabels[lowestDesireKey]} 가장 낮음
+                    ↓ {desireLabels[lowestDesireKey]} 집중 개선 필요
                   </div>
                 )}
+                <div className="mt-1.5 text-[10px] text-[var(--muted)]">
+                  ┃ = 목표 기준 (7/10)
+                </div>
               </div>
 
               {/* Card D: 해결된 이슈 비율 */}
-              <div className="bg-[var(--surface)] border border-[var(--border)] rounded-lg p-5">
-                <div className="text-xs text-[var(--muted)] mb-2">해결된 이슈 비율</div>
-                <div className="flex items-center justify-center my-3">
-                  <div className="relative w-20 h-20">
-                    <svg viewBox="0 0 36 36" className="w-20 h-20 -rotate-90">
-                      <circle cx="18" cy="18" r="15.9" fill="none" stroke="#ffffff10" strokeWidth="3" />
-                      <circle
-                        cx="18" cy="18" r="15.9" fill="none"
-                        stroke="#34d399" strokeWidth="3"
-                        strokeDasharray={`${stats.resolvedIssueRate} ${100 - stats.resolvedIssueRate}`}
-                        strokeLinecap="round"
-                      />
-                    </svg>
-                    <span className="absolute inset-0 flex items-center justify-center text-sm font-bold font-mono">
-                      {stats.resolvedIssueRate}%
-                    </span>
+              {(() => {
+                const rateStatus = getResolvedRateStatus(stats.resolvedIssueRate);
+                return (
+                  <div className="bg-[var(--surface)] border border-[var(--border)] rounded-lg p-5">
+                    <div className="text-xs text-[var(--muted)] mb-2">이슈 해결률</div>
+                    <div className="flex items-center justify-center my-2">
+                      <div className="relative w-16 h-16">
+                        <svg viewBox="0 0 36 36" className="w-16 h-16 -rotate-90">
+                          <circle cx="18" cy="18" r="15.9" fill="none" stroke="#ffffff10" strokeWidth="3" />
+                          <circle
+                            cx="18" cy="18" r="15.9" fill="none"
+                            stroke={rateStatus.color}
+                            strokeWidth="3"
+                            strokeDasharray={`${stats.resolvedIssueRate} ${100 - stats.resolvedIssueRate}`}
+                            strokeLinecap="round"
+                          />
+                        </svg>
+                        <span className="absolute inset-0 flex items-center justify-center text-sm font-bold font-mono">
+                          {stats.resolvedIssueRate}%
+                        </span>
+                      </div>
+                    </div>
+                    <div className="text-center">
+                      <span
+                        className="text-[10px] font-medium px-2 py-0.5 rounded-full"
+                        style={{
+                          color: rateStatus.color,
+                          background: `${rateStatus.color}15`,
+                          border: `1px solid ${rateStatus.color}30`,
+                        }}
+                      >
+                        {rateStatus.label}
+                      </span>
+                    </div>
+                    <div className="text-[10px] text-center text-[var(--muted)] mt-2 leading-snug">
+                      {rateStatus.desc}
+                    </div>
                   </div>
-                </div>
-                <div className="text-[10px] text-center text-[var(--muted)]">재분석으로 개선된 분석</div>
-              </div>
+                );
+              })()}
             </div>
 
             {/* ── Section 2: 점수 추이 차트 ── */}
@@ -613,7 +770,7 @@ export default function DashboardPage() {
               ) : (
                 <div className="overflow-x-auto">
                   <div style={{ minWidth: Math.max(400, chartData.length * 40) }}>
-                    <ResponsiveContainer width="100%" height={260}>
+                    <ResponsiveContainer width="100%" height={280}>
                       <LineChart data={chartData} margin={{ top: 4, right: 16, left: 0, bottom: 4 }}>
                         <XAxis
                           dataKey="date"
@@ -632,6 +789,26 @@ export default function DashboardPage() {
                         />
                         <Tooltip content={<ScoreTooltip />} />
                         <Legend wrapperStyle={{ fontSize: 11, paddingTop: 8 }} />
+
+                        {/* 등급 구간 기준선 */}
+                        <ReferenceLine
+                          y={90}
+                          stroke="rgba(52,211,153,0.2)"
+                          strokeDasharray="4 4"
+                          label={{ value: "우수 90", position: "insideTopRight", fontSize: 9, fill: "rgba(52,211,153,0.5)" }}
+                        />
+                        <ReferenceLine
+                          y={SCORE_TARGET}
+                          stroke="rgba(96,165,250,0.4)"
+                          strokeDasharray="6 3"
+                          label={{ value: `목표 ${SCORE_TARGET}`, position: "insideTopRight", fontSize: 9, fill: "rgba(96,165,250,0.7)" }}
+                        />
+                        <ReferenceLine
+                          y={50}
+                          stroke="rgba(239,68,68,0.2)"
+                          strokeDasharray="4 4"
+                          label={{ value: "미흡 50", position: "insideTopRight", fontSize: 9, fill: "rgba(239,68,68,0.4)" }}
+                        />
 
                         {/* Per-tag score lines */}
                         {Array.from(allProjectTags).map((tag, i) => (
@@ -709,7 +886,20 @@ export default function DashboardPage() {
             <div className="grid grid-cols-1 lg:grid-cols-2 gap-6 mb-6">
               {/* Section 3: 반복 이슈 TOP */}
               <div className="bg-[var(--surface)] border border-[var(--border)] rounded-lg p-6">
-                <h2 className="text-sm font-semibold mb-4">반복 이슈 TOP {stats.topIssues.length}</h2>
+                <div className="flex items-center justify-between mb-4">
+                  <h2 className="text-sm font-semibold">반복 이슈 TOP {stats.topIssues.length}</h2>
+                  {(() => {
+                    const urgentCount = stats.topIssues.filter(
+                      (i) => i.avgSeverity === "Critical" && i.count >= 2
+                    ).length;
+                    return urgentCount > 0 ? (
+                      <span className="text-[10px] px-2 py-1 rounded-md font-medium"
+                        style={{ background: "rgba(239,68,68,0.1)", color: "#ef4444", border: "1px solid rgba(239,68,68,0.25)" }}>
+                        ⚡ 즉각 조치 {urgentCount}건
+                      </span>
+                    ) : null;
+                  })()}
+                </div>
                 {stats.topIssues.length === 0 ? (
                   <p className="text-sm text-[var(--muted)]">분석 데이터가 없습니다</p>
                 ) : (
@@ -730,9 +920,23 @@ export default function DashboardPage() {
                               <div className="flex items-center gap-2 flex-wrap">
                                 <span className="text-sm text-white leading-snug">{issue.pattern}</span>
                                 <SeverityBadge severity={issue.avgSeverity} />
+                                {issue.avgSeverity === "Critical" && issue.count >= 3 && (
+                                  <span className="text-[10px] text-red-400 font-medium">즉각 조치</span>
+                                )}
                               </div>
-                              <div className="flex items-center gap-2 mt-1">
-                                <span className="text-xs text-[var(--muted)]">{issue.count}회 발생</span>
+                              <div className="flex items-center gap-2 mt-1.5">
+                                {/* 빈도 임팩트 바 */}
+                                <div className="flex-1 h-1 rounded-full bg-white/10 overflow-hidden max-w-[60px]">
+                                  <div
+                                    className="h-full rounded-full"
+                                    style={{
+                                      width: `${Math.min(100, (issue.count / (stats.topIssues[0]?.count || 1)) * 100)}%`,
+                                      background: issue.avgSeverity === "Critical" ? "#ef4444" :
+                                                  issue.avgSeverity === "Medium" ? "#f59e0b" : "#666",
+                                    }}
+                                  />
+                                </div>
+                                <span className="text-xs text-[var(--muted)]">{issue.count}회</span>
                                 {issue.screens.length > 0 && (
                                   <span className="text-xs text-[var(--muted)]">
                                     · {issue.screens.slice(0, 2).join(", ")}
@@ -829,38 +1033,63 @@ export default function DashboardPage() {
                       </RadarChart>
                     </ResponsiveContainer>
                   </div>
-                  <div className="flex-1 space-y-4">
+                  <div className="flex-1 space-y-5">
                     {[
                       { key: "utility", label: "효능감", desc: "보상이 명확하게 인식되는가", color: "#60a5fa" },
                       { key: "healthPride", label: "성취·과시", desc: "성취감 전달 및 공유 욕구 자극", color: "#a78bfa" },
                       { key: "lossAversion", label: "손실회피", desc: "오늘 안 하면 손해라는 인식", color: "#f97316" },
                     ].map(({ key, label, desc, color }) => {
                       const val = stats.avgDesire[key as keyof typeof stats.avgDesire];
+                      const status = getDesireStatus(val);
                       const isLowest = lowestDesireKey === key;
                       return (
                         <div key={key}>
-                          <div className="flex justify-between text-xs mb-1">
+                          <div className="flex justify-between text-xs mb-1.5">
                             <div className="flex items-center gap-2">
-                              <span
-                                className="inline-block w-2 h-2 rounded-full"
-                                style={{ background: color }}
-                              />
+                              <span className="inline-block w-2 h-2 rounded-full" style={{ background: color }} />
                               <span className={`font-medium ${isLowest ? "text-amber-400" : "text-white"}`}>
-                                {label} {isLowest && "⚠"}
+                                {label}
                               </span>
                             </div>
-                            <span className="font-mono text-white">{val} / 10</span>
+                            <div className="flex items-center gap-2">
+                              <span
+                                className="text-[10px] px-1.5 py-0.5 rounded-full font-medium"
+                                style={{
+                                  color: status.color,
+                                  background: `${status.color}15`,
+                                  border: `1px solid ${status.color}30`,
+                                }}
+                              >
+                                {val > 0 ? status.label : "데이터 없음"}
+                              </span>
+                              <span className="font-mono text-white">{val} / 10</span>
+                            </div>
                           </div>
-                          <div className="h-1.5 rounded-full bg-white/10 overflow-hidden mb-1">
-                            <div
-                              className="h-full rounded-full"
-                              style={{ width: `${(val / 10) * 100}%`, background: color }}
-                            />
+                          {/* 진행 바 + 목표선 */}
+                          <div className="h-1.5 rounded-full bg-white/10 overflow-hidden mb-1 relative">
+                            <div className="h-full rounded-full transition-all" style={{ width: `${(val / 10) * 100}%`, background: color }} />
+                            {/* 목표 7점 기준선 */}
+                            <div className="absolute top-0 bottom-0 w-px bg-white/40" style={{ left: "70%" }} />
                           </div>
-                          <p className="text-[10px] text-[var(--muted)]">{desc}</p>
+                          <div className="flex justify-between">
+                            <p className="text-[10px] text-[var(--muted)]">{desc}</p>
+                            {val < 7 && val > 0 && (
+                              <p className="text-[10px] text-amber-400">
+                                목표까지 {(7 - val).toFixed(1)}점
+                              </p>
+                            )}
+                          </div>
                         </div>
                       );
                     })}
+                    <div className="pt-2 border-t border-[var(--border)]">
+                      <div className="flex items-center gap-3 text-[10px] text-[var(--muted)]">
+                        <span className="flex items-center gap-1"><span className="inline-block w-2 h-0.5 bg-white/40" /> 목표 기준 (7/10)</span>
+                        <span className="flex items-center gap-1"><span className="inline-block w-2 h-1.5 rounded-full bg-emerald-400/50" /> 양호 7+</span>
+                        <span className="flex items-center gap-1"><span className="inline-block w-2 h-1.5 rounded-full bg-amber-400/50" /> 보통 5-6</span>
+                        <span className="flex items-center gap-1"><span className="inline-block w-2 h-1.5 rounded-full bg-red-400/50" /> 개선 필요 5미만</span>
+                      </div>
+                    </div>
                   </div>
                 </div>
               ) : (
