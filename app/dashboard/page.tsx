@@ -345,6 +345,7 @@ export default function DashboardPage() {
   const [insights, setInsights] = useState<Insights | null>(null);
   const [loadingInsights, setLoadingInsights] = useState(false);
   const [insightsCached, setInsightsCached] = useState(false);
+  const [insightsInsufficient, setInsightsInsufficient] = useState(false);
   const [expandedIssueIdx, setExpandedIssueIdx] = useState<number | null>(null);
 
   // Active score lines
@@ -359,6 +360,7 @@ export default function DashboardPage() {
     setLoadingStats(true);
     setStatsError(null);
     setInsights(null);
+    setInsightsInsufficient(false);
     try {
       const controller = new AbortController();
       const timer = setTimeout(() => controller.abort(), 10000);
@@ -418,6 +420,7 @@ export default function DashboardPage() {
       const data = await res.json();
       setInsights(data.insights as Insights);
       setInsightsCached(data.cached);
+      setInsightsInsufficient(data.insufficient ?? false);
     } catch {
       // ignore
     } finally {
@@ -1111,14 +1114,20 @@ export default function DashboardPage() {
                 </div>
                 <button
                   onClick={generateInsights}
-                  disabled={loadingInsights || stats.totalAnalyses === 0}
+                  disabled={loadingInsights || stats.totalAnalyses < 3}
                   className="px-4 py-2 bg-white text-black text-sm font-medium rounded-md hover:bg-white/90 disabled:opacity-40 disabled:cursor-not-allowed transition-colors"
                 >
                   {loadingInsights ? "분석 중..." : "인사이트 생성하기"}
                 </button>
               </div>
 
-              {!insights && !loadingInsights && (
+              {stats.totalAnalyses < 3 && !loadingInsights && (
+                <div className="border border-dashed border-[var(--border)] rounded-lg py-8 flex flex-col items-center justify-center text-[var(--muted)]">
+                  <p className="text-sm">분석 {3 - stats.totalAnalyses}개를 더 완료하면 인사이트를 생성할 수 있습니다</p>
+                  <p className="text-xs mt-1">현재 {stats.totalAnalyses}개 · 최소 3개 필요</p>
+                </div>
+              )}
+              {stats.totalAnalyses >= 3 && !insights && !loadingInsights && (
                 <div className="border border-dashed border-[var(--border)] rounded-lg py-10 flex flex-col items-center justify-center text-[var(--muted)]">
                   <span className="text-2xl mb-2">✦</span>
                   <p className="text-sm">버튼을 눌러 AI 인사이트를 생성하세요</p>
