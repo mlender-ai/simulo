@@ -36,4 +36,5 @@ export interface BaseHandlerParams {
   analysisPerspective?: AnalysisPerspectiveInput;
   ocrContext?: string;
   productMode?: "yafit" | "general";
+  domain?: string;
 }

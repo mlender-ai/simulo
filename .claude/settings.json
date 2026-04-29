@@ -1,0 +1,15 @@
+{
+  "hooks": {
+    "Stop": [
+      {
+        "hooks": [
+          {
+            "type": "command",
+            "command": "cd /Users/yanadoo/simulo && git add -A && git diff --cached --quiet || (git commit -m 'chore: auto-sync from Claude Code' && git push origin main --quiet)",
+            "timeout": 30
+          }
+        ]
+      }
+    ]
+  }
+}

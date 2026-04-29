@@ -16,7 +16,7 @@ import {
 import { OnboardingBanner } from "@/components/OnboardingBanner";
 import { Tooltip } from "@/components/Tooltip";
 import { storage, type AnalysisResult } from "@/lib/storage";
-import { getLocale, t, type Locale } from "@/lib/i18n";
+import { getLocale, t, tMode, type Locale } from "@/lib/i18n";
 import OCRReviewModal from "@/components/OCRReviewModal";
 import type { OCRResult } from "@/lib/ocr";
 import { type ProductMode, getProductMode, setProductMode as persistProductMode } from "@/lib/productMode";
@@ -94,6 +94,7 @@ export default function Home() {
     accessibility: false,
   });
   const [productMode, setProductModeState] = useState<ProductMode>("yafit");
+  const [domain, setDomain] = useState("");
 
   const handleProductModeChange = (m: ProductMode) => {
     setProductModeState(m);
@@ -105,6 +106,24 @@ export default function Home() {
         desireAlignment: false,
         accessibility: false,
       }));
+      // Disable yafit-only perspective items
+      setAnalysisPerspective((prev) => ({
+        ...prev,
+        desire: false,
+        accessibility: false,
+      }));
+    } else {
+      // Restore defaults for yafit mode
+      setAnalysisOptions((prev) => ({
+        ...prev,
+        desireAlignment: true,
+      }));
+      setAnalysisPerspective((prev) => ({
+        ...prev,
+        desire: true,
+        accessibility: true,
+      }));
+      setDomain("");
     }
   };
 
@@ -223,6 +242,7 @@ export default function Home() {
       analysisOptions: mode === "usability" ? analysisOptions : undefined,
       analysisPerspective: effectivePerspective,
       productMode,
+      domain: domain || undefined,
       ...(ocrReview ? { ocrReview } : {}),
     };
     return isComparison
@@ -334,7 +354,7 @@ export default function Home() {
                 }`}
               >
                 {i < loadingStep ? "✓" : i === loadingStep ? "→" : " "}{" "}
-                {t(key, locale)}
+                {tMode(key, locale, productMode)}
               </p>
             ))}
           </div>
@@ -430,6 +450,8 @@ export default function Home() {
           inputReady={inputReady}
           contextReady={contextReady}
           productMode={productMode}
+          domain={domain}
+          onDomainChange={setDomain}
         />
 
         {error && (

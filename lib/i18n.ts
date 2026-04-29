@@ -717,3 +717,68 @@ export function useT(): (key: TranslationKey) => string {
   const locale = getLocale();
   return (key: TranslationKey) => t(key, locale);
 }
+
+// ─── General mode overrides ─────────────────────────────────────────────────
+// Replaces YafitMove-specific examples/labels with generic ones.
+
+const generalOverridesKo: Partial<Record<TranslationKey, string>> = {
+  hypothesisPlaceholder:
+    "예: 신규 유저가 가입 후 핵심 기능을 처음 사용하는 과정에서 이탈 없이 완료할 수 있는가?",
+  targetUserPlaceholder:
+    "화면을 사용할 유저를 설명해주세요. 예: 30대 직장인, 처음 서비스를 설치한 신규 유저",
+  targetUserOptionalPlaceholder:
+    "선택사항. 비우면 일반 사용자로 분석합니다.",
+  taskPlaceholder:
+    "비워두면 가설에서 자동 추론합니다. 예: 메인 화면에서 핵심 기능을 찾아 첫 번째 액션을 완료한다",
+  projectTagPlaceholder: "예: 온보딩 개선 v2, 메인화면 UX, 결제 플로우",
+  loadingStep2: "타깃 유저 페르소나를 구성 중...",
+  noAnalysesFound:
+    "아직 분석 기록이 없습니다. 화면을 업로드하고 첫 번째 UX 검증을 시작해보세요.",
+  tooltipImageUpload:
+    "앱/웹 화면의 스크린샷을 업로드합니다. 여러 장 올리면 각 화면을 함께 분석합니다.",
+  tooltipHypothesis:
+    "검증하고 싶은 내용을 질문 형태로 적어주세요. 구체적인 행동과 기대 결과를 포함할수록 분석이 정확해집니다.",
+  tooltipTargetUser:
+    "이 화면을 사용할 유저를 묘사해주세요. 나이, 서비스 사용 경험 등을 포함하면 더 정확한 시뮬레이션이 가능합니다.",
+  screenDescriptionPlaceholder:
+    "예: 메인 홈 화면. 상단 탭은 주요 카테고리로 이동. 하단 CTA는 핵심 액션으로 연결.",
+  stepNamePlaceholder: "예: 앱 진입, 핵심 기능, 결제, 완료",
+  comparisonFocusPlaceholder: "예: 온보딩 플로우, 핵심 기능 접근성, 정보 구조",
+  productNamePlaceholder: "제품명",
+  competitorNamePlaceholder: "경쟁사명",
+  oursDescriptionPlaceholder: "자사 제품 화면 설명을 입력하세요.",
+  competitorDescriptionPlaceholder: "경쟁사 화면 설명을 입력하세요.",
+};
+
+const generalOverridesEn: Partial<Record<TranslationKey, string>> = {
+  hypothesisPlaceholder:
+    "e.g., Can a new user complete the core action on first use without dropping off?",
+  targetUserPlaceholder:
+    "Describe who will use this. e.g. 30s professional, first-time user who just installed the app",
+  targetUserOptionalPlaceholder:
+    "Optional. Defaults to general user if left blank.",
+  taskPlaceholder:
+    "Auto-inferred from hypothesis if empty. e.g. Find the core feature on the main screen and complete the first action",
+  projectTagPlaceholder: "e.g. Onboarding v2, Main UX, Checkout Flow",
+  loadingStep2: "Building target user persona...",
+  noAnalysesFound:
+    "No analyses yet. Upload screens and start your first UX validation.",
+  tooltipImageUpload:
+    "Upload screenshots of your app or web screens. Upload multiple to analyze them together.",
+  tooltipHypothesis:
+    "Write what you want to validate as a question. The more specific the action and expected outcome, the more accurate the analysis.",
+  tooltipTargetUser:
+    "Describe who will use this screen. Including age and experience leads to a more accurate simulation.",
+};
+
+export function tMode(
+  key: TranslationKey,
+  locale: Locale | undefined,
+  productMode: "yafit" | "general" = "yafit"
+): string {
+  if (productMode === "general") {
+    const overrides = locale === "en" ? generalOverridesEn : generalOverridesKo;
+    if (overrides[key]) return overrides[key]!;
+  }
+  return t(key, locale);
+}

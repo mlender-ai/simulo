@@ -31,6 +31,7 @@ export interface BuildSystemPromptParams {
   inputShape?: InputShape; // default "single"
   locale?: string;         // "ko" | "en" (default "en")
   productMode?: "yafit" | "general"; // default "yafit"
+  domain?: string;         // general mode domain category
 }
 
 // ──────────────────────────────────────────────
@@ -790,6 +791,7 @@ export function buildSystemPrompt(params: BuildSystemPromptParams): string {
     inputShape = "single",
     locale = "en",
     productMode = "yafit",
+    domain,
   } = params;
 
   const isKo = isKoLocale(locale);
@@ -836,6 +838,26 @@ export function buildSystemPrompt(params: BuildSystemPromptParams): string {
 
   if (hasCompetitor || inputShape === "comparison" || analysisOptions.competitorComparison) {
     layers.push(isKo ? COMPARISON_LAYER_KO : COMPARISON_LAYER_EN);
+  }
+
+  // Domain context — general mode only
+  if (isGeneral && domain) {
+    const domainLabels: Record<string, { ko: string; en: string }> = {
+      ecommerce:  { ko: "이커머스/쇼핑",    en: "e-commerce / shopping" },
+      fintech:    { ko: "금융/핀테크",       en: "fintech / finance" },
+      health:     { ko: "헬스/피트니스",     en: "health / fitness" },
+      social:     { ko: "소셜/커뮤니티",     en: "social / community" },
+      saas:       { ko: "SaaS/생산성",       en: "SaaS / productivity" },
+      travel:     { ko: "여행/숙박",         en: "travel / accommodation" },
+      education:  { ko: "교육",              en: "education" },
+      other:      { ko: "기타 서비스",       en: "general digital service" },
+    };
+    const label = domainLabels[domain] ?? domainLabels.other;
+    layers.push(
+      isKo
+        ? `## 서비스 도메인\n이 화면은 **${label.ko}** 서비스입니다. 해당 도메인의 일반적인 UX 패턴, 사용자 기대, 업계 관행을 기준으로 평가하세요.`
+        : `## Service Domain\nThis screen belongs to a **${label.en}** service. Evaluate using UX patterns, user expectations, and industry norms for this domain.`
+    );
   }
 
   return layers.join(SEPARATOR);

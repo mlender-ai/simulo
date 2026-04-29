@@ -41,9 +41,11 @@ export async function POST(request: NextRequest) {
       isImprovement: rawIsImprovement,
       url: rawUrl,
       productMode: rawProductMode,
+      domain: rawDomain,
     } = body;
 
     const productMode: "yafit" | "general" = rawProductMode === "general" ? "general" : "yafit";
+    const domain: string | undefined = typeof rawDomain === "string" && rawDomain ? rawDomain : undefined;
 
     const images: string[] = Array.isArray(rawImages) ? rawImages : [];
 
@@ -138,6 +140,7 @@ export async function POST(request: NextRequest) {
       analysisPerspective: analysisPerspective as AnalysisPerspectiveInput | undefined,
       ocrContext,
       productMode,
+      domain,
     };
 
     // ── Route to input-type handler via plugin registry ──
