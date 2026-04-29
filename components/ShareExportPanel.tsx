@@ -18,7 +18,7 @@ export function ShareExportPanel({ analysisId, analysisData, showPng = false }: 
   const { get, isActive, run, clearError } = useExportStatus();
 
   // Collect any active error to display
-  const formats = ["pdf", "docx", "png", "md", "jira"] as const;
+  const formats = ["pdf", "docx", "png", "md", "csv", "jira"] as const;
   const activeError = formats.map((f) => get(f)).find((s) => s.stage === "error")?.error ?? null;
 
   const shareUrl =
@@ -108,6 +108,14 @@ export function ShareExportPanel({ analysisId, analysisData, showPng = false }: 
     );
   }, [analysisId, fetchExport, run]);
 
+  const handleCSV = useCallback(() => {
+    run(
+      "csv",
+      () => fetchExport(`/api/export/csv/${analysisId}`),
+      (blob) => triggerDownload(blob, `simulo-issues-${analysisId}.csv`)
+    );
+  }, [analysisId, fetchExport, run]);
+
   const handleJira = useCallback(() => {
     run(
       "jira",
@@ -185,7 +193,7 @@ export function ShareExportPanel({ analysisId, analysisData, showPng = false }: 
           <div className="p-4 border-b border-[var(--border)]">
             <p className="text-xs font-medium text-white/80 mb-1">실무 연결</p>
             <p className="text-[10px] text-white/40 mb-2">분석 결과를 바로 업무에 활용</p>
-            <div className="flex gap-2">
+            <div className="flex gap-2 mb-2">
               <ExportButton
                 label="Markdown"
                 status={get("md")}
@@ -199,6 +207,15 @@ export function ShareExportPanel({ analysisId, analysisData, showPng = false }: 
                 disabled={isActive("jira")}
                 onClick={handleJira}
                 title="Jira 티켓 드래프트 생성"
+              />
+            </div>
+            <div className="flex gap-2">
+              <ExportButton
+                label="CSV (이슈 목록)"
+                status={get("csv")}
+                disabled={isActive("csv")}
+                onClick={handleCSV}
+                title="이슈 목록을 CSV로 내보내기 (Excel 호환)"
               />
             </div>
           </div>

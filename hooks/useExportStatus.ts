@@ -9,7 +9,7 @@ import { useState, useCallback } from "react";
 
 export type ExportStage = "idle" | "validating" | "generating" | "ready" | "error";
 
-export type ExportFormat = "pdf" | "docx" | "png" | "md" | "jira";
+export type ExportFormat = "pdf" | "docx" | "png" | "md" | "csv" | "jira";
 
 export interface ExportStatus {
   stage: ExportStage;
@@ -23,6 +23,7 @@ const INITIAL: StatusMap = {
   docx: { stage: "idle" },
   png: { stage: "idle" },
   md: { stage: "idle" },
+  csv: { stage: "idle" },
   jira: { stage: "idle" },
 };
 

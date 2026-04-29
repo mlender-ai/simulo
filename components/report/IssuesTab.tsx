@@ -40,6 +40,7 @@ export function IssuesTab({
   onSetHoveredIssue,
 }: IssuesTabProps) {
   const [hypothesisFilterOn, setHypothesisFilterOn] = useState(false);
+  const [severityFilter, setSeverityFilter] = useState<"All" | "Critical" | "Medium" | "Low">("All");
   const safeIssues = data.issues ?? [];
   const safeThumbnailUrls = data.thumbnailUrls ?? [];
   const hasThumbnails = safeThumbnailUrls.some((u) => u !== STRIPPED_IMAGE);
@@ -79,54 +80,68 @@ export function IssuesTab({
     ? `${t("stepLabel", locale)} ${selectedScreen + 1}: ${data.flowSteps[selectedScreen].stepName}`
     : `${t("screenLabel", locale)} ${selectedScreen + 1}`;
 
-  const filteredVisibleWithIdx = visibleWithGlobalIdx.filter(({ issue }) => {
+  const hypothesisFiltered = visibleWithGlobalIdx.filter(({ issue }) => {
     if (!hypothesisFilterOn) return true;
     return issue.relevanceToHypothesis !== "Low";
   });
 
+  const severityCounts = {
+    Critical: hypothesisFiltered.filter(({ issue }) => issue.severity === "Critical").length,
+    Medium:   hypothesisFiltered.filter(({ issue }) => issue.severity === "Medium").length,
+    Low:      hypothesisFiltered.filter(({ issue }) => issue.severity === "Low").length,
+  };
+
+  const filteredVisibleWithIdx = severityFilter === "All"
+    ? hypothesisFiltered
+    : hypothesisFiltered.filter(({ issue }) => issue.severity === severityFilter);
+
   return (
     <div>
       {/* Top controls row */}
-      {hasThumbnails && (
-        <div className="flex items-center justify-between mb-4 gap-2 flex-wrap">
-          {hasMultipleScreens && (
-            <div className="flex gap-1 flex-wrap">
-              {safeThumbnailUrls.map((_, i) => {
-                const screenCounts = issueCountPerScreen.get(i);
-                return (
-                  <button
-                    key={i}
-                    onClick={() => { onSelectScreen(i); onSetActiveIssue(null); }}
-                    className={`px-3 py-1 text-xs rounded-md transition-colors ${
-                      selectedScreen === i
-                        ? "bg-white/10 text-white"
-                        : "text-[var(--muted)] hover:text-white"
-                    }`}
-                  >
-                    {screenLabel(i)}
-                    {screenCounts && screenCounts.total > 0 && (
-                      <span
-                        className="ml-1 inline-flex items-center justify-center rounded-full"
-                        style={{
-                          minWidth: 16, height: 16, fontSize: 10, fontWeight: 700,
-                          padding: "0 4px",
-                          background: screenCounts.critical > 0 ? "#ef4444" : "#f59e0b",
-                          color: "#fff",
-                        }}
-                      >
-                        {screenCounts.total}
-                      </span>
-                    )}
-                  </button>
-                );
-              })}
-            </div>
-          )}
-          <div className="flex gap-2 shrink-0 ml-auto">
+      <div className="mb-4 space-y-2">
+        {/* Severity filter — always visible */}
+        <div className="flex items-center gap-1.5 flex-wrap">
+          {(["All", "Critical", "Medium", "Low"] as const).map((sev) => {
+            const count = sev === "All"
+              ? hypothesisFiltered.length
+              : severityCounts[sev];
+            const activeStyle =
+              sev === "Critical" ? "bg-red-500/20 text-red-400 border-red-500/30" :
+              sev === "Medium"   ? "bg-amber-500/20 text-amber-400 border-amber-500/30" :
+              sev === "Low"      ? "bg-zinc-500/20 text-zinc-300 border-zinc-500/30" :
+              "bg-white/10 text-white border-white/20";
+            const inactiveStyle = "text-[var(--muted)] border-[var(--border)] hover:text-white";
+            return (
+              <button
+                key={sev}
+                onClick={() => { setSeverityFilter(sev); onSetActiveIssue(null); }}
+                className={`flex items-center gap-1.5 px-2.5 py-1 text-xs rounded-md border transition-colors ${
+                  severityFilter === sev ? activeStyle : inactiveStyle
+                }`}
+              >
+                {sev === "All" ? "전체" : sev}
+                <span
+                  className="inline-flex items-center justify-center rounded-full"
+                  style={{
+                    minWidth: 16, height: 16, fontSize: 10, fontWeight: 700, padding: "0 4px",
+                    background: severityFilter === sev
+                      ? (sev === "Critical" ? "#ef4444" : sev === "Medium" ? "#f59e0b" : sev === "Low" ? "#71717a" : "rgba(255,255,255,0.2)")
+                      : "rgba(255,255,255,0.08)",
+                    color: "#fff",
+                  }}
+                >
+                  {count}
+                </span>
+              </button>
+            );
+          })}
+
+          {/* Hypothesis filter + heatmap on the right */}
+          <div className="flex gap-2 ml-auto">
             {hasRelevanceData && (
               <button
                 onClick={() => setHypothesisFilterOn((prev) => !prev)}
-                className={`px-3 py-1.5 text-xs rounded-md border transition-colors ${
+                className={`px-3 py-1 text-xs rounded-md border transition-colors ${
                   hypothesisFilterOn
                     ? "bg-white/10 text-white border-white/20"
                     : "text-[var(--muted)] border-[var(--border)] hover:text-white"
@@ -135,19 +150,56 @@ export function IssuesTab({
                 {t("hypothesisRelevanceFilter", locale)}
               </button>
             )}
-            <button
-              onClick={onToggleHeatmap}
-              className={`px-3 py-1.5 text-xs rounded-md border transition-colors ${
-                heatmapOn
-                  ? "bg-white/10 text-white border-white/20"
-                  : "text-[var(--muted)] border-[var(--border)] hover:text-white"
-              }`}
-            >
-              {heatmapOn ? t("heatmapOff", locale) : t("heatmapOn", locale)}
-            </button>
+            {hasThumbnails && (
+              <button
+                onClick={onToggleHeatmap}
+                className={`px-3 py-1 text-xs rounded-md border transition-colors ${
+                  heatmapOn
+                    ? "bg-white/10 text-white border-white/20"
+                    : "text-[var(--muted)] border-[var(--border)] hover:text-white"
+                }`}
+              >
+                {heatmapOn ? t("heatmapOff", locale) : t("heatmapOn", locale)}
+              </button>
+            )}
           </div>
         </div>
-      )}
+
+        {/* Screen selector (multi-screen only) */}
+        {hasThumbnails && hasMultipleScreens && (
+          <div className="flex gap-1 flex-wrap">
+            {safeThumbnailUrls.map((_, i) => {
+              const screenCounts = issueCountPerScreen.get(i);
+              return (
+                <button
+                  key={i}
+                  onClick={() => { onSelectScreen(i); onSetActiveIssue(null); }}
+                  className={`px-3 py-1 text-xs rounded-md transition-colors ${
+                    selectedScreen === i
+                      ? "bg-white/10 text-white"
+                      : "text-[var(--muted)] hover:text-white"
+                  }`}
+                >
+                  {screenLabel(i)}
+                  {screenCounts && screenCounts.total > 0 && (
+                    <span
+                      className="ml-1 inline-flex items-center justify-center rounded-full"
+                      style={{
+                        minWidth: 16, height: 16, fontSize: 10, fontWeight: 700,
+                        padding: "0 4px",
+                        background: screenCounts.critical > 0 ? "#ef4444" : "#f59e0b",
+                        color: "#fff",
+                      }}
+                    >
+                      {screenCounts.total}
+                    </span>
+                  )}
+                </button>
+              );
+            })}
+          </div>
+        )}
+      </div>
 
       {/* Main layout: image (sticky left) + issue list (right) */}
       <div
@@ -221,7 +273,11 @@ export function IssuesTab({
         {/* Right column — issue list */}
         <div>
           {filteredVisibleWithIdx.length === 0 ? (
-            <p className="text-sm text-[var(--muted)] py-2">이 화면에서 발견된 이슈가 없습니다.</p>
+            <p className="text-sm text-[var(--muted)] py-2">
+              {severityFilter !== "All"
+                ? `${severityFilter} 심각도 이슈가 없습니다.`
+                : "이 화면에서 발견된 이슈가 없습니다."}
+            </p>
           ) : (
             <div className="space-y-3">
               {filteredVisibleWithIdx.map(({ issue, globalIdx }) => {
