@@ -40,7 +40,10 @@ export async function POST(request: NextRequest) {
       roundNumber: rawRoundNumber,
       isImprovement: rawIsImprovement,
       url: rawUrl,
+      productMode: rawProductMode,
     } = body;
+
+    const productMode: "yafit" | "general" = rawProductMode === "general" ? "general" : "yafit";
 
     const images: string[] = Array.isArray(rawImages) ? rawImages : [];
 
@@ -84,8 +87,8 @@ export async function POST(request: NextRequest) {
           console.log("[analyze] Pass 1: Preprocessing", images.length, "images");
           const processedImages = await preprocessImages(images);
           console.log("[analyze] Pass 2: OCR extraction with claude-opus-4-7");
-          const rawOCR = await extractTextFromImages(processedImages, apiKey || process.env.ANTHROPIC_API_KEY);
-          finalOCR = validateOCRResults(rawOCR);
+          const rawOCR = await extractTextFromImages(processedImages, apiKey || process.env.ANTHROPIC_API_KEY, productMode);
+          finalOCR = validateOCRResults(rawOCR, productMode);
         }
         ocrContext = formatOCRForPrompt(finalOCR, locale || "ko");
         console.log("[analyze] OCR context ready:", ocrContext.slice(0, 120));
@@ -109,7 +112,7 @@ export async function POST(request: NextRequest) {
         };
 
     const effectiveTargetUser: string = mode === "usability"
-      ? (targetUser?.trim() || "40-60대 한국 여성 (야핏무브 핵심 타깃)")
+      ? (targetUser?.trim() || (productMode === "yafit" ? "40-60대 한국 여성 (야핏무브 핵심 타깃)" : "일반 사용자"))
       : (targetUser as string);
 
     if (mode === "hypothesis" && (!hypothesis || !targetUser)) {
@@ -134,6 +137,7 @@ export async function POST(request: NextRequest) {
       screenDescription,
       analysisPerspective: analysisPerspective as AnalysisPerspectiveInput | undefined,
       ocrContext,
+      productMode,
     };
 
     // ── Route to input-type handler via plugin registry ──

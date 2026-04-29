@@ -35,4 +35,5 @@ export interface BaseHandlerParams {
   screenDescription?: string;
   analysisPerspective?: AnalysisPerspectiveInput;
   ocrContext?: string;
+  productMode?: "yafit" | "general";
 }

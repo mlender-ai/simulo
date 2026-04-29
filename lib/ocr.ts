@@ -18,8 +18,8 @@ export interface OCRResult {
   elements: OCRElement[];
 }
 
-// YafitMove UI domain dictionary for Korean text correction
-const UI_DICTIONARY = [
+// YafitMove-specific UI domain dictionary for Korean text correction
+const YAFIT_DICTIONARY = [
   "걷기", "걸음", "받기", "마일리지", "적립", "보상",
   "출석", "미션", "잠자고", "라이딩", "보너스", "이벤트",
   "쿠폰", "교환", "설정", "프로필", "홈", "샵", "알림",
@@ -27,6 +27,16 @@ const UI_DICTIONARY = [
   "오늘의", "주간", "누적", "달성", "목표", "연속",
   "보너스", "광고", "시청", "획득",
 ];
+
+// General UI dictionary — common Korean app terms only
+const GENERAL_DICTIONARY = [
+  "설정", "프로필", "홈", "알림", "완료", "진행중",
+  "시작", "오늘", "검색", "메뉴", "로그인", "회원가입",
+];
+
+function getDictionary(productMode?: string): string[] {
+  return productMode === "general" ? GENERAL_DICTIONARY : YAFIT_DICTIONARY;
+}
 
 const OCR_SYSTEM_PROMPT = `You are a spatial OCR engine for Korean mobile app UI screens.
 
@@ -64,8 +74,6 @@ Type assignment:
 Korean OCR rules:
 - 'ㅓ'와 'ㅜ'를 혼동하지 마. 예: '걷고'를 '권고'로 읽지 마.
 - 'ㅏ'와 'ㅗ'를 혼동하지 마. 예: '잠자고'를 '집자고'로 읽지 마.
-- 앱 UI 단어: 걷기, 걸음, 받기, 마일리지, 적립, 보상, 출석, 미션, 잠자고, 라이딩, 보너스, 이벤트, 쿠폰, 교환, 설정
-- 위 단어와 70% 이상 유사하면 그 단어로 인식해.
 - 확실하지 않은 글자는 [?]로 표시.
 
 Output: JSON array only. No explanation, no markdown.`;
@@ -111,7 +119,8 @@ function clampElement(el: OCRElement): OCRElement {
 
 export async function extractTextFromImages(
   base64Images: string[],
-  apiKey?: string
+  apiKey?: string,
+  productMode?: string
 ): Promise<OCRResult[]> {
   const key = apiKey || process.env.ANTHROPIC_API_KEY;
   if (!key) throw new Error("ANTHROPIC_API_KEY is not set.");
@@ -183,25 +192,27 @@ export async function extractTextFromImages(
   return results;
 }
 
-export function validateOCRResults(ocrResults: OCRResult[]): OCRResult[] {
+export function validateOCRResults(ocrResults: OCRResult[], productMode?: string): OCRResult[] {
   const hasUncertain = ocrResults.some((r) =>
     r.texts.some((t) => t.includes("[?]"))
   );
 
   if (!hasUncertain) return ocrResults;
 
+  const dictionary = getDictionary(productMode);
+
   return ocrResults.map((result) => ({
     ...result,
     elements: result.elements.map((el) => {
       if (!el.text.includes("[?]")) return el;
       const cleaned = el.text.replace(/\[\?\]/g, "").trim();
-      const match = findClosestMatch(cleaned, UI_DICTIONARY);
+      const match = findClosestMatch(cleaned, dictionary);
       return { ...el, text: match || el.text };
     }),
     texts: result.texts.map((text) => {
       if (!text.includes("[?]")) return text;
       const cleaned = text.replace(/\[\?\]/g, "").trim();
-      const match = findClosestMatch(cleaned, UI_DICTIONARY);
+      const match = findClosestMatch(cleaned, dictionary);
       return match || text;
     }),
   }));

@@ -68,6 +68,7 @@ export async function handleComparisonAnalysis(params: ComparisonHandlerParams):
     analysisPerspective,
     mode,
     analysisOptions,
+    productMode: params.productMode,
   });
 
   const r = result as Record<string, unknown>;

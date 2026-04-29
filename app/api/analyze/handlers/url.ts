@@ -40,6 +40,7 @@ export async function handleUrlAnalysis(params: UrlHandlerParams): Promise<Handl
     analysisOptions,
     screenDescription: (screenDescription || "") + urlContext,
     ocrContext,
+    productMode: params.productMode,
   });
 
   return {

@@ -31,6 +31,7 @@ export async function handleImageAnalysis(params: ImageHandlerParams): Promise<H
     analysisOptions,
     screenDescription: (screenDescription || "") + videoContext,
     ocrContext,
+    productMode: params.productMode,
   });
 
   return {

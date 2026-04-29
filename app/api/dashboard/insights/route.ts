@@ -6,8 +6,16 @@ const client = new Anthropic({
   apiKey: env.ANTHROPIC_API_KEY,
 });
 
-const SYSTEM_PROMPT = `You are a product strategy advisor for YafitMove (야핏무브), a Korean health & reward app targeting 40-60s users.
-Analyze the accumulated UX testing data and provide actionable product improvement suggestions.
+const YAFIT_SYSTEM_PROMPT = `You are a product strategy advisor for YafitMove (야핏무브), a Korean health & reward app targeting 40-60s users.
+Analyze the accumulated UX testing data and provide actionable product improvement suggestions.`;
+
+const GENERAL_SYSTEM_PROMPT = `You are a product strategy advisor analyzing UX testing data for a digital product.
+Analyze the accumulated UX testing data and provide actionable product improvement suggestions.`;
+
+function getSystemPrompt(projectTag?: string): string {
+  const isYafit = !projectTag || projectTag === "yafit";
+  const base = isYafit ? YAFIT_SYSTEM_PROMPT : GENERAL_SYSTEM_PROMPT;
+  return `${base}
 
 Rules:
 - Base suggestions ONLY on the data provided, not assumptions
@@ -43,6 +51,7 @@ Response format:
     "specific screen or flow to analyze next"
   ]
 }`;
+}
 
 export async function POST(req: Request) {
   if (!process.env.DATABASE_URL && !process.env.ANTHROPIC_API_KEY) {
@@ -123,7 +132,7 @@ ${JSON.stringify((stats.desireTimeline as unknown[])?.slice(-10) ?? [], null, 2)
     const response = await client.messages.create({
       model: "claude-sonnet-4-6",
       max_tokens: 2048,
-      system: SYSTEM_PROMPT,
+      system: getSystemPrompt(projectTag),
       messages: [{ role: "user", content: userMessage }],
     });
 

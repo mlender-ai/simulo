@@ -55,8 +55,24 @@ function getClient(apiKey?: string): Anthropic {
 
 // ─── Prompts ─────────────���──────────────────────────────────────────
 
-const SCREEN_PROMPT_KO = `너는 UX 이탈 분석 전문가다. 유저 플로우의 단일 화면을 분석한다.
-컨텍스트: 야핏무브 피트니스 리워드 앱, 타깃 유저는 4050 한국 여성.
+function getScreenPromptKo(productMode: string): string {
+  const isYafit = productMode !== "general";
+  const context = isYafit
+    ? "컨텍스트: 야핏무브 피트니스 리워드 앱, 타깃 유저는 4050 한국 여성."
+    : "컨텍스트: 일반 디지털 서비스 UX 분석.";
+  const desireSection = isYafit
+    ? `\n평가 기준:
+- 효능감(utility): 보상이 명확하게 인식되는가
+- 성취과시(healthPride): 성취감이 전달되고 공유 욕구가 자극되는가
+- 손실회피(lossAversion): "오늘 안 하면 손해"라는 인식이 작동하는가
+- frictionPoints: 마찰을 유발하는 구체적 UI 요소
+- dropOffPercent + stayPercent = 100`
+    : `\n평가 기준:
+- frictionPoints: 마찰을 유발하는 구체적 UI 요소
+- dropOffPercent + stayPercent = 100`;
+
+  return `너는 UX 이탈 분석 전문가다. 유저 플로우의 단일 화면을 분석한다.
+${context}
 
 이 화면을 분석하고 아래 JSON만 반환하라. 다른 텍스트는 절대 포함하지 마라.
 
@@ -68,16 +84,17 @@ const SCREEN_PROMPT_KO = `너는 UX 이탈 분석 전문가다. 유저 플로우
   "mainReason": "이탈 핵심 원인 한 문장",
   "frictionPoints": ["마찰 포인트 1", "마찰 포인트 2"]
 }
+${desireSection}`;
+}
 
-평가 기준:
-- 효능감(utility): 보상이 명확하게 인식되는가
-- 성취과시(healthPride): 성취감이 전달되고 공유 욕구가 자극되는가
-- 손실회피(lossAversion): "오늘 안 하면 손해"라는 인식이 작동하는가
-- frictionPoints: 마찰을 유발하는 구체적 UI 요소
-- dropOffPercent + stayPercent = 100`;
+function getScreenPromptEn(productMode: string): string {
+  const isYafit = productMode !== "general";
+  const context = isYafit
+    ? "Context: YafitMove fitness reward app, target user is 40-50s Korean women."
+    : "Context: General digital service UX analysis.";
 
-const SCREEN_PROMPT_EN = `You are a UX drop-off analysis expert. Analyze a single screen in a user flow.
-Context: YafitMove fitness reward app, target user is 40-50s Korean women.
+  return `You are a UX drop-off analysis expert. Analyze a single screen in a user flow.
+${context}
 
 Analyze this screen and return ONLY the following JSON. No other text.
 
@@ -91,6 +108,7 @@ Analyze this screen and return ONLY the following JSON. No other text.
 }
 
 dropOffPercent + stayPercent must equal 100.`;
+}
 
 const EDGE_PROMPT_KO = `너는 UX 전환 분석 전문가다. 두 화면 사이의 전���을 분석한다.
 유저가 화면 A��서 화면 B로 이동할 때의 마찰과 이탈 위험을 평가하라.
@@ -215,6 +233,7 @@ export async function POST(request: NextRequest) {
       locale,
       apiKey,
       model,
+      productMode: rawProductMode,
     } = body as {
       nodes: FlowNode[];
       edges: FlowEdge[];
@@ -223,7 +242,10 @@ export async function POST(request: NextRequest) {
       locale?: string;
       apiKey?: string;
       model?: string;
+      productMode?: string;
     };
+
+    const productMode = rawProductMode === "general" ? "general" : "yafit";
 
     if (!hypothesis || !targetUser || !nodes || nodes.length === 0) {
       return NextResponse.json(
@@ -286,7 +308,7 @@ export async function POST(request: NextRequest) {
       const response = await client.messages.create({
         model: modelId,
         max_tokens: 2048,
-        system: isKo ? SCREEN_PROMPT_KO : SCREEN_PROMPT_EN,
+        system: isKo ? getScreenPromptKo(productMode) : getScreenPromptEn(productMode),
         messages: [{ role: "user", content }],
       });
 

@@ -28,6 +28,7 @@ export interface GenerateImproveParams {
   };
   score: number;
   roundNumber: number;
+  productMode?: "yafit" | "general";
 }
 
 export interface GenerateImproveResult {
@@ -65,7 +66,7 @@ export async function generateImprovement(input: GenerateImproveParams): Promise
   const response = await anthropic.messages.create({
     model: "claude-opus-4-6",
     max_tokens: 20000,
-    system: buildSystemPrompt(options),
+    system: buildSystemPrompt(options, input.productMode),
     messages: [{ role: "user", content }],
   });
 
@@ -79,12 +80,15 @@ export async function generateImprovement(input: GenerateImproveParams): Promise
   return parseResponse(responseText);
 }
 
-function buildSystemPrompt(options: GenerateImproveParams["options"]): string {
+function buildSystemPrompt(options: GenerateImproveParams["options"], productMode?: string): string {
+  const isGeneral = productMode === "general";
   const variantHint = typeof options.variantIndex === "number" && options.variantIndex > 0
     ? `\n\nVARIANT ${options.variantIndex + 1} DIRECTIVE: This is variant #${options.variantIndex + 1}. Apply the same fixes but use a different visual treatment for the changed elements (e.g., different color emphasis, different layout for just the fixed section, different copy for CTAs) so this variant feels distinct from variant #1. Keep all unchanged areas identical to the original.`
     : "";
 
-  return `You are a surgical UI improvement specialist for Korean mobile apps.
+  const appType = isGeneral ? "mobile/web apps" : "Korean mobile apps";
+
+  return `You are a surgical UI improvement specialist for ${appType}.
 
 ## YOUR SINGLE MOST IMPORTANT RULE
 You are NOT redesigning this app. You are making the MINIMUM targeted changes to fix specific issues.

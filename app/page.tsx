@@ -19,6 +19,7 @@ import { storage, type AnalysisResult } from "@/lib/storage";
 import { getLocale, t, type Locale } from "@/lib/i18n";
 import OCRReviewModal from "@/components/OCRReviewModal";
 import type { OCRResult } from "@/lib/ocr";
+import { type ProductMode, getProductMode, setProductMode as persistProductMode } from "@/lib/productMode";
 
 const LOADING_STEP_KEYS = [
   "loadingStep1",
@@ -92,9 +93,24 @@ export default function Home() {
     competitorComparison: false,
     accessibility: false,
   });
+  const [productMode, setProductModeState] = useState<ProductMode>("yafit");
+
+  const handleProductModeChange = (m: ProductMode) => {
+    setProductModeState(m);
+    persistProductMode(m);
+    if (m === "general") {
+      // Disable yafit-specific options
+      setAnalysisOptions((prev) => ({
+        ...prev,
+        desireAlignment: false,
+        accessibility: false,
+      }));
+    }
+  };
 
   useEffect(() => {
     setLocale(getLocale());
+    setProductModeState(getProductMode());
     const dismissed = localStorage.getItem("simulo_onboarding_dismissed");
     setBannerOpen(!dismissed);
 
@@ -206,6 +222,7 @@ export default function Home() {
       mode,
       analysisOptions: mode === "usability" ? analysisOptions : undefined,
       analysisPerspective: effectivePerspective,
+      productMode,
       ...(ocrReview ? { ocrReview } : {}),
     };
     return isComparison
@@ -339,12 +356,26 @@ export default function Home() {
           }}
         />
 
-        {/* Section header row: 분석 대상 label + Guide button */}
-        <div className="flex items-center justify-between mb-5">
-          <span className="flex items-center text-xs text-[var(--muted)] uppercase tracking-wider">
-            {t("analysisTarget", locale)}
-            <Tooltip content={t("tooltipAnalysisTarget", locale)} />
-          </span>
+        {/* Product mode toggle */}
+        <div className="flex items-center justify-between mb-6">
+          <div className="flex items-center gap-1 p-0.5 rounded-lg bg-white/[0.04] border border-[var(--border)]">
+            {([
+              { key: "yafit" as const, label: "야핏무브" },
+              { key: "general" as const, label: "일반 서비스" },
+            ]).map(({ key, label }) => (
+              <button
+                key={key}
+                onClick={() => handleProductModeChange(key)}
+                className={`px-4 py-1.5 rounded-md text-xs font-medium transition-colors ${
+                  productMode === key
+                    ? "bg-white text-black"
+                    : "text-[var(--muted)] hover:text-white"
+                }`}
+              >
+                {label}
+              </button>
+            ))}
+          </div>
           {!bannerOpen && (
             <button
               onClick={() => setBannerOpen(true)}
@@ -353,6 +384,14 @@ export default function Home() {
               Guide
             </button>
           )}
+        </div>
+
+        {/* Section header row: 분석 대상 label */}
+        <div className="flex items-center justify-between mb-5">
+          <span className="flex items-center text-xs text-[var(--muted)] uppercase tracking-wider">
+            {t("analysisTarget", locale)}
+            <Tooltip content={t("tooltipAnalysisTarget", locale)} />
+          </span>
         </div>
 
         <InputSection
@@ -390,6 +429,7 @@ export default function Home() {
           showErrors={showErrors}
           inputReady={inputReady}
           contextReady={contextReady}
+          productMode={productMode}
         />
 
         {error && (

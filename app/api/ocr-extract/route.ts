@@ -5,7 +5,7 @@ import { extractTextFromImages, validateOCRResults } from "@/lib/ocr";
 export async function POST(request: NextRequest) {
   try {
     const body = await request.json();
-    const { images, locale, apiKey } = body;
+    const { images, locale, apiKey, productMode } = body;
 
     if (!Array.isArray(images) || images.length === 0) {
       return NextResponse.json({ error: "images array is required" }, { status: 400 });
@@ -17,10 +17,11 @@ export async function POST(request: NextRequest) {
     console.log("[ocr-extract] Extracting text with claude-opus-4-7");
     const rawOCR = await extractTextFromImages(
       processedImages,
-      apiKey || process.env.ANTHROPIC_API_KEY
+      apiKey || process.env.ANTHROPIC_API_KEY,
+      productMode
     );
 
-    const validatedOCR = validateOCRResults(rawOCR);
+    const validatedOCR = validateOCRResults(rawOCR, productMode);
     console.log("[ocr-extract] Done. Screens:", validatedOCR.length);
 
     return NextResponse.json({ ocrResults: validatedOCR, locale: locale || "ko" });

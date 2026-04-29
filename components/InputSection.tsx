@@ -3,6 +3,7 @@
 
 import { useState, useEffect } from "react";
 import { t, type Locale } from "@/lib/i18n";
+import type { ProductMode } from "@/lib/productMode";
 import { Tooltip } from "@/components/Tooltip";
 import { ImageUploadTab } from "./input/ImageUploadTab";
 import { FigmaTab } from "./input/FigmaTab";
@@ -102,6 +103,7 @@ interface InputSectionProps {
   showErrors?: boolean;
   inputReady?: boolean;
   contextReady?: boolean;
+  productMode?: ProductMode;
 }
 
 export function InputSection({
@@ -139,6 +141,7 @@ export function InputSection({
   showErrors = false,
   inputReady: inputReadyProp = false,
   contextReady: contextReadyProp = false,
+  productMode = "yafit",
 }: InputSectionProps) {
   const [showAdvanced, setShowAdvanced] = useState(false);
 
@@ -446,12 +449,12 @@ export function InputSection({
             <div className="grid grid-cols-2 gap-2">
               {(
                 [
-                  { key: "usability", labelKey: "optionUsability", locked: true },
-                  { key: "desireAlignment", labelKey: "optionDesireAlignment", locked: false },
-                  { key: "competitorComparison", labelKey: "optionCompetitorComparison", locked: false },
-                  { key: "accessibility", labelKey: "optionAccessibility", locked: false },
+                  { key: "usability", labelKey: "optionUsability", locked: true, yafitOnly: false },
+                  { key: "desireAlignment", labelKey: "optionDesireAlignment", locked: false, yafitOnly: true },
+                  { key: "competitorComparison", labelKey: "optionCompetitorComparison", locked: false, yafitOnly: false },
+                  { key: "accessibility", labelKey: "optionAccessibility", locked: false, yafitOnly: true },
                 ] as const
-              ).map((opt) => {
+              ).filter((opt) => !opt.yafitOnly || productMode === "yafit").map((opt) => {
                 const checked = analysisOptions[opt.key];
                 return (
                   <label

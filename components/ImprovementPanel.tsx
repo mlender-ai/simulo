@@ -3,6 +3,7 @@
 import { useState, useEffect, useRef, useCallback } from "react";
 import type { AnalysisResult } from "@/lib/storage";
 import { VersionComparison } from "@/components/VersionComparison";
+import { getProductMode } from "@/lib/productMode";
 
 interface ImprovementPanelProps {
   originalAnalysis: AnalysisResult;
@@ -111,6 +112,7 @@ export function ImprovementPanel({
               variantIndex: i, // hint to API to generate distinct variants
             },
             roundNumber,
+            productMode: getProductMode(),
           }),
         });
         if (!res.ok) {

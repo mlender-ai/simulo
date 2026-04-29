@@ -30,6 +30,7 @@ export interface BuildSystemPromptParams {
   hasCompetitor?: boolean;
   inputShape?: InputShape; // default "single"
   locale?: string;         // "ko" | "en" (default "en")
+  productMode?: "yafit" | "general"; // default "yafit"
 }
 
 // ──────────────────────────────────────────────
@@ -788,9 +789,11 @@ export function buildSystemPrompt(params: BuildSystemPromptParams): string {
     hasCompetitor = false,
     inputShape = "single",
     locale = "en",
+    productMode = "yafit",
   } = params;
 
   const isKo = isKoLocale(locale);
+  const isGeneral = productMode === "general";
   const layers: string[] = [];
 
   // Layer 1: base (always)
@@ -816,16 +819,18 @@ export function buildSystemPrompt(params: BuildSystemPromptParams): string {
   }
 
   // Layer 3: option layers
-  // Desire alignment (default ON for usability to preserve existing behavior,
-  // explicit opt-in for hypothesis mode)
-  const desireEnabled =
-    analysisOptions.desireAlignment === true ||
-    (mode === "usability" && analysisOptions.desireAlignment !== false);
-  if (desireEnabled) {
-    layers.push(desireLayer(locale, targetUser));
+  // Desire alignment — yafit mode only (4060 domain-specific modeling)
+  if (!isGeneral) {
+    const desireEnabled =
+      analysisOptions.desireAlignment === true ||
+      (mode === "usability" && analysisOptions.desireAlignment !== false);
+    if (desireEnabled) {
+      layers.push(desireLayer(locale, targetUser));
+    }
   }
 
-  if (analysisOptions.accessibility) {
+  // Accessibility 4050 — yafit mode only
+  if (!isGeneral && analysisOptions.accessibility) {
     layers.push(isKo ? ACCESSIBILITY_4050_LAYER_KO : ACCESSIBILITY_4050_LAYER_EN);
   }
 
