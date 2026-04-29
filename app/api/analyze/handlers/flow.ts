@@ -12,7 +12,7 @@ interface FlowHandlerParams extends BaseHandlerParams {
 }
 
 export async function handleFlowAnalysis(params: FlowHandlerParams): Promise<HandlerResult> {
-  const { flowSteps, hypothesis, targetUser, task, locale, apiKey, model, mode, analysisOptions, screenDescription, ocrContext, productMode, domain } = params;
+  const { flowSteps, hypothesis, targetUser, task, locale, apiKey, model, mode, analysisOptions, screenDescription, ocrContext, productMode, domain, domainFocuses } = params;
 
   const result = await analyzeFlowWithClaude({
     flowSteps,
@@ -28,6 +28,7 @@ export async function handleFlowAnalysis(params: FlowHandlerParams): Promise<Han
     ocrContext,
     productMode,
     domain,
+    domainFocuses,
   });
 
   return {

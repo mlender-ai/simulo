@@ -45,6 +45,7 @@ interface AnalyzeParams {
   ocrContext?: string;
   productMode?: "yafit" | "general";
   domain?: string;
+  domainFocuses?: string[];
 }
 
 interface FlowAnalyzeParams {
@@ -61,6 +62,7 @@ interface FlowAnalyzeParams {
   ocrContext?: string;
   productMode?: "yafit" | "general";
   domain?: string;
+  domainFocuses?: string[];
 }
 
 export interface ComparisonProduct {
@@ -90,6 +92,7 @@ interface ComparisonAnalyzeParams {
   analysisOptions?: import("./prompts").AnalysisOptions;
   productMode?: "yafit" | "general";
   domain?: string;
+  domainFocuses?: string[];
 }
 
 // ──────────────────────────────────────────────
@@ -190,6 +193,7 @@ export async function analyzeWithClaude(params: AnalyzeParams) {
     locale: params.locale || "en",
     productMode: params.productMode,
     domain: params.domain,
+    domainFocuses: params.domainFocuses,
   });
 
   console.log("[claude] Calling API with model:", modelId, "| key prefix:", key.slice(0, 10), "| mode:", params.mode || "hypothesis");
@@ -253,6 +257,7 @@ export async function analyzeFlowWithClaude(params: FlowAnalyzeParams) {
     locale: params.locale || "en",
     productMode: params.productMode,
     domain: params.domain,
+    domainFocuses: params.domainFocuses,
   });
 
   console.log("[claude] Calling Flow API with model:", modelId, "| key prefix:", key.slice(0, 10), "| steps:", params.flowSteps.length, "| mode:", params.mode || "hypothesis");
@@ -386,6 +391,7 @@ export async function analyzeComparisonWithClaude(params: ComparisonAnalyzeParam
         locale: params.locale || "en",
         productMode: params.productMode,
         domain: params.domain,
+        domainFocuses: params.domainFocuses,
       }),
       messages: [{ role: "user", content }],
     });

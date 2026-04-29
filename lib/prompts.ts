@@ -32,6 +32,7 @@ export interface BuildSystemPromptParams {
   locale?: string;         // "ko" | "en" (default "en")
   productMode?: "yafit" | "general"; // default "yafit"
   domain?: string;         // general mode domain category
+  domainFocuses?: string[]; // selected focus keys for domain
 }
 
 // ──────────────────────────────────────────────
@@ -792,6 +793,7 @@ export function buildSystemPrompt(params: BuildSystemPromptParams): string {
     locale = "en",
     productMode = "yafit",
     domain,
+    domainFocuses,
   } = params;
 
   const isKo = isKoLocale(locale);
@@ -840,7 +842,7 @@ export function buildSystemPrompt(params: BuildSystemPromptParams): string {
     layers.push(isKo ? COMPARISON_LAYER_KO : COMPARISON_LAYER_EN);
   }
 
-  // Domain context — general mode only
+  // Domain context + focus areas — general mode only
   if (isGeneral && domain) {
     const domainLabels: Record<string, { ko: string; en: string }> = {
       ecommerce:  { ko: "이커머스/쇼핑",    en: "e-commerce / shopping" },
@@ -858,6 +860,24 @@ export function buildSystemPrompt(params: BuildSystemPromptParams): string {
         ? `## 서비스 도메인\n이 화면은 **${label.ko}** 서비스입니다. 해당 도메인의 일반적인 UX 패턴, 사용자 기대, 업계 관행을 기준으로 평가하세요.`
         : `## Service Domain\nThis screen belongs to a **${label.en}** service. Evaluate using UX patterns, user expectations, and industry norms for this domain.`
     );
+
+    // Inject selected domain focus areas as concentrated observation directives
+    if (domainFocuses && domainFocuses.length > 0) {
+      // Import focus definitions lazily to avoid circular deps — inline the lookup
+      const { getDomainFocuses } = require("./domainFocuses") as typeof import("./domainFocuses");
+      const allFocuses = getDomainFocuses(domain);
+      const selected = allFocuses.filter((f) => domainFocuses.includes(f.key));
+      if (selected.length > 0) {
+        const focusLines = selected.map((f) =>
+          isKo ? `- ${f.promptKo}` : `- ${f.promptEn}`
+        ).join("\n");
+        layers.push(
+          isKo
+            ? `## 집중 분석 영역\n다음 항목을 **특히 집중해서** 관찰하고, 각 항목에 대한 구체적 발견을 이슈 또는 강점으로 반드시 포함하라:\n${focusLines}`
+            : `## Focused Analysis Areas\nPay **special attention** to the following and include specific findings for each as issues or strengths:\n${focusLines}`
+        );
+      }
+    }
   }
 
   return layers.join(SEPARATOR);

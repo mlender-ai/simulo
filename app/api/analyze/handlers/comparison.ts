@@ -28,7 +28,7 @@ function mergeProductMedia(p: ComparisonProduct_): ComparisonProduct {
 }
 
 export async function handleComparisonAnalysis(params: ComparisonHandlerParams): Promise<HandlerResult> {
-  const { ours, competitors, comparisonFocus, hypothesis, targetUser, locale, apiKey, model, mode, analysisOptions, analysisPerspective, domain } = params;
+  const { ours, competitors, comparisonFocus, hypothesis, targetUser, locale, apiKey, model, mode, analysisOptions, analysisPerspective, domain, domainFocuses } = params;
 
   const oursWithFrames = mergeProductMedia(ours);
   const competitorsWithFrames = competitors.map(mergeProductMedia);
@@ -70,6 +70,7 @@ export async function handleComparisonAnalysis(params: ComparisonHandlerParams):
     analysisOptions,
     productMode: params.productMode,
     domain,
+    domainFocuses,
   });
 
   const r = result as Record<string, unknown>;

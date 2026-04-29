@@ -95,6 +95,7 @@ export default function Home() {
   });
   const [productMode, setProductModeState] = useState<ProductMode>("yafit");
   const [domain, setDomain] = useState("");
+  const [domainFocuses, setDomainFocuses] = useState<string[]>([]);
 
   const handleProductModeChange = (m: ProductMode) => {
     setProductModeState(m);
@@ -124,6 +125,7 @@ export default function Home() {
         accessibility: true,
       }));
       setDomain("");
+      setDomainFocuses([]);
     }
   };
 
@@ -243,6 +245,7 @@ export default function Home() {
       analysisPerspective: effectivePerspective,
       productMode,
       domain: domain || undefined,
+      domainFocuses: domainFocuses.length > 0 ? domainFocuses : undefined,
       ...(ocrReview ? { ocrReview } : {}),
     };
     return isComparison
@@ -452,6 +455,8 @@ export default function Home() {
           productMode={productMode}
           domain={domain}
           onDomainChange={setDomain}
+          domainFocuses={domainFocuses}
+          onDomainFocusesChange={setDomainFocuses}
         />
 
         {error && (

@@ -4,6 +4,7 @@
 import { useState, useEffect } from "react";
 import { t, tMode, type Locale } from "@/lib/i18n";
 import type { ProductMode } from "@/lib/productMode";
+import { getDomainFocuses } from "@/lib/domainFocuses";
 import { Tooltip } from "@/components/Tooltip";
 import { ImageUploadTab } from "./input/ImageUploadTab";
 import { FigmaTab } from "./input/FigmaTab";
@@ -106,6 +107,8 @@ interface InputSectionProps {
   productMode?: ProductMode;
   domain?: string;
   onDomainChange?: (domain: string) => void;
+  domainFocuses?: string[];
+  onDomainFocusesChange?: (focuses: string[]) => void;
 }
 
 export function InputSection({
@@ -146,6 +149,8 @@ export function InputSection({
   productMode = "yafit",
   domain = "",
   onDomainChange,
+  domainFocuses = [],
+  onDomainFocusesChange,
 }: InputSectionProps) {
   const isGeneral = productMode === "general";
   const [showAdvanced, setShowAdvanced] = useState(false);
@@ -252,35 +257,93 @@ export function InputSection({
 
       {/* Domain category — general mode only */}
       {isGeneral && (
-        <div className="pt-4 border-t border-[var(--border)]">
-          <label className="block text-xs text-[var(--muted)] mb-2 uppercase tracking-wider">
-            서비스 도메인 <span className="normal-case font-normal">(선택)</span>
-          </label>
-          <div className="flex flex-wrap gap-2">
-            {[
-              { key: "ecommerce", label: "이커머스/쇼핑" },
-              { key: "fintech", label: "금융/핀테크" },
-              { key: "health", label: "헬스/피트니스" },
-              { key: "social", label: "소셜/커뮤니티" },
-              { key: "saas", label: "SaaS/생산성" },
-              { key: "travel", label: "여행/숙박" },
-              { key: "education", label: "교육" },
-              { key: "other", label: "기타" },
-            ].map(({ key, label }) => (
-              <button
-                key={key}
-                type="button"
-                onClick={() => onDomainChange?.(domain === key ? "" : key)}
-                className={`px-3 py-1.5 rounded-md text-xs border transition-colors ${
-                  domain === key
-                    ? "border-white/50 bg-white/10 text-white"
-                    : "border-[var(--border)] text-[var(--muted)] hover:text-white hover:border-white/30"
-                }`}
-              >
-                {label}
-              </button>
-            ))}
+        <div className="pt-4 border-t border-[var(--border)] space-y-3">
+          <div>
+            <label className="block text-xs text-[var(--muted)] mb-2 uppercase tracking-wider">
+              서비스 도메인 <span className="normal-case font-normal">(선택)</span>
+            </label>
+            <div className="flex flex-wrap gap-2">
+              {[
+                { key: "ecommerce", label: "이커머스/쇼핑" },
+                { key: "fintech", label: "금융/핀테크" },
+                { key: "health", label: "헬스/피트니스" },
+                { key: "social", label: "소셜/커뮤니티" },
+                { key: "saas", label: "SaaS/생산성" },
+                { key: "travel", label: "여행/숙박" },
+                { key: "education", label: "교육" },
+                { key: "other", label: "기타" },
+              ].map(({ key, label }) => (
+                <button
+                  key={key}
+                  type="button"
+                  onClick={() => {
+                    const next = domain === key ? "" : key;
+                    onDomainChange?.(next);
+                    // auto-select all focuses for the new domain
+                    if (next) {
+                      const items = getDomainFocuses(next);
+                      onDomainFocusesChange?.(items.map((i) => i.key));
+                    } else {
+                      onDomainFocusesChange?.([]);
+                    }
+                  }}
+                  className={`px-3 py-1.5 rounded-md text-xs border transition-colors ${
+                    domain === key
+                      ? "border-white/50 bg-white/10 text-white"
+                      : "border-[var(--border)] text-[var(--muted)] hover:text-white hover:border-white/30"
+                  }`}
+                >
+                  {label}
+                </button>
+              ))}
+            </div>
           </div>
+
+          {/* Domain focus checkboxes */}
+          {domain && (() => {
+            const focuses = getDomainFocuses(domain);
+            return (
+              <div>
+                <label className="block text-xs text-[var(--muted)] mb-2 uppercase tracking-wider">
+                  집중 분석 영역
+                  <span className="ml-1.5 normal-case font-normal text-[10px]">
+                    — 선택한 항목을 AI가 집중 관찰합니다
+                  </span>
+                </label>
+                <div className="grid grid-cols-1 gap-1.5">
+                  {focuses.map((item) => {
+                    const checked = domainFocuses.includes(item.key);
+                    return (
+                      <label
+                        key={item.key}
+                        className={`flex items-start gap-2.5 px-3 py-2.5 rounded-md border cursor-pointer transition-colors ${
+                          checked
+                            ? "border-white/20 bg-white/[0.04] text-white"
+                            : "border-[var(--border)] bg-transparent text-[var(--muted)] hover:text-white hover:border-white/20"
+                        }`}
+                      >
+                        <input
+                          type="checkbox"
+                          checked={checked}
+                          onChange={(e) => {
+                            const next = e.target.checked
+                              ? [...domainFocuses, item.key]
+                              : domainFocuses.filter((k) => k !== item.key);
+                            onDomainFocusesChange?.(next);
+                          }}
+                          className="mt-0.5 accent-white flex-shrink-0"
+                        />
+                        <div className="min-w-0">
+                          <span className="text-xs font-medium">{item.label}</span>
+                          <span className="ml-1.5 text-[11px] text-[var(--muted)]">{item.desc}</span>
+                        </div>
+                      </label>
+                    );
+                  })}
+                </div>
+              </div>
+            );
+          })()}
         </div>
       )}
 

@@ -7,7 +7,7 @@ interface UrlHandlerParams extends BaseHandlerParams {
 }
 
 export async function handleUrlAnalysis(params: UrlHandlerParams): Promise<HandlerResult> {
-  const { url, hypothesis, targetUser, task, locale, apiKey, model, mode, analysisOptions, screenDescription, ocrContext, domain } = params;
+  const { url, hypothesis, targetUser, task, locale, apiKey, model, mode, analysisOptions, screenDescription, ocrContext, domain, domainFocuses } = params;
 
   // Capture full-page screenshot via Playwright
   let screenshotBase64: string;
@@ -42,6 +42,7 @@ export async function handleUrlAnalysis(params: UrlHandlerParams): Promise<Handl
     ocrContext,
     productMode: params.productMode,
     domain,
+    domainFocuses,
   });
 
   return {

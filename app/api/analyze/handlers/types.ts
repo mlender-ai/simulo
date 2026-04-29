@@ -37,4 +37,5 @@ export interface BaseHandlerParams {
   ocrContext?: string;
   productMode?: "yafit" | "general";
   domain?: string;
+  domainFocuses?: string[];
 }
