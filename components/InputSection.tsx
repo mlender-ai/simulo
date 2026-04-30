@@ -1,10 +1,11 @@
 /* eslint-disable @next/next/no-img-element */
 "use client";
 
-import { useState, useEffect } from "react";
+import { useState, useEffect, useRef } from "react";
 import { t, tMode, type Locale } from "@/lib/i18n";
 import type { ProductMode } from "@/lib/productMode";
 import { getDomainFocuses } from "@/lib/domainFocuses";
+import { HYPOTHESIS_TEMPLATES } from "@/lib/hypothesisTemplates";
 import { Tooltip } from "@/components/Tooltip";
 import { ImageUploadTab } from "./input/ImageUploadTab";
 import { FigmaTab } from "./input/FigmaTab";
@@ -499,6 +500,7 @@ export function InputSection({
                     {t("hypothesis", locale)}
                     {hasErr && <span className="ml-1 normal-case font-normal">— {fieldErrors.hypothesis}</span>}
                     <Tooltip content={t("tooltipHypothesis", locale)} />
+                    <HypothesisTemplateButton onSelect={onHypothesisChange} />
                   </label>
                   <textarea
                     value={hypothesis}
@@ -631,6 +633,72 @@ export function InputSection({
           </div>
         )}
       </div>
+    </div>
+  );
+}
+
+// ─── Hypothesis Template Picker ────────────────────────────────────────────
+function HypothesisTemplateButton({ onSelect }: { onSelect: (text: string) => void }) {
+  const [open, setOpen] = useState(false);
+  const [activeCat, setActiveCat] = useState(0);
+  const ref = useRef<HTMLDivElement>(null);
+
+  useEffect(() => {
+    if (!open) return;
+    function onClickOutside(e: MouseEvent) {
+      if (ref.current && !ref.current.contains(e.target as Node)) setOpen(false);
+    }
+    document.addEventListener("mousedown", onClickOutside);
+    return () => document.removeEventListener("mousedown", onClickOutside);
+  }, [open]);
+
+  return (
+    <div ref={ref} className="relative ml-auto">
+      <button
+        type="button"
+        onClick={() => setOpen((v) => !v)}
+        className="ml-2 px-2 py-0.5 text-[10px] rounded border border-[var(--border)] text-[var(--muted)] hover:text-white hover:border-white/20 transition-colors normal-case tracking-normal"
+      >
+        템플릿
+      </button>
+      {open && (
+        <div
+          className="absolute right-0 top-full mt-1 z-50 rounded-lg border border-[var(--border)] bg-[#111] shadow-xl"
+          style={{ width: 340 }}
+        >
+          {/* Category tabs */}
+          <div className="flex overflow-x-auto gap-1 p-2 border-b border-[var(--border)] scrollbar-hide">
+            {HYPOTHESIS_TEMPLATES.map((cat, i) => (
+              <button
+                key={cat.category}
+                type="button"
+                onClick={() => setActiveCat(i)}
+                className={`shrink-0 px-2.5 py-1 text-[10px] rounded transition-colors ${
+                  activeCat === i
+                    ? "bg-white/10 text-white"
+                    : "text-[var(--muted)] hover:text-white"
+                }`}
+              >
+                {cat.category}
+              </button>
+            ))}
+          </div>
+          {/* Templates */}
+          <div className="p-2 space-y-1">
+            {HYPOTHESIS_TEMPLATES[activeCat]?.templates.map((tpl) => (
+              <button
+                key={tpl.label}
+                type="button"
+                onClick={() => { onSelect(tpl.text); setOpen(false); }}
+                className="w-full text-left px-3 py-2 rounded-md hover:bg-white/5 transition-colors group"
+              >
+                <div className="text-[11px] text-white/50 group-hover:text-white/70 mb-0.5">{tpl.label}</div>
+                <div className="text-xs text-[var(--muted)] group-hover:text-white/60 leading-relaxed">{tpl.text}</div>
+              </button>
+            ))}
+          </div>
+        </div>
+      )}
     </div>
   );
 }

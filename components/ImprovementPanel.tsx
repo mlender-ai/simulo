@@ -60,6 +60,9 @@ export function ImprovementPanel({
   // Progress tracking during multi-variant generation
   const [generatingCount, setGeneratingCount] = useState(0);
   const [generatedCount, setGeneratedCount] = useState(0);
+  // Mutex: prevents concurrent handleGenerate / handleReanalyze calls
+  // (covers the window between click and panelState re-render)
+  const operationRef = useRef(false);
 
   const loadingIntervalRef = useRef<ReturnType<typeof setInterval> | null>(null);
   const iframeRef = useRef<HTMLIFrameElement>(null);
@@ -83,7 +86,9 @@ export function ImprovementPanel({
   }, [panelState]); // eslint-disable-line react-hooks/exhaustive-deps
 
   // ── Generate N variants sequentially ─────────────────────────────────────
-  async function handleGenerate() {
+  const handleGenerate = useCallback(async () => {
+    if (operationRef.current) return;
+    operationRef.current = true;
     setPanelState("generating");
     setError(null);
     setGeneratingCount(variantCount);
@@ -137,7 +142,8 @@ export function ImprovementPanel({
     } else {
       setPanelState("idle");
     }
-  }
+    operationRef.current = false;
+  }, [variantCount, optCriticalOnly, optDesireAlignment, optRestructureLayout, targetScore, originalAnalysis, roundNumber]);
 
   // ── Save active variant as PNG ────────────────────────────────────────────
   const handleSavePng = useCallback(async () => {
@@ -170,20 +176,23 @@ export function ImprovementPanel({
   }, [activeVariantIdx, originalAnalysis.id]);
 
   // ── Re-analyze ────────────────────────────────────────────────────────────
-  async function handleReanalyze() {
+  const handleReanalyze = useCallback(async () => {
+    // Mutex: captures the window between click and panelState → "reanalyzing"
+    if (operationRef.current) return;
     const activeVariant = variants[activeVariantIdx];
     if (!activeVariant) return;
+    operationRef.current = true;
 
     // ── Step 1: capture iframe BEFORE state change (iframe unmounts on reanalyzing state) ──
     let capturedImage: string | null = null;
     try {
       const iframe = iframeRef.current;
-      // Wait for iframe to finish loading if needed
       if (iframe) {
+        // Wait up to 5s for iframe to be fully loaded
         await new Promise<void>((resolve) => {
           if (iframe.contentDocument?.readyState === "complete") { resolve(); return; }
           iframe.addEventListener("load", () => resolve(), { once: true });
-          setTimeout(resolve, 3000); // fallback timeout
+          setTimeout(resolve, 5000);
         });
         const iframeBody = iframe.contentDocument?.body;
         if (iframeBody) {
@@ -192,7 +201,6 @@ export function ImprovementPanel({
             quality: 0.9,
             backgroundColor: "#0f0f0f",
           });
-          console.log("[improve] iframe captured, dataUrl length:", capturedImage.length);
         }
       }
     } catch (captureErr) {
@@ -200,7 +208,8 @@ export function ImprovementPanel({
     }
 
     if (!capturedImage) {
-      setError("개선된 화면 캡처에 실패했습니다. iframe이 로드될 때까지 잠시 기다린 후 다시 시도해 주세요.");
+      setError("개선된 화면 캡처에 실패했습니다. 화면이 완전히 로드된 후 다시 시도해 주세요.");
+      operationRef.current = false;
       return;
     }
 
@@ -244,8 +253,10 @@ export function ImprovementPanel({
       console.error("[improve] reanalyze:", err);
       setError(err instanceof Error ? err.message : "재분석 실패");
       setPanelState("variants");
+    } finally {
+      operationRef.current = false;
     }
-  }
+  }, [variants, activeVariantIdx, originalAnalysis, roundNumber]);
 
   // ── Next round ────────────────────────────────────────────────────────────
   function handleNextRound() {
@@ -459,7 +470,8 @@ export function ImprovementPanel({
           </button>
           <button
             onClick={handleReanalyze}
-            className="flex-1 py-2 rounded-md text-xs text-white bg-white/10 hover:bg-white/15 border border-white/10 transition-colors"
+            disabled={isLoading}
+            className="flex-1 py-2 rounded-md text-xs text-white bg-white/10 hover:bg-white/15 border border-white/10 transition-colors disabled:opacity-50 disabled:cursor-not-allowed"
           >
             → 재분석
           </button>
