@@ -18,6 +18,7 @@ import { IssuesTab } from "./report/IssuesTab";
 import { CoinIcon, RunnerIcon, BoltIcon } from "./report/icons";
 
 type Tab = "overview" | "quickWins" | "issues";
+const VALID_TABS: readonly Tab[] = ["overview", "quickWins", "issues"];
 
 const EFFORT_RANK: Record<string, number> = { "낮음": 0, Low: 0, "중간": 1, Medium: 1, "높음": 2, High: 2 };
 const IMPACT_RANK: Record<string, number> = { "높음": 0, High: 0, "중간": 1, Medium: 1, "낮음": 2, Low: 2 };
@@ -34,6 +35,22 @@ export function UsabilityReportTabs({ data, locale }: { data: AnalysisResult; lo
     if (typeof window !== "undefined") {
       setHeatmapOn(localStorage.getItem(HEATMAP_STORAGE_KEY) === "true");
     }
+  }, []);
+
+  // Read initial tab from URL ?tab= param
+  useEffect(() => {
+    const params = new URLSearchParams(window.location.search);
+    const tabParam = params.get("tab");
+    if (tabParam && (VALID_TABS as readonly string[]).includes(tabParam)) {
+      setTab(tabParam as Tab);
+    }
+  }, []); // eslint-disable-line react-hooks/exhaustive-deps
+
+  const handleTabChange = useCallback((newTab: Tab) => {
+    setTab(newTab);
+    const url = new URL(window.location.href);
+    url.searchParams.set("tab", newTab);
+    window.history.replaceState(null, "", url.toString());
   }, []);
 
   const toggleHeatmap = useCallback(() => {
@@ -68,9 +85,9 @@ export function UsabilityReportTabs({ data, locale }: { data: AnalysisResult; lo
 
   const handleScreenClick = useCallback((index: number) => {
     setSelectedScreen(index);
-    setTab("issues");
+    handleTabChange("issues");
     setHeatmapOn(true);
-  }, []);
+  }, [handleTabChange]);
 
   return (
     <div>
@@ -100,7 +117,7 @@ export function UsabilityReportTabs({ data, locale }: { data: AnalysisResult; lo
         {tabItems.map((item) => (
           <button
             key={item.key}
-            onClick={() => setTab(item.key)}
+            onClick={() => handleTabChange(item.key)}
             className={`px-4 py-1.5 text-sm rounded-md transition-colors ${
               tab === item.key ? "bg-white/10 text-white" : "text-[var(--muted)] hover:text-white"
             }`}

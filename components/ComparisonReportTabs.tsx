@@ -1,6 +1,6 @@
 "use client";
 
-import { useState } from "react";
+import { useState, useEffect, useCallback } from "react";
 import type { AnalysisResult, ComparisonResult, ComparisonProductResult } from "@/lib/storage";
 import { t, type Locale } from "@/lib/i18n";
 import { ComparisonScoreBar } from "./ComparisonScoreBar";
@@ -31,6 +31,7 @@ const DESIRE_TYPE_BADGE: Record<string, string> = {
 };
 
 type Tab = "summary" | "table" | "details" | "sideBySide";
+const VALID_TABS: readonly Tab[] = ["summary", "table", "details", "sideBySide"];
 
 interface ComparisonReportTabsProps {
   analysis: AnalysisResult;
@@ -46,6 +47,21 @@ function scoreDelta(ourScore: number, otherScore: number) {
 
 export function ComparisonReportTabs({ analysis, locale }: ComparisonReportTabsProps) {
   const [activeTab, setActiveTab] = useState<Tab>("summary");
+
+  useEffect(() => {
+    const params = new URLSearchParams(window.location.search);
+    const tabParam = params.get("tab");
+    if (tabParam && (VALID_TABS as readonly string[]).includes(tabParam)) {
+      setActiveTab(tabParam as Tab);
+    }
+  }, []); // eslint-disable-line react-hooks/exhaustive-deps
+
+  const handleTabChange = useCallback((newTab: Tab) => {
+    setActiveTab(newTab);
+    const url = new URL(window.location.href);
+    url.searchParams.set("tab", newTab);
+    window.history.replaceState(null, "", url.toString());
+  }, []);
 
   const data = analysis.comparisonData as ComparisonResult | undefined;
   if (!data || !data.products || data.products.length === 0) {
@@ -104,7 +120,7 @@ export function ComparisonReportTabs({ analysis, locale }: ComparisonReportTabsP
         {tabs.map((tab) => (
           <button
             key={tab.key}
-            onClick={() => setActiveTab(tab.key)}
+            onClick={() => handleTabChange(tab.key)}
             className={`px-4 py-2 text-sm border-b-2 -mb-px transition-colors ${
               activeTab === tab.key
                 ? "text-white border-white"
