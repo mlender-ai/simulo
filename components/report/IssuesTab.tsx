@@ -1,7 +1,7 @@
 /* eslint-disable @next/next/no-img-element */
 "use client";
 
-import { useState } from "react";
+import { useState, useCallback } from "react";
 import type { AnalysisResult } from "@/lib/storage";
 import { STRIPPED_IMAGE } from "@/lib/storage";
 import { t, type Locale } from "@/lib/i18n";
@@ -41,6 +41,7 @@ export function IssuesTab({
 }: IssuesTabProps) {
   const [hypothesisFilterOn, setHypothesisFilterOn] = useState(false);
   const [severityFilter, setSeverityFilter] = useState<"All" | "Critical" | "Medium" | "Low">("All");
+  const [copied, setCopied] = useState(false);
   const safeIssues = data.issues ?? [];
   const safeThumbnailUrls = data.thumbnailUrls ?? [];
   const hasThumbnails = safeThumbnailUrls.some((u) => u !== STRIPPED_IMAGE);
@@ -95,6 +96,17 @@ export function IssuesTab({
     ? hypothesisFiltered
     : hypothesisFiltered.filter(({ issue }) => issue.severity === severityFilter);
 
+  const handleCopyIssues = useCallback(() => {
+    const text = filteredVisibleWithIdx
+      .map(({ issue }) =>
+        `[${issue.severity}] ${issue.issue}\n→ 권고: ${issue.recommendation}`
+      )
+      .join("\n\n");
+    navigator.clipboard.writeText(text);
+    setCopied(true);
+    setTimeout(() => setCopied(false), 2000);
+  }, [filteredVisibleWithIdx]);
+
   return (
     <div>
       {/* Top controls row */}
@@ -138,6 +150,17 @@ export function IssuesTab({
 
           {/* Hypothesis filter + heatmap on the right */}
           <div className="flex gap-2 ml-auto">
+            <button
+              onClick={handleCopyIssues}
+              disabled={filteredVisibleWithIdx.length === 0}
+              className={`px-3 py-1 text-xs rounded-md border transition-colors ${
+                copied
+                  ? "bg-white/10 text-white border-white/20"
+                  : "text-[var(--muted)] border-[var(--border)] hover:text-white"
+              } disabled:opacity-30 disabled:cursor-not-allowed`}
+            >
+              {copied ? "✓ 복사됨" : "이슈 복사"}
+            </button>
             {hasRelevanceData && (
               <button
                 onClick={() => setHypothesisFilterOn((prev) => !prev)}
