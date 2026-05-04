@@ -56,6 +56,8 @@ export function ImprovementPanel({
   const [targetScore, setTargetScore] = useState(
     Math.min(originalAnalysis.score + 15, 100)
   );
+  const [description, setDescription] = useState("");
+  const [referenceImages, setReferenceImages] = useState<string[]>([]);
 
   // Progress tracking during multi-variant generation
   const [generatingCount, setGeneratingCount] = useState(0);
@@ -116,6 +118,8 @@ export function ImprovementPanel({
               targetScore,
               variantIndex: i, // hint to API to generate distinct variants
             },
+            description: description.trim() || undefined,
+            referenceImages: referenceImages.length > 0 ? referenceImages : undefined,
             roundNumber,
             productMode: getProductMode(),
           }),
@@ -143,7 +147,7 @@ export function ImprovementPanel({
       setPanelState("idle");
     }
     operationRef.current = false;
-  }, [variantCount, optCriticalOnly, optDesireAlignment, optRestructureLayout, targetScore, originalAnalysis, roundNumber]);
+  }, [variantCount, optCriticalOnly, optDesireAlignment, optRestructureLayout, targetScore, description, referenceImages, originalAnalysis, roundNumber]);
 
   // ── Save active variant as PNG ────────────────────────────────────────────
   const handleSavePng = useCallback(async () => {
@@ -345,7 +349,7 @@ export function ImprovementPanel({
         </div>
 
         {/* Target score */}
-        <div className="mb-6">
+        <div className="mb-5">
           <p className="text-xs font-medium text-white/60 mb-2">
             목표 점수 <span className="text-white/30">(선택)</span>
           </p>
@@ -360,6 +364,68 @@ export function ImprovementPanel({
             placeholder="예: 85"
             className="w-full bg-white/5 border border-[var(--border)] rounded-md px-3 py-2 text-sm text-white mono outline-none focus:border-white/20 transition-colors"
           />
+        </div>
+
+        {/* Description */}
+        <div className="mb-5">
+          <p className="text-xs font-medium text-white/60 mb-2">
+            추가 지시사항 <span className="text-white/30">(선택)</span>
+          </p>
+          <textarea
+            value={description}
+            onChange={(e) => setDescription(e.target.value)}
+            placeholder="예: 버튼 색상을 브랜드 컬러에 맞게, CTA는 더 크고 명확하게..."
+            rows={3}
+            className="w-full bg-white/5 border border-[var(--border)] rounded-md px-3 py-2 text-sm text-white/80 outline-none focus:border-white/20 transition-colors resize-none placeholder:text-white/20"
+          />
+        </div>
+
+        {/* Reference images */}
+        <div className="mb-6">
+          <p className="text-xs font-medium text-white/60 mb-2">
+            레퍼런스 이미지 <span className="text-white/30">(선택)</span>
+          </p>
+          {referenceImages.length > 0 && (
+            <div className="flex flex-wrap gap-2 mb-2">
+              {referenceImages.map((src, idx) => (
+                <div key={idx} className="relative group">
+                  {/* eslint-disable-next-line @next/next/no-img-element */}
+                  <img
+                    src={src}
+                    alt={`레퍼런스 ${idx + 1}`}
+                    className="w-16 h-16 object-cover rounded border border-[var(--border)]"
+                  />
+                  <button
+                    onClick={() => setReferenceImages((prev) => prev.filter((_, i) => i !== idx))}
+                    className="absolute -top-1.5 -right-1.5 w-4 h-4 rounded-full bg-black border border-white/20 text-white/60 hover:text-white text-[10px] flex items-center justify-center leading-none"
+                  >
+                    ×
+                  </button>
+                </div>
+              ))}
+            </div>
+          )}
+          <label className="flex items-center gap-2 cursor-pointer w-fit px-3 py-1.5 rounded-md border border-dashed border-white/20 hover:border-white/40 transition-colors">
+            <span className="text-xs text-white/40 hover:text-white/60">+ 이미지 추가</span>
+            <input
+              type="file"
+              accept="image/*"
+              multiple
+              className="hidden"
+              onChange={(e) => {
+                const files = Array.from(e.target.files ?? []);
+                files.forEach((file) => {
+                  const reader = new FileReader();
+                  reader.onload = (ev) => {
+                    const result = ev.target?.result as string;
+                    if (result) setReferenceImages((prev) => [...prev, result]);
+                  };
+                  reader.readAsDataURL(file);
+                });
+                e.target.value = "";
+              }}
+            />
+          </label>
         </div>
 
         {error && (

@@ -29,6 +29,8 @@ export interface GenerateImproveParams {
   score: number;
   roundNumber: number;
   productMode?: "yafit" | "general";
+  description?: string;
+  referenceImages?: string[];
 }
 
 export interface GenerateImproveResult {
@@ -38,7 +40,7 @@ export interface GenerateImproveResult {
 
 export async function generateImprovement(input: GenerateImproveParams): Promise<GenerateImproveResult> {
   const anthropic = new Anthropic({ apiKey: env.ANTHROPIC_API_KEY });
-  const { originalImage, issues, desire, options, score, roundNumber } = input;
+  const { originalImage, issues, desire, options, score, roundNumber, description, referenceImages } = input;
 
   const content: Anthropic.MessageParam["content"] = [];
 
@@ -58,9 +60,29 @@ export async function generateImprovement(input: GenerateImproveParams): Promise
     });
   }
 
+  // 레퍼런스 이미지 첨부 (있을 경우)
+  if (referenceImages && referenceImages.length > 0) {
+    content.push({
+      type: "text",
+      text: `## 레퍼런스 이미지 (${referenceImages.length}장 — 디자인 스타일/레이아웃 참고용. 이 화면을 그대로 복사하는 것이 아니라 원본 화면을 개선할 때 참고하세요)`,
+    });
+    for (const refImg of referenceImages) {
+      const mimeMatch = refImg.match(/^data:(image\/\w+);base64,/);
+      const mediaType = (mimeMatch?.[1] ?? "image/png") as "image/png" | "image/jpeg" | "image/gif" | "image/webp";
+      content.push({
+        type: "image",
+        source: {
+          type: "base64",
+          media_type: mediaType,
+          data: refImg.replace(/^data:image\/\w+;base64,/, ""),
+        },
+      });
+    }
+  }
+
   content.push({
     type: "text",
-    text: buildAnalysisContext({ issues, desire, options, score, roundNumber }),
+    text: buildAnalysisContext({ issues, desire, options, score, roundNumber, description }),
   });
 
   const response = await anthropic.messages.create({
@@ -145,7 +167,8 @@ function buildAnalysisContext(
     options,
     score,
     roundNumber,
-  }: Pick<GenerateImproveParams, "issues" | "desire" | "options" | "score" | "roundNumber">
+    description,
+  }: Pick<GenerateImproveParams, "issues" | "desire" | "options" | "score" | "roundNumber" | "description">
 ): string {
   const targetIssues = options.criticalOnly
     ? issues.filter((i) => i.severity === "Critical")
@@ -172,6 +195,10 @@ ${targetIssues
 ※ 욕망 관련 개선도 원본 UI 요소 내에서만 (카피 변경, 수치 강조 등). 새 섹션 추가 금지.`
       : "";
 
+  const descriptionSection = description
+    ? `\n## 추가 지시사항 (반드시 반영)\n${description}`
+    : "";
+
   return `
 ## 현재 상태
 - 현재 점수: ${score}/100
@@ -179,6 +206,7 @@ ${targetIssues
 ${desireSection}
 
 ${issuesSection}
+${descriptionSection}
 
 ---
 위 수정 사항만 적용한 개선 화면을 생성하세요. 나머지는 원본과 동일하게 유지.`;

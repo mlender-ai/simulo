@@ -32,6 +32,8 @@ export async function POST(req: NextRequest) {
   const options: ImprovementOptions = body.options ?? {};
   const roundNumber: number = typeof body.roundNumber === "number" ? body.roundNumber : 1;
   const productMode: "yafit" | "general" = body.productMode === "general" ? "general" : "yafit";
+  const description: string | undefined = typeof body.description === "string" ? body.description : undefined;
+  const referenceImages: string[] | undefined = Array.isArray(body.referenceImages) ? body.referenceImages : undefined;
 
   if (!env.ANTHROPIC_API_KEY) {
     return NextResponse.json({ error: "API key not configured" }, { status: 503 });
@@ -90,6 +92,8 @@ export async function POST(req: NextRequest) {
       score: analysis.score,
       roundNumber,
       productMode,
+      description,
+      referenceImages,
     });
 
     return NextResponse.json({
