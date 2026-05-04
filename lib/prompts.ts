@@ -156,7 +156,10 @@ For hypothesis validation, present evidence for BOTH sides:
 Do not default to negative. If the design effectively communicates its value proposition, say so clearly.
 
 Rule 5 — HEATMAP RELEVANCE FILTER
-When generating heatZone coordinates, only mark areas that are directly relevant to the hypothesis. Do not mark decorative elements, standard UI chrome, regulatory badges, or areas that work correctly and need no attention. A heatmap with fewer, more precise zones is better than a heatmap covering the entire screen.`;
+When generating heatZone coordinates, only mark areas that are directly relevant to the hypothesis. Do not mark decorative elements, standard UI chrome, regulatory badges, or areas that work correctly and need no attention. A heatmap with fewer, more precise zones is better than a heatmap covering the entire screen.
+
+Rule 6 — ASSUME ONBOARDING IS COMPLETE
+Users viewing these screens have already completed onboarding. They already understand the app's core mechanics and terminology (e.g., reward points, mileage, step tracking, streaks). Do NOT generate issues or Think Aloud thoughts that express confusion about what these features are or how they work in general. Focus instead on the UX friction of the current screen: Is the information easy to act on? Is the next step clear? Is the current state communicated well? "I don't understand what mileage is" is not a valid observation — "I can't tell if today's mileage has already been credited" is.`;
 
 const BASE_PROMPT_KO = `당신은 전문 UX 분석 에이전트입니다.
 
@@ -254,7 +257,10 @@ Heat Zone 정밀도 규칙 (반드시 준수):
 부정적 방향으로 편향하지 마세요. 디자인이 가치 제안을 효과적으로 전달하고 있다면 그렇다고 명확히 말하세요.
 
 원칙 5 — 히트맵 관련도 필터
-heatZone 좌표를 생성할 때 가설과 직접 관련된 영역만 표시하세요. 장식적 요소, 표준 UI 크롬, 규정 배지, 문제없이 작동하는 영역은 표시하지 마세요. 적지만 정확한 히트맵이 화면 전체를 덮는 히트맵보다 낫습니다.`;
+heatZone 좌표를 생성할 때 가설과 직접 관련된 영역만 표시하세요. 장식적 요소, 표준 UI 크롬, 규정 배지, 문제없이 작동하는 영역은 표시하지 마세요. 적지만 정확한 히트맵이 화면 전체를 덮는 히트맵보다 낫습니다.
+
+원칙 6 — 온보딩 완료 전제
+이 화면을 보는 유저는 이미 온보딩을 완료한 상태입니다. 앱의 핵심 개념과 용어(예: 마일리지, 리워드, 걸음수 적립, 연속 기록 등)를 이미 이해하고 있습니다. "마일리지가 뭔지 모르겠다", "이게 어떤 앱인지 모르겠다" 같은 이슈나 발화는 절대 생성하지 마세요. 대신 현재 화면의 실제 UX 마찰에 집중하세요: 정보가 행동으로 이어지기 쉬운가? 다음 단계가 명확한가? 현재 상태가 잘 전달되는가? "오늘 마일리지가 이미 적립됐는지 안 됐는지 모르겠다"는 유효한 관찰이지만, "마일리지가 뭔지 모르겠다"는 아닙니다.`;
 
 // ──────────────────────────────────────────────
 // LAYER 2 — Mode layers
@@ -273,7 +279,8 @@ For each screen, evaluate:
 Return a Pass/Partial/Fail verdict, a 0-100 score, and a verdictReason naming the exact screen element that drives the judgment.
 
 Think Aloud — Multi-Persona:
-For thinkAloud, simulate 2–3 distinct user personas per screen. Each persona should represent a meaningfully different user type (e.g., first-time user, experienced user, skeptical/low-trust user). Give each persona a short descriptive label. Their thoughts should reflect genuinely different reactions to the same screen — not minor paraphrases of each other.
+For thinkAloud, simulate 2–3 distinct user personas per screen. Each persona should represent a meaningfully different user type based on engagement level or goal (e.g., a user checking their daily status, a user trying to redeem rewards, a user who hasn't opened the app in a few days). Give each persona a short descriptive label.
+IMPORTANT: All personas have already completed onboarding and already know what the app's core features do (mileage, rewards, streaks, etc.). Their thoughts must focus on the current screen's UX — not on learning what a feature is. "What is mileage?" is not a valid thought. "Did today's mileage already get added?" or "I want to redeem this but the button feels buried" are valid. Thoughts should reflect genuinely different reactions — not minor paraphrases of each other.
 
 JSON output schema:
 {
@@ -327,7 +334,8 @@ const HYPOTHESIS_LAYER_KO = `## 분석 모드: 가설 검증
 Pass/Partial/Fail 판정, 0-100 점수, 그리고 판단의 근거가 된 정확한 화면 요소를 명시한 verdictReason을 반환하세요.
 
 Think Aloud — 멀티 페르소나:
-thinkAloud에서는 화면별로 2–3명의 서로 다른 유저 페르소나를 시뮬레이션하세요. 각 페르소나는 의미 있게 다른 유저 유형을 대표해야 합니다(예: 신규 유저, 기존 유저, 회의적·신뢰 낮은 유저). 각 페르소나에 짧은 설명 레이블을 붙이세요. 각자의 발화는 같은 화면에 대해 진짜로 다른 반응을 반영해야 합니다 — 서로의 단순 바꿔쓰기가 되면 안 됩니다.
+thinkAloud에서는 화면별로 2–3명의 서로 다른 유저 페르소나를 시뮬레이션하세요. 각 페르소나는 참여 패턴이나 목표가 다른 유저 유형을 대표해야 합니다(예: 매일 확인하는 적극적 유저, 오늘 리워드를 교환하려는 유저, 며칠 만에 다시 접속한 유저). 각 페르소나에 짧은 설명 레이블을 붙이세요.
+중요: 모든 페르소나는 이미 온보딩을 완료한 상태이며, 마일리지·리워드·연속 기록 등 앱의 핵심 개념을 이미 알고 있습니다. 발화는 기능의 개념을 이해하려는 내용이 아니라 현재 화면의 UX에 집중해야 합니다. "마일리지가 뭐지?"는 유효하지 않은 발화입니다. "오늘 마일리지가 적립됐나?" 또는 "교환 버튼이 어디 있지?"는 유효합니다. 각자의 발화는 같은 화면에 대해 진짜로 다른 반응을 반영해야 합니다 — 서로의 단순 바꿔쓰기가 되면 안 됩니다.
 
 JSON 키는 영문, 값은 한국어. 반드시 순수 JSON만 반환:
 {
@@ -506,7 +514,8 @@ function desireLayer(locale: string, targetUser?: string): string {
 - 온보딩에서 정확한 보상 금액 표시를 제안하지 말 것 (가격 민감 유저에게 앵커링 리스크 매우 높음)
 - 표준 인증/보안 배지를 UX 이슈로 지적하지 말 것
 - 온보딩에 설명 텍스트 추가를 제안하지 말 것 (인지 부하 증가 → 전환율 하락)
-- 4050 유저에게 모든 것을 설명해야 한다고 가정하지 말 것 (과도한 배려 디자인 자체가 전환 킬러)`;
+- 4050 유저에게 모든 것을 설명해야 한다고 가정하지 말 것 (과도한 배려 디자인 자체가 전환 킬러)
+- 마일리지가 뭔지 모른다는 가정으로 이슈나 발화를 생성하지 말 것 — 유저는 이미 온보딩을 통해 마일리지 개념을 인지한 상태임. 분석 초점은 "마일리지를 인지하는가"가 아니라 "지금 화면에서 마일리지 관련 행동(확인·교환·비교 등)이 얼마나 쉬운가"여야 함`;
 
     const domainKnowledgeEn = `
 
@@ -526,7 +535,8 @@ Common analysis mistakes to avoid:
 - Do not suggest showing exact reward amounts in onboarding (anchoring risk is very high for price-sensitive users)
 - Do not flag standard compliance/security badges as UX issues
 - Do not suggest adding more explanatory text to onboarding (increases cognitive load, reduces conversion)
-- Do not assume 4050 users need everything spelled out (patronizing design is itself a conversion killer)`;
+- Do not assume 4050 users need everything spelled out (patronizing design is itself a conversion killer)
+- Do not generate issues or Think Aloud thoughts assuming users don't know what mileage is — users have already completed onboarding and understand the mileage concept. The analysis focus should be on whether mileage-related actions (checking, redeeming, comparing) are easy to perform on the current screen, not on whether users understand what mileage means`;
 
     return isKo
       ? `## 옵션: 욕망 충족도 분석 — 4060세대 한국 여성 타깃
