@@ -68,21 +68,21 @@ export default function SharePage() {
   }
 
   return (
-    <div className="min-h-screen bg-[#0a0a0a]">
-      {/* Watermark */}
-      <div className="fixed top-4 right-4 z-50 text-[12px] text-[#333] select-none pointer-events-none">
+    <div className="min-h-screen min-h-dvh bg-[#0a0a0a] pb-24">
+      {/* Watermark — hidden on very small screens to avoid overlapping content */}
+      <div className="hidden sm:block fixed top-4 right-4 z-50 text-[12px] text-[#333] select-none pointer-events-none">
         Simulo로 만든 UX 분석 리포트
       </div>
 
-      <div className="max-w-4xl mx-auto p-8">
+      <div className="max-w-4xl mx-auto px-4 py-6 md:p-8">
         {/* Header */}
-        <div className="mb-8">
-          <h1 className="text-xl font-semibold mb-2 text-white">
+        <div className="mb-6 md:mb-8">
+          <h1 className="text-lg md:text-xl font-semibold mb-2 text-white leading-snug">
             {data.mode === "usability"
               ? t("usabilityReportTitle", locale)
               : data.hypothesis}
           </h1>
-          <div className="flex items-center gap-3 text-xs text-white/40">
+          <div className="flex items-center gap-2 flex-wrap text-xs text-white/40">
             <span className="mono">
               {new Date(data.createdAt).toLocaleString()}
             </span>
@@ -104,8 +104,8 @@ export default function SharePage() {
           <ReportTabs data={data} locale={locale} />
         )}
 
-        {/* CTA */}
-        <div className="mt-12 pt-8 border-t border-white/10 text-center">
+        {/* Desktop CTA */}
+        <div className="hidden md:block mt-12 pt-8 border-t border-white/10 text-center">
           <Link
             href="/"
             className="inline-flex items-center gap-2 px-6 py-2.5 rounded-lg bg-white/10 hover:bg-white/15 text-sm text-white transition-colors"
@@ -116,6 +116,19 @@ export default function SharePage() {
             Powered by Simulo — AI UX Testing Tool
           </p>
         </div>
+      </div>
+
+      {/* Mobile floating CTA */}
+      <div className="md:hidden fixed bottom-0 left-0 right-0 z-30 p-4 bg-[#0a0a0a]/95 border-t border-white/10 backdrop-blur-sm">
+        <Link
+          href="/"
+          className="flex items-center justify-center gap-2 w-full py-3.5 rounded-xl bg-white text-black text-sm font-semibold hover:bg-white/90 transition-colors"
+        >
+          새 분석 시작하기
+        </Link>
+        <p className="text-center text-[10px] text-white/20 mt-2">
+          Powered by Simulo
+        </p>
       </div>
     </div>
   );

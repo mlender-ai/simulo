@@ -517,21 +517,21 @@ export default function DashboardPage() {
 
   return (
     <div className="min-h-screen bg-[var(--background)] text-white">
-      <div className="max-w-7xl mx-auto px-6 py-8">
+      <div className="max-w-7xl mx-auto px-4 md:px-6 py-5 md:py-8">
         {/* Header */}
-        <div className="mb-8">
-          <h1 className="text-2xl font-semibold tracking-tight mb-1">대시보드</h1>
+        <div className="mb-5 md:mb-8">
+          <h1 className="text-xl md:text-2xl font-semibold tracking-tight mb-1">대시보드</h1>
           <p className="text-sm text-[var(--muted)]">누적 분석 데이터 기반 패턴 및 인사이트</p>
         </div>
 
         {/* Filters */}
-        <div className="flex flex-wrap items-center gap-3 mb-8">
-          <div className="flex items-center gap-1 bg-white/5 rounded-md p-1">
+        <div className="flex flex-wrap items-center gap-2 md:gap-3 mb-6 md:mb-8">
+          <div className="flex items-center gap-0.5 bg-white/5 rounded-md p-1">
             {PERIODS.map(({ key, label }) => (
               <button
                 key={key}
                 onClick={() => setPeriod(key)}
-                className={`px-3 py-1.5 rounded text-sm transition-colors ${
+                className={`px-3 py-2 md:py-1.5 rounded text-sm transition-colors min-h-[40px] md:min-h-0 ${
                   period === key
                     ? "bg-white/15 text-white"
                     : "text-[var(--muted)] hover:text-white"
@@ -546,7 +546,7 @@ export default function DashboardPage() {
             <select
               value={projectTag}
               onChange={(e) => setProjectTag(e.target.value)}
-              className="bg-white/5 border border-[var(--border)] rounded-md px-3 py-1.5 text-sm text-white focus:outline-none focus:border-white/30"
+              className="bg-white/5 border border-[var(--border)] rounded-md px-3 py-2 md:py-1.5 text-sm text-white focus:outline-none focus:border-white/30 min-h-[44px] md:min-h-0"
             >
               <option value="">전체 프로젝트</option>
               {tags.map((tag) => (
@@ -1110,9 +1110,9 @@ export default function DashboardPage() {
             </div>
 
             {/* ── Section 6: AI 인사이트 ── */}
-            <div className="bg-[var(--surface)] border border-[var(--border)] rounded-lg p-6">
-              <div className="flex items-center justify-between mb-5">
-                <div>
+            <div className="bg-[var(--surface)] border border-[var(--border)] rounded-lg p-4 md:p-6">
+              <div className="flex items-start justify-between gap-3 mb-5">
+                <div className="min-w-0">
                   <h2 className="text-sm font-semibold">AI 인사이트 & 역제안</h2>
                   <p className="text-xs text-[var(--muted)] mt-0.5">
                     데이터 기반 제품 개선 방향을 Simulo가 분석합니다
@@ -1121,9 +1121,9 @@ export default function DashboardPage() {
                 <button
                   onClick={generateInsights}
                   disabled={loadingInsights || stats.totalAnalyses < 3}
-                  className="px-4 py-2 bg-white text-black text-sm font-medium rounded-md hover:bg-white/90 disabled:opacity-40 disabled:cursor-not-allowed transition-colors"
+                  className="shrink-0 px-4 py-2.5 bg-white text-black text-sm font-medium rounded-md hover:bg-white/90 disabled:opacity-40 disabled:cursor-not-allowed transition-colors min-h-[44px]"
                 >
-                  {loadingInsights ? "분석 중..." : "인사이트 생성하기"}
+                  {loadingInsights ? "분석 중..." : "인사이트 생성"}
                 </button>
               </div>
 

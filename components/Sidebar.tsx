@@ -12,7 +12,11 @@ const VERDICT_COLORS: Record<string, string> = {
   Fail: "text-red-400",
 };
 
-export function Sidebar() {
+interface SidebarProps {
+  onClose?: () => void;
+}
+
+export function Sidebar({ onClose }: SidebarProps) {
   const pathname = usePathname();
   const [locale, setLocale] = useState<Locale>("ko");
   const [recent, setRecent] = useState<AnalysisResult[]>([]);
@@ -43,28 +47,43 @@ export function Sidebar() {
     { href: "/settings", label: t("settings", locale), icon: "⚙" },
   ];
 
+  const handleNavClick = () => {
+    onClose?.();
+  };
+
   return (
-    <aside className="fixed left-0 top-0 h-screen w-56 border-r border-[var(--border)] bg-[var(--background)] flex flex-col z-50">
-      <div className="p-6">
-        <Link href="/" className="text-lg font-semibold tracking-tight">
+    <aside className="h-full flex flex-col bg-[var(--background)]">
+      <div className="flex items-center justify-between px-6 py-5 border-b border-[var(--border)]">
+        <Link href="/" onClick={handleNavClick} className="text-lg font-semibold tracking-tight">
           Simulo
         </Link>
+        {/* Close button — mobile only */}
+        {onClose && (
+          <button
+            onClick={onClose}
+            className="md:hidden flex items-center justify-center w-8 h-8 rounded-md text-[var(--muted)] hover:text-white transition-colors"
+            aria-label="닫기"
+          >
+            ✕
+          </button>
+        )}
       </div>
 
-      <nav className="px-3 space-y-1">
+      <nav className="px-3 pt-3 space-y-0.5">
         {navItems.map((item) => {
           const isActive = pathname.startsWith(item.href);
           return (
             <Link
               key={item.href}
               href={item.href}
-              className={`flex items-center gap-3 px-3 py-2 rounded-md text-sm transition-colors ${
+              onClick={handleNavClick}
+              className={`flex items-center gap-3 px-3 py-3 rounded-md text-sm transition-colors min-h-[44px] ${
                 isActive
                   ? "bg-white/10 text-white"
                   : "text-[var(--muted)] hover:text-white hover:bg-white/5"
               }`}
             >
-              <span className="mono text-xs w-4 text-center">{item.icon}</span>
+              <span className="mono text-xs w-4 text-center shrink-0">{item.icon}</span>
               {item.label}
             </Link>
           );
@@ -73,10 +92,10 @@ export function Sidebar() {
 
       {/* Recent analyses */}
       {recent.length > 0 && (
-        <div className="flex-1 mt-6 px-3 overflow-hidden flex flex-col min-h-0">
+        <div className="flex-1 mt-4 px-3 overflow-hidden flex flex-col min-h-0">
           <button
             onClick={() => setShowRecent(!showRecent)}
-            className="flex items-center gap-2 px-3 py-1.5 text-xs text-[var(--muted)] uppercase tracking-wider hover:text-white transition-colors w-full"
+            className="flex items-center gap-2 px-3 py-2 text-xs text-[var(--muted)] uppercase tracking-wider hover:text-white transition-colors w-full min-h-[36px]"
           >
             <span className="mono text-[10px]">{showRecent ? "▾" : "▸"}</span>
             최근 분석
@@ -87,16 +106,15 @@ export function Sidebar() {
                 <Link
                   key={a.id}
                   href={`/report/${a.id}`}
-                  className={`block px-3 py-1.5 rounded-md text-xs transition-colors truncate ${
+                  onClick={handleNavClick}
+                  className={`block px-3 py-2.5 rounded-md text-xs transition-colors truncate min-h-[40px] flex items-center ${
                     pathname === `/report/${a.id}`
                       ? "bg-white/10 text-white"
                       : "text-[var(--muted)] hover:text-white hover:bg-white/5"
                   }`}
                 >
-                  <div className="flex items-center gap-1.5">
-                    <span
-                      className={`shrink-0 text-[10px] ${VERDICT_COLORS[a.verdict] ?? ""}`}
-                    >
+                  <div className="flex items-center gap-1.5 w-full overflow-hidden">
+                    <span className={`shrink-0 text-[10px] ${VERDICT_COLORS[a.verdict] ?? ""}`}>
                       ●
                     </span>
                     <span className="truncate">
@@ -111,7 +129,9 @@ export function Sidebar() {
         </div>
       )}
 
-      <div className="px-6 pb-6 text-xs text-[var(--muted)] mono">v1.0</div>
+      <div className="px-6 py-5 text-xs text-[var(--muted)] mono border-t border-[var(--border)] mt-auto">
+        v1.0
+      </div>
     </aside>
   );
 }

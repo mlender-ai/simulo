@@ -50,92 +50,94 @@ export default function HistoryPage() {
   }, [router]);
 
   return (
-    <div className="p-8 max-w-4xl">
+    <div className="p-4 md:p-8 max-w-4xl">
       {/* Header */}
-      <div className="mb-8">
-        <h1 className="text-2xl font-semibold mb-2">{t("history", locale)}</h1>
+      <div className="mb-5 md:mb-8">
+        <h1 className="text-xl md:text-2xl font-semibold mb-1">{t("history", locale)}</h1>
         <p className="text-[var(--muted)] text-sm">
           {analyses.length}{t("analysesTotal", locale)}
         </p>
       </div>
 
       {/* Filters */}
-      <div className="flex gap-3 mb-2 flex-wrap items-center">
+      <div className="flex gap-2 mb-2 flex-wrap items-center">
         <input
           value={filter}
           onChange={(e) => setFilter(e.target.value)}
           placeholder={t("searchPlaceholder", locale)}
-          className="flex-1 min-w-[200px] px-4 py-2 bg-[var(--surface)] border border-[var(--border)] rounded-md text-sm focus:outline-none focus:border-white/30"
+          className="flex-1 min-w-[160px] px-3 py-2.5 bg-[var(--surface)] border border-[var(--border)] rounded-md text-sm focus:outline-none focus:border-white/30"
         />
-        {availableInputTypes.length > 1 && (
+        <div className="flex gap-2 flex-wrap">
+          {availableInputTypes.length > 1 && (
+            <select
+              value={inputTypeFilter}
+              onChange={(e) => setInputTypeFilter(e.target.value)}
+              className="px-3 py-2.5 bg-[var(--surface)] border border-[var(--border)] rounded-md text-sm focus:outline-none min-h-[44px]"
+            >
+              <option value="all">{t("filterInputTypeAll", locale)}</option>
+              {availableInputTypes.map((type) => {
+                const badge = INPUT_TYPE_BADGE[type];
+                return (
+                  <option key={type} value={type}>
+                    {badge ? `${badge.icon} ${t(badge.labelKey, locale)}` : type}
+                  </option>
+                );
+              })}
+            </select>
+          )}
           <select
-            value={inputTypeFilter}
-            onChange={(e) => setInputTypeFilter(e.target.value)}
-            className="px-3 py-2 bg-[var(--surface)] border border-[var(--border)] rounded-md text-sm focus:outline-none"
+            value={modeFilter}
+            onChange={(e) => setModeFilter(e.target.value)}
+            className="px-3 py-2.5 bg-[var(--surface)] border border-[var(--border)] rounded-md text-sm focus:outline-none min-h-[44px]"
           >
-            <option value="all">{t("filterInputTypeAll", locale)}</option>
-            {availableInputTypes.map((type) => {
-              const badge = INPUT_TYPE_BADGE[type];
-              return (
-                <option key={type} value={type}>
-                  {badge ? `${badge.icon} ${t(badge.labelKey, locale)}` : type}
-                </option>
-              );
-            })}
+            <option value="all">{t("filterModeAll", locale)}</option>
+            <option value="hypothesis">{t("filterModeHypothesis", locale)}</option>
+            <option value="usability">{t("filterModeUsability", locale)}</option>
           </select>
-        )}
-        <select
-          value={modeFilter}
-          onChange={(e) => setModeFilter(e.target.value)}
-          className="px-3 py-2 bg-[var(--surface)] border border-[var(--border)] rounded-md text-sm focus:outline-none"
-        >
-          <option value="all">{t("filterModeAll", locale)}</option>
-          <option value="hypothesis">{t("filterModeHypothesis", locale)}</option>
-          <option value="usability">{t("filterModeUsability", locale)}</option>
-        </select>
-        <select
-          value={verdictFilter}
-          onChange={(e) => setVerdictFilter(e.target.value)}
-          className="px-3 py-2 bg-[var(--surface)] border border-[var(--border)] rounded-md text-sm focus:outline-none"
-        >
-          <option value="all">{t("all", locale)}</option>
-          <option value="Pass">{t("Pass", locale)}</option>
-          <option value="Partial">{t("Partial", locale)}</option>
-          <option value="Fail">{t("Fail", locale)}</option>
-        </select>
+          <select
+            value={verdictFilter}
+            onChange={(e) => setVerdictFilter(e.target.value)}
+            className="px-3 py-2.5 bg-[var(--surface)] border border-[var(--border)] rounded-md text-sm focus:outline-none min-h-[44px]"
+          >
+            <option value="all">{t("all", locale)}</option>
+            <option value="Pass">{t("Pass", locale)}</option>
+            <option value="Partial">{t("Partial", locale)}</option>
+            <option value="Fail">{t("Fail", locale)}</option>
+          </select>
+        </div>
       </div>
 
       {/* Date range filter */}
       <div className="flex gap-2 mb-4 items-center flex-wrap">
-        <span className="text-xs text-[var(--muted)]">기간</span>
+        <span className="text-xs text-[var(--muted)] shrink-0">기간</span>
         <input
           type="date"
           value={fromDate}
           onChange={(e) => setFromDate(e.target.value)}
-          className="px-3 py-1.5 bg-[var(--surface)] border border-[var(--border)] rounded-md text-sm focus:outline-none text-[var(--muted)] focus:text-white"
+          className="flex-1 min-w-[130px] px-3 py-2.5 bg-[var(--surface)] border border-[var(--border)] rounded-md text-sm focus:outline-none text-[var(--muted)] focus:text-white min-h-[44px]"
         />
         <span className="text-xs text-[var(--muted)]">~</span>
         <input
           type="date"
           value={toDate}
           onChange={(e) => setToDate(e.target.value)}
-          className="px-3 py-1.5 bg-[var(--surface)] border border-[var(--border)] rounded-md text-sm focus:outline-none text-[var(--muted)] focus:text-white"
+          className="flex-1 min-w-[130px] px-3 py-2.5 bg-[var(--surface)] border border-[var(--border)] rounded-md text-sm focus:outline-none text-[var(--muted)] focus:text-white min-h-[44px]"
         />
         {hasActiveFilter && (
           <button
             onClick={clearFilters}
-            className="px-3 py-1.5 text-xs rounded-md border border-[var(--border)] text-[var(--muted)] hover:text-white transition-colors"
+            className="px-3 py-2.5 text-xs rounded-md border border-[var(--border)] text-[var(--muted)] hover:text-white transition-colors min-h-[44px]"
           >
-            필터 초기화
+            초기화
           </button>
         )}
       </div>
 
       {/* Bulk actions */}
-      <div className="flex items-center gap-3 mb-4">
+      <div className="flex items-center gap-2 mb-4 flex-wrap">
         <button
           onClick={() => { setBulkMode(!bulkMode); }}
-          className={`px-3 py-1.5 text-xs rounded-md border transition-colors ${
+          className={`px-3 py-2.5 text-xs rounded-md border transition-colors min-h-[44px] ${
             bulkMode
               ? "bg-white/10 text-white border-white/20"
               : "text-[var(--muted)] border-[var(--border)] hover:text-white"
@@ -147,14 +149,14 @@ export default function HistoryPage() {
           <>
             <button
               onClick={selectAll}
-              className="px-3 py-1.5 text-xs rounded-md border border-[var(--border)] text-[var(--muted)] hover:text-white transition-colors"
+              className="px-3 py-2.5 text-xs rounded-md border border-[var(--border)] text-[var(--muted)] hover:text-white transition-colors min-h-[44px]"
             >
               {selectedIds.size === filtered.length ? t("deselectAll", locale) : t("selectAll", locale)}
             </button>
             {selectedIds.size > 0 && (
               <button
                 onClick={deleteSelected}
-                className="px-3 py-1.5 text-xs rounded-md border border-red-400/30 text-red-400 hover:bg-red-400/10 transition-colors"
+                className="px-3 py-2.5 text-xs rounded-md border border-red-400/30 text-red-400 hover:bg-red-400/10 transition-colors min-h-[44px]"
               >
                 {t("deleteSelected", locale)} ({selectedIds.size})
               </button>

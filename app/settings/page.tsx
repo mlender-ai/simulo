@@ -55,9 +55,9 @@ export default function SettingsPage() {
   };
 
   return (
-    <div className="p-8 max-w-2xl">
-      <div className="mb-8">
-        <h1 className="text-2xl font-semibold mb-2">
+    <div className="p-4 md:p-8 max-w-2xl pb-28 md:pb-8">
+      <div className="mb-6 md:mb-8">
+        <h1 className="text-xl md:text-2xl font-semibold mb-2">
           {t("settings", locale)}
         </h1>
       </div>
@@ -184,12 +184,23 @@ export default function SettingsPage() {
           </p>
         </div>
 
+        {/* Desktop save button */}
         <button
           onClick={handleSave}
-          className="px-5 py-2.5 bg-white text-black text-sm font-medium rounded-md hover:bg-white/90 transition-colors"
+          className="hidden md:block px-5 py-2.5 bg-white text-black text-sm font-medium rounded-md hover:bg-white/90 transition-colors"
         >
           {saved ? t("saved", locale) : t("save", locale)}
         </button>
+
+        {/* Mobile floating save button */}
+        <div className="md:hidden fixed bottom-0 left-0 right-0 z-30 p-4 bg-[var(--background)] border-t border-[var(--border)]">
+          <button
+            onClick={handleSave}
+            className="w-full py-3.5 bg-white text-black text-sm font-semibold rounded-xl hover:bg-white/90 transition-colors"
+          >
+            {saved ? t("saved", locale) : t("save", locale)}
+          </button>
+        </div>
 
         {/* Storage Management */}
         <div className="pt-6 border-t border-[var(--border)] space-y-4">
@@ -220,7 +231,7 @@ export default function SettingsPage() {
               </div>
 
               {/* Stats */}
-              <div className="grid grid-cols-2 gap-3 text-sm">
+              <div className="grid grid-cols-1 sm:grid-cols-2 gap-3 text-sm">
                 <div>
                   <span className="text-[var(--muted)] text-xs">{t("storageLocalStorage", locale)}</span>
                   <p className="font-mono text-xs mt-0.5">
