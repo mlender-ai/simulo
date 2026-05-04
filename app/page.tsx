@@ -1,6 +1,6 @@
 "use client";
 
-import { useState, useEffect } from "react";
+import { useState, useEffect, useCallback } from "react";
 import { useRouter } from "next/navigation";
 import {
   InputSection,
@@ -18,6 +18,7 @@ import { Tooltip } from "@/components/Tooltip";
 import { storage, type AnalysisResult } from "@/lib/storage";
 import { getLocale, t, tMode, type Locale } from "@/lib/i18n";
 import OCRReviewModal from "@/components/OCRReviewModal";
+import { loadPresets, savePreset, deletePreset, type AnalysisPreset } from "@/lib/analysisPresets";
 import type { OCRResult } from "@/lib/ocr";
 import { type ProductMode, getProductMode, setProductMode as persistProductMode } from "@/lib/productMode";
 
@@ -96,6 +97,9 @@ export default function Home() {
   const [productMode, setProductModeState] = useState<ProductMode>("yafit");
   const [domain, setDomain] = useState("");
   const [domainFocuses, setDomainFocuses] = useState<string[]>([]);
+  const [presets, setPresets] = useState<AnalysisPreset[]>([]);
+  const [presetName, setPresetName] = useState("");
+  const [showPresetSave, setShowPresetSave] = useState(false);
 
   const handleProductModeChange = (m: ProductMode) => {
     setProductModeState(m);
@@ -134,6 +138,7 @@ export default function Home() {
     setProductModeState(getProductMode());
     const dismissed = localStorage.getItem("simulo_onboarding_dismissed");
     setBannerOpen(!dismissed);
+    setPresets(loadPresets());
 
     // Restore params from re-analyze
     const reanalyzeRaw = sessionStorage.getItem("simulo_reanalyze");
@@ -286,6 +291,36 @@ export default function Home() {
       setLoading(false);
     }
   };
+
+  const handleSavePreset = useCallback(() => {
+    if (!presetName.trim()) return;
+    const saved = savePreset({
+      name: presetName.trim(),
+      hypothesis,
+      targetUser,
+      task,
+      projectTag,
+      mode,
+      analysisPerspective,
+    });
+    setPresets((prev) => [saved, ...prev]);
+    setPresetName("");
+    setShowPresetSave(false);
+  }, [presetName, hypothesis, targetUser, task, projectTag, mode, analysisPerspective]);
+
+  const handleApplyPreset = useCallback((preset: AnalysisPreset) => {
+    setHypothesis(preset.hypothesis);
+    setTargetUser(preset.targetUser);
+    setTask(preset.task);
+    setProjectTag(preset.projectTag);
+    setMode(preset.mode);
+    setAnalysisPerspective(preset.analysisPerspective as AnalysisPerspective);
+  }, []);
+
+  const handleDeletePreset = useCallback((id: string) => {
+    deletePreset(id);
+    setPresets((prev) => prev.filter((p) => p.id !== id));
+  }, []);
 
   const handleAnalyze = async () => {
     if (!canSubmit) {
@@ -458,6 +493,65 @@ export default function Home() {
           domainFocuses={domainFocuses}
           onDomainFocusesChange={setDomainFocuses}
         />
+
+        {/* Preset toolbar */}
+        <div className="mt-3 flex items-center gap-2 flex-wrap">
+          {presets.length > 0 && (
+            <select
+              onChange={(e) => {
+                const p = presets.find((x) => x.id === e.target.value);
+                if (p) handleApplyPreset(p);
+                e.target.value = "";
+              }}
+              defaultValue=""
+              className="flex-1 min-w-0 px-3 py-1.5 bg-[var(--surface)] border border-[var(--border)] rounded-md text-sm text-[var(--muted)] focus:outline-none"
+            >
+              <option value="" disabled>프리셋 불러오기</option>
+              {presets.map((p) => (
+                <option key={p.id} value={p.id}>{p.name}</option>
+              ))}
+            </select>
+          )}
+          {presets.map((p) => (
+            <button
+              key={p.id + "-del"}
+              onClick={() => handleDeletePreset(p.id)}
+              className="hidden"
+            />
+          ))}
+          {showPresetSave ? (
+            <div className="flex gap-1 flex-1">
+              <input
+                autoFocus
+                value={presetName}
+                onChange={(e) => setPresetName(e.target.value)}
+                onKeyDown={(e) => { if (e.key === "Enter") handleSavePreset(); if (e.key === "Escape") setShowPresetSave(false); }}
+                placeholder="프리셋 이름"
+                className="flex-1 px-3 py-1.5 bg-[var(--surface)] border border-[var(--border)] rounded-md text-sm focus:outline-none focus:border-white/30"
+              />
+              <button onClick={handleSavePreset} className="px-3 py-1.5 text-xs rounded-md bg-white/10 text-white hover:bg-white/15 transition-colors">저장</button>
+              <button onClick={() => setShowPresetSave(false)} className="px-3 py-1.5 text-xs rounded-md border border-[var(--border)] text-[var(--muted)] hover:text-white transition-colors">취소</button>
+            </div>
+          ) : (
+            <button
+              onClick={() => setShowPresetSave(true)}
+              className="px-3 py-1.5 text-xs rounded-md border border-[var(--border)] text-[var(--muted)] hover:text-white transition-colors shrink-0"
+            >
+              + 설정 저장
+            </button>
+          )}
+        </div>
+        {/* Preset delete buttons rendered inline in dropdown */}
+        {presets.length > 0 && !showPresetSave && (
+          <div className="mt-1 flex gap-1 flex-wrap">
+            {presets.map((p) => (
+              <span key={p.id} className="flex items-center gap-1 px-2 py-0.5 rounded bg-white/5 border border-[var(--border)] text-xs text-[var(--muted)]">
+                {p.name}
+                <button onClick={() => handleDeletePreset(p.id)} className="ml-1 hover:text-white transition-colors">×</button>
+              </span>
+            ))}
+          </div>
+        )}
 
         {error && (
           <div className="mt-4 p-3 rounded-md bg-red-400/10 border border-red-400/20 text-red-400 text-sm">

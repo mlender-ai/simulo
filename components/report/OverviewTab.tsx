@@ -1,7 +1,7 @@
 /* eslint-disable @next/next/no-img-element */
 "use client";
 
-import type { AnalysisResult } from "@/lib/storage";
+import { storage, type AnalysisResult } from "@/lib/storage";
 import { STRIPPED_IMAGE } from "@/lib/storage";
 import { t, type Locale } from "@/lib/i18n";
 import {
@@ -28,11 +28,24 @@ export function OverviewTab({ data, locale, issueCountPerScreen, isFlow, onScree
   const safeThumbnailUrls = data.thumbnailUrls ?? [];
   const hasThumbnails = safeThumbnailUrls.some((u) => u !== STRIPPED_IMAGE);
 
+  const parentData = data.previousAnalysisId ? storage.getById(data.previousAnalysisId) : null;
+  const scoreDelta = parentData ? data.score - parentData.score : null;
+
   return (
     <div id="overview-tab-content" className="space-y-6">
       <div className="flex items-center gap-6 flex-wrap">
         <div className="text-center">
-          <div className="text-5xl font-bold mono">{data.score}</div>
+          <div className="flex items-baseline gap-2">
+            <div className="text-5xl font-bold mono">{data.score}</div>
+            {scoreDelta !== null && scoreDelta !== 0 && (
+              <span
+                className="text-sm font-mono font-medium"
+                style={{ color: scoreDelta > 0 ? "#4ade80" : "#f87171" }}
+              >
+                {scoreDelta > 0 ? `+${scoreDelta}` : `${scoreDelta}`}
+              </span>
+            )}
+          </div>
           <div className="text-xs text-[var(--muted)] mt-1">{t("usabilityScore", locale)}</div>
         </div>
         <div className="space-y-2">

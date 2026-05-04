@@ -58,6 +58,8 @@ export function useHistory(locale: Locale) {
   const [verdictFilter, setVerdictFilter] = useState("all");
   const [modeFilter, setModeFilter] = useState("all");
   const [inputTypeFilter, setInputTypeFilter] = useState("all");
+  const [fromDate, setFromDate] = useState("");
+  const [toDate, setToDate] = useState("");
   const [bulkMode, setBulkMode] = useState(false);
   const [selectedIds, setSelectedIds] = useState<Set<string>>(new Set());
 
@@ -87,8 +89,22 @@ export function useHistory(locale: Locale) {
     const matchVerdict = verdictFilter === "all" || a.verdict === verdictFilter;
     const matchMode = modeFilter === "all" || (a.mode ?? "hypothesis") === modeFilter;
     const matchInput = inputTypeFilter === "all" || a.inputType === inputTypeFilter;
-    return matchSearch && matchVerdict && matchMode && matchInput;
+    const createdDate = a.createdAt.slice(0, 10);
+    const matchFrom = !fromDate || createdDate >= fromDate;
+    const matchTo = !toDate || createdDate <= toDate;
+    return matchSearch && matchVerdict && matchMode && matchInput && matchFrom && matchTo;
   });
+
+  const hasActiveFilter = !!filter || verdictFilter !== "all" || modeFilter !== "all" || inputTypeFilter !== "all" || !!fromDate || !!toDate;
+
+  const clearFilters = useCallback(() => {
+    setFilter("");
+    setVerdictFilter("all");
+    setModeFilter("all");
+    setInputTypeFilter("all");
+    setFromDate("");
+    setToDate("");
+  }, []);
 
   const { roots, parentMap } = partitionTree(filtered);
   const grouped = groupByDate(roots);
@@ -125,6 +141,10 @@ export function useHistory(locale: Locale) {
     verdictFilter, setVerdictFilter,
     modeFilter, setModeFilter,
     inputTypeFilter, setInputTypeFilter,
+    fromDate, setFromDate,
+    toDate, setToDate,
+    hasActiveFilter,
+    clearFilters,
     bulkMode, setBulkMode,
     selectedIds,
     availableInputTypes,

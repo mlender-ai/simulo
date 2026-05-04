@@ -19,6 +19,10 @@ export default function HistoryPage() {
     verdictFilter, setVerdictFilter,
     modeFilter, setModeFilter,
     inputTypeFilter, setInputTypeFilter,
+    fromDate, setFromDate,
+    toDate, setToDate,
+    hasActiveFilter,
+    clearFilters,
     bulkMode, setBulkMode,
     selectedIds,
     availableInputTypes,
@@ -56,7 +60,7 @@ export default function HistoryPage() {
       </div>
 
       {/* Filters */}
-      <div className="flex gap-3 mb-4 flex-wrap">
+      <div className="flex gap-3 mb-2 flex-wrap items-center">
         <input
           value={filter}
           onChange={(e) => setFilter(e.target.value)}
@@ -99,6 +103,32 @@ export default function HistoryPage() {
           <option value="Partial">{t("Partial", locale)}</option>
           <option value="Fail">{t("Fail", locale)}</option>
         </select>
+      </div>
+
+      {/* Date range filter */}
+      <div className="flex gap-2 mb-4 items-center flex-wrap">
+        <span className="text-xs text-[var(--muted)]">기간</span>
+        <input
+          type="date"
+          value={fromDate}
+          onChange={(e) => setFromDate(e.target.value)}
+          className="px-3 py-1.5 bg-[var(--surface)] border border-[var(--border)] rounded-md text-sm focus:outline-none text-[var(--muted)] focus:text-white"
+        />
+        <span className="text-xs text-[var(--muted)]">~</span>
+        <input
+          type="date"
+          value={toDate}
+          onChange={(e) => setToDate(e.target.value)}
+          className="px-3 py-1.5 bg-[var(--surface)] border border-[var(--border)] rounded-md text-sm focus:outline-none text-[var(--muted)] focus:text-white"
+        />
+        {hasActiveFilter && (
+          <button
+            onClick={clearFilters}
+            className="px-3 py-1.5 text-xs rounded-md border border-[var(--border)] text-[var(--muted)] hover:text-white transition-colors"
+          >
+            필터 초기화
+          </button>
+        )}
       </div>
 
       {/* Bulk actions */}
