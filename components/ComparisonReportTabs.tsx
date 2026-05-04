@@ -297,7 +297,7 @@ export function ComparisonReportTabs({ analysis, locale }: ComparisonReportTabsP
         <div className="grid gap-4" style={{ gridTemplateColumns: `repeat(${data.products.length}, minmax(0, 1fr))` }}>
           {data.products.map((p, i) => {
             const isOurs = i === 0;
-            const delta = !isOurs ? scoreDelta(ourProduct.score, p.score) : null;
+            const delta = !isOurs ? scoreDelta(p.score, ourProduct.score) : null;
             return (
               <div
                 key={i}

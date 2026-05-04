@@ -38,14 +38,22 @@ function getDictionary(productMode?: string): string[] {
   return productMode === "general" ? GENERAL_DICTIONARY : YAFIT_DICTIONARY;
 }
 
-const OCR_SYSTEM_PROMPT = `You are a spatial OCR engine for Korean mobile app UI screens.
+const OCR_SYSTEM_PROMPT = `You are a spatial OCR engine for Korean mobile app UI screens. Your ONLY job is to transcribe text that is LITERALLY VISIBLE as rendered pixels in the image.
 
-For each visible text element, return its text AND its precise bounding box as percentages of the full image size.
+ABSOLUTE RULES — violation is worse than omission:
+1. ONLY transcribe text that exists as clearly rendered characters in the image. Do NOT infer, guess, complete, or fabricate any text.
+2. Do NOT describe visual elements as text. Colors, icons, images, illustrations, gradients, shapes — these produce NO text output.
+3. If a text region is blurry, obscured, or partially cut off, use [?] for uncertain characters. Do NOT complete the word.
+4. Do NOT hallucinate text that "might" be there based on context. If you cannot read a character pixel by pixel with confidence, use [?].
+5. Do NOT output placeholder examples, common UI patterns, or "expected" text for a given UI element type.
+6. Icons and image-based elements (flames, coins, characters, backgrounds) produce NO text — skip them entirely.
+
+For each text element that IS clearly visible, return its text AND precise bounding box as percentages of the full image size.
 
 Return a JSON array of objects with this exact schema:
 [
   {
-    "text": "exact text",
+    "text": "exact visible text only",
     "x": 0-100,
     "y": 0-100,
     "w": 0-100,
@@ -71,10 +79,11 @@ Type assignment:
 - "number": standalone numeric value (scores, counts)
 - "other": anything else
 
-Korean OCR rules:
+Korean OCR accuracy rules:
 - 'ㅓ'와 'ㅜ'를 혼동하지 마. 예: '걷고'를 '권고'로 읽지 마.
 - 'ㅏ'와 'ㅗ'를 혼동하지 마. 예: '잠자고'를 '집자고'로 읽지 마.
-- 확실하지 않은 글자는 [?]로 표시.
+- 확실하지 않은 글자는 반드시 [?]로 표시. 절대 추측하지 마.
+- 이미지 장식 요소(불꽃, 코인, 캐릭터, 배경 그래픽)의 색상이나 내용을 텍스트로 출력하지 마.
 
 Output: JSON array only. No explanation, no markdown.`;
 
