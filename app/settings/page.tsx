@@ -119,7 +119,7 @@ export default function SettingsPage() {
                 }`}
               >
                 <span className="font-medium">
-                  {m === "haiku" ? "Haiku 4.5" : "Sonnet 4.5"}
+                  {m === "haiku" ? "Simulo Standard" : "Simulo Pro"}
                 </span>
                 <span className="ml-2 text-xs text-[var(--muted)]">
                   {m === "haiku"

@@ -441,7 +441,7 @@ export function ImprovementPanel({
           {variantCount === 1 ? "개선안 생성하기" : `개선안 ${variantCount}개 생성하기`}
         </button>
         <p className="text-center text-[11px] text-white/25 mt-2">
-          Opus 4.6 기반 · 시안당 약 20-40초 소요
+          Simulo AI 기반 · 시안당 약 20-40초 소요
         </p>
       </div>
     );

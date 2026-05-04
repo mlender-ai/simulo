@@ -1109,7 +1109,7 @@ export default function DashboardPage() {
                 <div>
                   <h2 className="text-sm font-semibold">AI 인사이트 & 역제안</h2>
                   <p className="text-xs text-[var(--muted)] mt-0.5">
-                    데이터 기반 제품 개선 방향을 Claude가 분석합니다
+                    데이터 기반 제품 개선 방향을 Simulo가 분석합니다
                   </p>
                 </div>
                 <button
@@ -1137,7 +1137,7 @@ export default function DashboardPage() {
 
               {loadingInsights && (
                 <div className="py-10 flex items-center justify-center text-[var(--muted)] text-sm">
-                  Claude가 데이터를 분석 중입니다...
+                  Simulo가 데이터를 분석 중입니다...
                 </div>
               )}
 

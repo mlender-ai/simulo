@@ -91,9 +91,9 @@ const translations = {
       "아직 분석 기록이 없습니다. 야핏무브 화면을 업로드하고 첫 번째 UX 검증을 시작해보세요.",
 
     // Settings
-    anthropicApiKey: "Anthropic API Key",
+    anthropicApiKey: "API Key",
     apiKeyHint:
-      "Claude API 키를 입력하세요. 분석 기능이 이 키를 사용합니다.",
+      "API 키를 입력하세요. Simulo 분석 기능이 이 키를 사용합니다.",
     figmaToken: "Figma Personal Access Token",
     figmaTokenHint:
       "Figma Personal Access Token을 저장하면 매번 입력하지 않아도 됩니다. Figma 설정 → Security → Personal access tokens에서 발급",
@@ -105,10 +105,10 @@ const translations = {
 
     // Model
     modelSelection: "분석 모델",
-    modelHaikuDesc: "빠르고 저렴",
+    modelHaikuDesc: "빠른 분석",
     modelSonnetDesc: "정밀 분석",
     modelHint:
-      "Haiku는 Sonnet 대비 ~10배 저렴합니다. 대부분의 UX 분석에 충분합니다.",
+      "Standard는 빠르고 가볍습니다. 대부분의 UX 분석에 충분합니다. Pro는 더 정밀한 분석이 필요할 때 사용하세요.",
 
     // URL tab
     urlPlaceholder: "https://example.com",
@@ -432,9 +432,9 @@ const translations = {
     noAnalysesFound:
       "No analyses yet. Upload YafitMove screens and start your first UX validation.",
 
-    anthropicApiKey: "Anthropic API Key",
+    anthropicApiKey: "API Key",
     apiKeyHint:
-      "Enter your Claude API key. The analysis feature uses this key.",
+      "Enter your API key. Simulo's analysis feature uses this key.",
     figmaToken: "Figma Personal Access Token",
     figmaTokenHint:
       "Save your Figma token so you don't have to enter it every time. Generate at Figma Settings → Security → Personal access tokens",
@@ -445,10 +445,10 @@ const translations = {
     language: "Language / 언어",
 
     modelSelection: "Analysis Model",
-    modelHaikuDesc: "Fast & cheap",
+    modelHaikuDesc: "Fast",
     modelSonnetDesc: "Precise",
     modelHint:
-      "Haiku is ~10x cheaper than Sonnet. Sufficient for most UX analyses.",
+      "Standard is fast and lightweight. Sufficient for most UX analyses. Use Pro for more precise results.",
 
     urlPlaceholder: "https://example.com",
     urlHint: "Live page analysis — coming soon",

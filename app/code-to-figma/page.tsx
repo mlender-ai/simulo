@@ -66,7 +66,7 @@ interface FigmaArtifacts {
 
 const LOADING_STEPS = [
   "코드 파일을 수집하는 중...",
-  "Claude가 디자인 토큰을 추출하는 중...",
+  "Simulo가 디자인 토큰을 추출하는 중...",
   "컴포넌트 인벤토리를 분석하는 중...",
   "화면 구조와 유저 플로우를 매핑하는 중...",
 ];
