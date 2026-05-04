@@ -1,10 +1,6 @@
 import { NextResponse } from "next/server";
 import Anthropic from "@anthropic-ai/sdk";
-import { env } from "@/lib/env";
-
-const client = new Anthropic({
-  apiKey: env.ANTHROPIC_API_KEY,
-});
+import { resolveApiKey } from "@/lib/env";
 
 const YAFIT_SYSTEM_PROMPT = `You are a product strategy advisor for YafitMove (야핏무브), a Korean health & reward app targeting 40-60s users.
 Analyze the accumulated UX testing data and provide actionable product improvement suggestions.`;
@@ -78,14 +74,11 @@ interface DashboardStats {
 }
 
 export async function POST(req: Request) {
-  if (!process.env.DATABASE_URL && !process.env.ANTHROPIC_API_KEY) {
-    return NextResponse.json({ error: "Not configured" }, { status: 503 });
-  }
-
   let body: {
     stats: DashboardStats;
     period?: string;
     projectTag?: string;
+    apiKey?: string;
   };
 
   try {
@@ -94,7 +87,14 @@ export async function POST(req: Request) {
     return NextResponse.json({ error: "Invalid request body" }, { status: 400 });
   }
 
-  const { stats, period = "30d", projectTag } = body;
+  const { stats, period = "30d", projectTag, apiKey } = body;
+
+  let effectiveApiKey: string;
+  try {
+    effectiveApiKey = resolveApiKey(apiKey);
+  } catch {
+    return NextResponse.json({ error: "API key not configured" }, { status: 503 });
+  }
 
   // ── Minimum data guard ──
   if (!stats || (stats.totalAnalyses ?? 0) < MIN_ANALYSES_FOR_INSIGHTS) {
@@ -124,7 +124,8 @@ export async function POST(req: Request) {
     }
   }
 
-  // ── Call Claude ──
+  // ── Call API ──
+  const client = new Anthropic({ apiKey: effectiveApiKey });
   const userMessage = `
 기간: ${period}
 ${projectTag ? `프로젝트 태그 필터: ${projectTag}` : "전체 프로젝트"}

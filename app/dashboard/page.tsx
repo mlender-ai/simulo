@@ -412,17 +412,23 @@ export default function DashboardPage() {
     if (!stats) return;
     setLoadingInsights(true);
     try {
+      const apiKey = localStorage.getItem("simulo_anthropic_key") ?? undefined;
       const res = await fetch("/api/dashboard/insights", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ stats, period, projectTag: projectTag || undefined }),
+        body: JSON.stringify({ stats, period, projectTag: projectTag || undefined, apiKey }),
       });
+      if (!res.ok) {
+        const err = await res.json().catch(() => ({}));
+        console.error("[insights] API error:", err);
+        return;
+      }
       const data = await res.json();
       setInsights(data.insights as Insights);
       setInsightsCached(data.cached);
       setInsightsInsufficient(data.insufficient ?? false);
-    } catch {
-      // ignore
+    } catch (err) {
+      console.error("[insights] fetch error:", err);
     } finally {
       setLoadingInsights(false);
     }
