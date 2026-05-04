@@ -60,7 +60,7 @@ export const AnalysisOutputSchema = z.object({
   verdictReason: z.string().optional(),
   taskSuccessLikelihood: z.string().optional(),
   taskSuccessReason: z.string().optional(),
-  thinkAloud: z.array(z.object({ screen: z.string(), thought: z.string() })).optional(),
+  thinkAloud: z.array(z.object({ screen: z.string(), persona: z.string().optional(), thought: z.string() })).optional(),
   evidenceFor: z.array(z.string()).optional(),
   evidenceAgainst: z.array(z.string()).optional(),
   confidence: z.enum(["High", "Medium", "Low"]).optional(),

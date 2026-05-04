@@ -176,6 +176,7 @@ const IssueSchema = z.object({
 
 const ThinkAloudSchema = z.object({
   screen: z.string(),
+  persona: z.string().optional(),
   thought: z.string(),
 });
 

@@ -62,7 +62,7 @@ export interface ComparisonProductResult {
   weaknesses: string[];
   desireAlignment?: DesireAlignment;
   accessibility4050?: Accessibility4050;
-  thinkAloud: { screen: string; thought: string }[];
+  thinkAloud: { screen: string; persona?: string; thought: string }[];
   issues: {
     screen: string;
     desireType?: "utility" | "healthPride" | "lossAversion" | "general";
@@ -145,7 +145,7 @@ export interface AnalysisResult {
   taskSuccessReason: string;
   summary: string;
   strengths: string[];
-  thinkAloud: { screen: string; thought: string }[];
+  thinkAloud: { screen: string; persona?: string; thought: string }[];
   issues: {
     screen: string;
     screenIndex?: number;
