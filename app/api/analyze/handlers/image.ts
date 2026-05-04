@@ -7,7 +7,7 @@ interface ImageHandlerParams extends BaseHandlerParams {
 }
 
 export async function handleImageAnalysis(params: ImageHandlerParams): Promise<HandlerResult> {
-  const { images, videos, hypothesis, targetUser, task, locale, apiKey, model, mode, analysisOptions, screenDescription, ocrContext, domain, domainFocuses } = params;
+  const { images, videos, hypothesis, targetUser, task, locale, apiKey, model, mode, analysisOptions, screenDescription, productDescriptionImages, ocrContext, domain, domainFocuses } = params;
 
   const videoFrameImages: string[] = Array.isArray(videos)
     ? videos.flatMap((v) => v.frames.map((f) => f.base64))
@@ -30,6 +30,7 @@ export async function handleImageAnalysis(params: ImageHandlerParams): Promise<H
     mode,
     analysisOptions,
     screenDescription: (screenDescription || "") + videoContext,
+    productDescriptionImages,
     ocrContext,
     productMode: params.productMode,
     domain,

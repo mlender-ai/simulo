@@ -139,6 +139,9 @@ export async function POST(request: NextRequest) {
       mode,
       analysisOptions,
       screenDescription,
+      productDescriptionImages: Array.isArray(body.productDescriptionImages) && body.productDescriptionImages.length > 0
+        ? body.productDescriptionImages as string[]
+        : undefined,
       analysisPerspective: analysisPerspective as AnalysisPerspectiveInput | undefined,
       ocrContext,
       productMode,

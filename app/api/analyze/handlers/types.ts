@@ -33,6 +33,7 @@ export interface BaseHandlerParams {
   mode: AnalysisMode;
   analysisOptions: AnalysisOptions;
   screenDescription?: string;
+  productDescriptionImages?: string[];
   analysisPerspective?: AnalysisPerspectiveInput;
   ocrContext?: string;
   productMode?: "yafit" | "general";

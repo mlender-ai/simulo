@@ -49,6 +49,7 @@ export default function Home() {
   const [images, setImages] = useState<string[]>([]);
   const [videos, setVideos] = useState<UploadedVideo[]>([]);
   const [screenDescription, setScreenDescription] = useState("");
+  const [productDescriptionImages, setProductDescriptionImages] = useState<string[]>([]);
   const [hypothesis, setHypothesis] = useState("");
   const [targetUser, setTargetUser] = useState("");
   const [task, setTask] = useState("");
@@ -242,6 +243,7 @@ export default function Home() {
       task: task || undefined,
       projectTag: projectTag || undefined,
       screenDescription: screenDescription || undefined,
+      productDescriptionImages: productDescriptionImages.length > 0 ? productDescriptionImages : undefined,
       locale,
       apiKey: savedApiKey || undefined,
       model: savedModel,
@@ -460,6 +462,8 @@ export default function Home() {
           onVideosChange={setVideos}
           screenDescription={screenDescription}
           onScreenDescriptionChange={setScreenDescription}
+          productDescriptionImages={productDescriptionImages}
+          onProductDescriptionImagesChange={setProductDescriptionImages}
           urlInput={urlInput}
           onUrlInputChange={setUrlInput}
           hypothesis={hypothesis}

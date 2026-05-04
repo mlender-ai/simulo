@@ -42,6 +42,7 @@ interface AnalyzeParams {
   mode?: AnalysisMode;
   analysisOptions?: import("./prompts").AnalysisOptions;
   screenDescription?: string;
+  productDescriptionImages?: string[];
   ocrContext?: string;
   productMode?: "yafit" | "general";
   domain?: string;
@@ -59,6 +60,7 @@ interface FlowAnalyzeParams {
   mode?: AnalysisMode;
   analysisOptions?: import("./prompts").AnalysisOptions;
   screenDescription?: string;
+  productDescriptionImages?: string[];
   ocrContext?: string;
   productMode?: "yafit" | "general";
   domain?: string;
@@ -168,10 +170,33 @@ export async function analyzeWithClaude(params: AnalyzeParams) {
   const modelId = MODEL_MAP[params.model || "haiku"];
   const isUsability = params.mode === "usability";
 
-  const imageContent: Anthropic.Messages.ImageBlockParam[] = params.images.map((base64) => ({
-    type: "image" as const,
-    source: { type: "base64" as const, media_type: "image/png" as const, data: base64 },
-  }));
+  // Build content: optional product description images (context), then main screen images
+  const messageContent: Anthropic.Messages.ContentBlockParam[] = [];
+  if (params.productDescriptionImages?.length) {
+    messageContent.push({
+      type: "text" as const,
+      text: isKo
+        ? `[참고 이미지 — 제품/화면 설명 목적. 아래 분석 대상 화면과 구분하여 맥락으로만 활용하세요.]`
+        : `[Reference images — for product/screen context only. Use as background context, not as the screens to analyze.]`,
+    });
+    for (const img of params.productDescriptionImages) {
+      const data = img.startsWith("data:") ? img.split(",")[1] : img;
+      messageContent.push({
+        type: "image" as const,
+        source: { type: "base64" as const, media_type: "image/png" as const, data },
+      });
+    }
+    messageContent.push({
+      type: "text" as const,
+      text: isKo ? `[분석 대상 화면]` : `[Screens to analyze]`,
+    });
+  }
+  for (const base64 of params.images) {
+    messageContent.push({
+      type: "image" as const,
+      source: { type: "base64" as const, media_type: "image/png" as const, data: base64 },
+    });
+  }
 
   const tul = targetUserLine(params.targetUser, isKo);
   const sdl = screenDescLine(params.screenDescription, isKo);
@@ -204,7 +229,7 @@ export async function analyzeWithClaude(params: AnalyzeParams) {
       model: modelId,
       max_tokens: 8192,
       system: systemPrompt,
-      messages: [{ role: "user", content: [...imageContent, { type: "text", text: userPrompt }] }],
+      messages: [{ role: "user", content: [...messageContent, { type: "text", text: userPrompt }] }],
     });
 
     console.log("[claude] API response received. Stop reason:", response.stop_reason, "| usage:", JSON.stringify(response.usage));
@@ -224,6 +249,26 @@ export async function analyzeFlowWithClaude(params: FlowAnalyzeParams) {
   const isUsability = params.mode === "usability";
 
   const content: Anthropic.Messages.ContentBlockParam[] = [];
+  // Prepend product description images as context
+  if (params.productDescriptionImages?.length) {
+    content.push({
+      type: "text" as const,
+      text: isKo
+        ? `[참고 이미지 — 제품/화면 설명 목적]`
+        : `[Reference images — product/screen context]`,
+    });
+    for (const img of params.productDescriptionImages) {
+      const data = img.startsWith("data:") ? img.split(",")[1] : img;
+      content.push({
+        type: "image" as const,
+        source: { type: "base64" as const, media_type: "image/png" as const, data },
+      });
+    }
+    content.push({
+      type: "text" as const,
+      text: isKo ? `[분석 대상 플로우]` : `[Flow to analyze]`,
+    });
+  }
   for (const step of params.flowSteps) {
     content.push({
       type: "text" as const,

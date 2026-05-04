@@ -78,6 +78,8 @@ interface InputSectionProps {
   onVideosChange: (videos: import("./MediaUploader").UploadedVideo[]) => void;
   screenDescription: string;
   onScreenDescriptionChange: (value: string) => void;
+  productDescriptionImages?: string[];
+  onProductDescriptionImagesChange?: (images: string[]) => void;
   urlInput: string;
   onUrlInputChange: (value: string) => void;
   hypothesis: string;
@@ -120,6 +122,8 @@ export function InputSection({
   onVideosChange,
   screenDescription,
   onScreenDescriptionChange,
+  productDescriptionImages = [],
+  onProductDescriptionImagesChange,
   urlInput,
   onUrlInputChange,
   hypothesis,
@@ -155,6 +159,8 @@ export function InputSection({
 }: InputSectionProps) {
   const isGeneral = productMode === "general";
   const [showAdvanced, setShowAdvanced] = useState(false);
+  const [perspectiveOpen, setPerspectiveOpen] = useState(false);
+  const [modeOpen, setModeOpen] = useState(false);
 
   const { fieldErrors, inputReady, contextReady } = useInputValidation({
     mode,
@@ -228,7 +234,7 @@ export function InputSection({
 
       {/* Tab content */}
       {activeTab === "image" && (
-        <ImageUploadTab locale={locale} images={images} onImagesChange={onImagesChange} videos={videos} onVideosChange={onVideosChange} description={screenDescription} onDescriptionChange={onScreenDescriptionChange} showError={showErrors && !resolvedInputReady} />
+        <ImageUploadTab locale={locale} images={images} onImagesChange={onImagesChange} videos={videos} onVideosChange={onVideosChange} description={screenDescription} onDescriptionChange={onScreenDescriptionChange} descriptionImages={productDescriptionImages} onDescriptionImagesChange={onProductDescriptionImagesChange} showError={showErrors && !resolvedInputReady} />
       )}
 
       {activeTab === "url" && (
@@ -349,140 +355,161 @@ export function InputSection({
       )}
 
       {/* Analysis perspective (checkboxes) */}
-      <div className="pt-4 border-t border-[var(--border)]">
-        <label className="flex items-center text-xs text-[var(--muted)] mb-1.5 uppercase tracking-wider">
-          {t("analysisPerspectiveTitle", locale)}
-        </label>
-        <p className="text-xs text-[var(--muted)] mb-3">
-          {t("analysisPerspectiveHint", locale)}
-        </p>
-        <div className="grid grid-cols-2 gap-2">
-          {(
-            [
-              {
-                key: "usability" as const,
-                labelKey: "perspectiveUsability" as const,
-                tooltipKey: "perspectiveUsabilityTooltip" as const,
-                required: true,
-                disabled: true,
-                checked: true,
-                yafitOnly: false,
-              },
-              {
-                key: "desire" as const,
-                labelKey: "perspectiveDesire" as const,
-                tooltipKey: "perspectiveDesireTooltip" as const,
-                required: false,
-                disabled: false,
-                checked: analysisPerspective.desire,
-                yafitOnly: true,
-              },
-              {
-                key: "comparison" as const,
-                labelKey: "perspectiveComparison" as const,
-                tooltipKey: "perspectiveComparisonTooltip" as const,
-                required: activeTab === "comparison",
-                disabled: activeTab === "comparison",
-                checked:
-                  activeTab === "comparison" ? true : analysisPerspective.comparison,
-                yafitOnly: false,
-              },
-              {
-                key: "accessibility" as const,
-                labelKey: "perspectiveAccessibility" as const,
-                tooltipKey: "perspectiveAccessibilityTooltip" as const,
-                required: false,
-                disabled: false,
-                checked: analysisPerspective.accessibility,
-                yafitOnly: true,
-              },
-            ]
-          ).filter((item) => !item.yafitOnly || !isGeneral).map((item) => (
-            <label
-              key={item.key}
-              className={`flex flex-col gap-1.5 p-3 rounded-md border transition-colors ${
-                item.checked
-                  ? "border-white/20 bg-white/[0.04]"
-                  : "border-[var(--border)] bg-white/[0.02]"
-              } ${item.disabled ? "cursor-default" : "cursor-pointer hover:border-white/20"}`}
-            >
-              <div className="flex items-center gap-2">
-                <input
-                  type="checkbox"
-                  checked={item.checked}
-                  disabled={item.disabled}
-                  onChange={(e) => {
-                    if (item.key === "usability") return;
-                    if (item.key === "comparison" && activeTab === "comparison") return;
-                    onAnalysisPerspectiveChange({
-                      ...analysisPerspective,
-                      [item.key]: e.target.checked,
-                    });
-                  }}
-                  className="accent-white"
-                />
-                <span className="text-sm">
-                  {t(item.labelKey, locale)}
-                  {item.required && (
-                    <span className="ml-1 text-[11px] text-[var(--muted)]">
-                      {t("perspectiveUsabilityRequired", locale)}
-                    </span>
-                  )}
-                </span>
-                <Tooltip content={t(item.tooltipKey, locale)} />
-              </div>
-              <div className="flex items-center gap-1.5 pl-6">
-                <span
-                  className="inline-block w-1.5 h-1.5 rounded-full"
-                  style={{ background: item.checked ? "#86efac" : "#555" }}
-                />
-                <span
-                  style={{
-                    fontSize: "11px",
-                    color: item.checked ? "#86efac" : "#555",
-                  }}
+      <div className="border-t border-[var(--border)]">
+        <button
+          type="button"
+          onClick={() => setPerspectiveOpen((v) => !v)}
+          className="w-full flex items-center justify-between pt-4 pb-2 text-xs text-[var(--muted)] uppercase tracking-wider hover:text-white transition-colors"
+        >
+          <span>{t("analysisPerspectiveTitle", locale)}</span>
+          <span className="text-[10px]">{perspectiveOpen ? "▲" : "▼"}</span>
+        </button>
+        {perspectiveOpen && (
+          <>
+            <p className="text-xs text-[var(--muted)] mb-3">
+              {t("analysisPerspectiveHint", locale)}
+            </p>
+            <div className="grid grid-cols-2 gap-2 pb-2">
+              {(
+                [
+                  {
+                    key: "usability" as const,
+                    labelKey: "perspectiveUsability" as const,
+                    tooltipKey: "perspectiveUsabilityTooltip" as const,
+                    required: true,
+                    disabled: true,
+                    checked: true,
+                    yafitOnly: false,
+                  },
+                  {
+                    key: "desire" as const,
+                    labelKey: "perspectiveDesire" as const,
+                    tooltipKey: "perspectiveDesireTooltip" as const,
+                    required: false,
+                    disabled: false,
+                    checked: analysisPerspective.desire,
+                    yafitOnly: true,
+                  },
+                  {
+                    key: "comparison" as const,
+                    labelKey: "perspectiveComparison" as const,
+                    tooltipKey: "perspectiveComparisonTooltip" as const,
+                    required: activeTab === "comparison",
+                    disabled: activeTab === "comparison",
+                    checked:
+                      activeTab === "comparison" ? true : analysisPerspective.comparison,
+                    yafitOnly: false,
+                  },
+                  {
+                    key: "accessibility" as const,
+                    labelKey: "perspectiveAccessibility" as const,
+                    tooltipKey: "perspectiveAccessibilityTooltip" as const,
+                    required: false,
+                    disabled: false,
+                    checked: analysisPerspective.accessibility,
+                    yafitOnly: true,
+                  },
+                ]
+              ).filter((item) => !item.yafitOnly || !isGeneral).map((item) => (
+                <label
+                  key={item.key}
+                  className={`flex flex-col gap-1.5 p-3 rounded-md border transition-colors ${
+                    item.checked
+                      ? "border-white/20 bg-white/[0.04]"
+                      : "border-[var(--border)] bg-white/[0.02]"
+                  } ${item.disabled ? "cursor-default" : "cursor-pointer hover:border-white/20"}`}
                 >
-                  {item.checked
-                    ? t("perspectiveIncluded", locale)
-                    : t("perspectiveExcluded", locale)}
-                </span>
-              </div>
-            </label>
-          ))}
-        </div>
+                  <div className="flex items-center gap-2">
+                    <input
+                      type="checkbox"
+                      checked={item.checked}
+                      disabled={item.disabled}
+                      onChange={(e) => {
+                        if (item.key === "usability") return;
+                        if (item.key === "comparison" && activeTab === "comparison") return;
+                        onAnalysisPerspectiveChange({
+                          ...analysisPerspective,
+                          [item.key]: e.target.checked,
+                        });
+                      }}
+                      className="accent-white"
+                    />
+                    <span className="text-sm">
+                      {t(item.labelKey, locale)}
+                      {item.required && (
+                        <span className="ml-1 text-[11px] text-[var(--muted)]">
+                          {t("perspectiveUsabilityRequired", locale)}
+                        </span>
+                      )}
+                    </span>
+                    <Tooltip content={t(item.tooltipKey, locale)} />
+                  </div>
+                  <div className="flex items-center gap-1.5 pl-6">
+                    <span
+                      className="inline-block w-1.5 h-1.5 rounded-full"
+                      style={{ background: item.checked ? "#86efac" : "#555" }}
+                    />
+                    <span
+                      style={{
+                        fontSize: "11px",
+                        color: item.checked ? "#86efac" : "#555",
+                      }}
+                    >
+                      {item.checked
+                        ? t("perspectiveIncluded", locale)
+                        : t("perspectiveExcluded", locale)}
+                    </span>
+                  </div>
+                </label>
+              ))}
+            </div>
+          </>
+        )}
       </div>
 
 
       {/* Mode selector */}
-      <div className="pt-4 border-t border-[var(--border)]">
-        <label className="block text-xs text-[var(--muted)] mb-2 uppercase tracking-wider">
-          {t("analysisMode", locale)}
-        </label>
-        <div className="grid grid-cols-2 gap-2">
-          {(["hypothesis", "usability"] as const).map((m) => {
-            const selected = mode === m;
-            const title = m === "hypothesis" ? t("modeHypothesis", locale) : t("modeUsability", locale);
-            const desc = m === "hypothesis" ? t("modeHypothesisDesc", locale) : t("modeUsabilityDesc", locale);
-            return (
-              <button
-                key={m}
-                type="button"
-                onClick={() => onModeChange(m)}
-                className={`text-left px-4 py-3 rounded-md border transition-colors ${
-                  selected
-                    ? "border-white bg-[#1a1a1a] text-white"
-                    : "border-[var(--border)] bg-transparent text-[var(--muted)] hover:text-white hover:border-white/30"
-                }`}
-              >
-                <div className="text-sm font-medium mb-0.5">
-                  {selected ? "✓ " : ""}
-                  {title}
-                </div>
-                <div className="text-xs opacity-70">{desc}</div>
-              </button>
-            );
-          })}
-        </div>
+      <div className="border-t border-[var(--border)]">
+        <button
+          type="button"
+          onClick={() => setModeOpen((v) => !v)}
+          className="w-full flex items-center justify-between pt-4 pb-2 text-xs text-[var(--muted)] uppercase tracking-wider hover:text-white transition-colors"
+        >
+          <span className="flex items-center gap-2">
+            {t("analysisMode", locale)}
+            <span className="normal-case font-normal text-white/40 tracking-normal">
+              — {mode === "hypothesis" ? t("modeHypothesis", locale) : t("modeUsability", locale)}
+            </span>
+          </span>
+          <span className="text-[10px]">{modeOpen ? "▲" : "▼"}</span>
+        </button>
+        {modeOpen && (
+          <div className="grid grid-cols-2 gap-2 pb-2">
+            {(["hypothesis", "usability"] as const).map((m) => {
+              const selected = mode === m;
+              const title = m === "hypothesis" ? t("modeHypothesis", locale) : t("modeUsability", locale);
+              const desc = m === "hypothesis" ? t("modeHypothesisDesc", locale) : t("modeUsabilityDesc", locale);
+              return (
+                <button
+                  key={m}
+                  type="button"
+                  onClick={() => onModeChange(m)}
+                  className={`text-left px-4 py-3 rounded-md border transition-colors ${
+                    selected
+                      ? "border-white bg-[#1a1a1a] text-white"
+                      : "border-[var(--border)] bg-transparent text-[var(--muted)] hover:text-white hover:border-white/30"
+                  }`}
+                >
+                  <div className="text-sm font-medium mb-0.5">
+                    {selected ? "✓ " : ""}
+                    {title}
+                  </div>
+                  <div className="text-xs opacity-70">{desc}</div>
+                </button>
+              );
+            })}
+          </div>
+        )}
       </div>
 
       {/* Context Inputs */}
