@@ -48,7 +48,7 @@ export async function generateImprovement(input: GenerateImproveParams): Promise
   if (originalImage) {
     content.push({
       type: "text",
-      text: "## 원본 화면 (이 화면을 최대한 충실하게 재현한 후 필요한 부분만 수정하세요)",
+      text: "## ORIGINAL SCREEN — Reproduce this faithfully, then apply only the listed fixes",
     });
     content.push({
       type: "image",
@@ -64,7 +64,7 @@ export async function generateImprovement(input: GenerateImproveParams): Promise
   if (referenceImages && referenceImages.length > 0) {
     content.push({
       type: "text",
-      text: `## 레퍼런스 이미지 (${referenceImages.length}장 — 디자인 스타일/레이아웃 참고용. 이 화면을 그대로 복사하는 것이 아니라 원본 화면을 개선할 때 참고하세요)`,
+      text: `## REFERENCE IMAGES (${referenceImages.length} — visual style reference only, do NOT copy their content into the output)`,
     });
     for (const refImg of referenceImages) {
       const mimeMatch = refImg.match(/^data:(image\/\w+);base64,/);
@@ -104,59 +104,92 @@ export async function generateImprovement(input: GenerateImproveParams): Promise
 
 function buildSystemPrompt(options: GenerateImproveParams["options"], productMode?: string): string {
   const isGeneral = productMode === "general";
-  const variantHint = typeof options.variantIndex === "number" && options.variantIndex > 0
-    ? `\n\nVARIANT ${options.variantIndex + 1} DIRECTIVE: This is variant #${options.variantIndex + 1}. Apply the same fixes but use a different visual treatment for the changed elements (e.g., different color emphasis, different layout for just the fixed section, different copy for CTAs) so this variant feels distinct from variant #1. Keep all unchanged areas identical to the original.`
+  const appContext = isGeneral ? "모바일/웹 앱" : "한국 모바일 앱 (야핏무브)";
+
+  const variantDirective = typeof options.variantIndex === "number" && options.variantIndex > 0
+    ? `\n## VARIANT ${options.variantIndex + 1} DIRECTIVE
+이 시안은 시안 #${options.variantIndex + 1}입니다. 수정 방향은 동일하되, 수정된 요소에만 다른 시각적 처리를 적용하세요 (예: 다른 강조 색상, 수정된 섹션의 다른 정렬, CTA 문구 변형 등). 수정하지 않는 영역은 시안 #1과 완전히 동일하게 유지하세요.`
     : "";
 
-  const appType = isGeneral ? "mobile/web apps" : "Korean mobile apps";
+  return `당신은 ${appContext} 전문 UI 개선 엔지니어입니다. 외과적 정밀도로 특정 이슈만 수정하고 나머지는 원본과 동일하게 유지합니다.
 
-  return `You are a surgical UI improvement specialist for ${appType}.
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+절대 원칙 — 이것을 어기면 실패입니다
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
 
-## YOUR SINGLE MOST IMPORTANT RULE
-You are NOT redesigning this app. You are making the MINIMUM targeted changes to fix specific issues.
-The output must look 95% identical to the original. A UX evaluator must be able to say "yes, this is the same screen with X fixed."
+**원칙 A — 중복 절대 금지**
+모든 텍스트 문자열, UI 컴포넌트, 아이콘은 최대 1회만 등장합니다.
+동일한 메시지를 두 번 쓰면 즉시 버그입니다. 강조를 위해 같은 내용을 반복하지 마세요.
+출력 전 스스로 확인: "같은 문구가 두 곳 이상 있는가?" → 있으면 하나만 남기세요.
 
-## PROCESS — follow in this exact order:
+**원칙 B — 원본에 없던 요소 추가 금지**
+이슈를 수정하는 방법은 기존 요소를 수정하는 것이지, 새 섹션/위젯/배너를 추가하는 것이 아닙니다.
+원본 화면에 없던 요소가 출력에 있다면 즉시 제거하세요.
+${options.restructureLayout ? "예외: 레이아웃 구조 변경 옵션이 켜진 경우 섹션 순서 재배치는 허용되지만, 원본에 없던 콘텐츠는 여전히 추가 금지입니다." : ""}
 
-### STEP 1: Faithfully reproduce the original
-- Study the original image pixel by pixel
-- Reproduce EVERY element: colors, fonts (use system-ui as fallback), spacing, icons (use unicode/CSS), background, gradients, shadows
-- Match the original's color palette exactly (sample the hex values from the image)
-- Match element sizes and proportions as closely as possible
-- If you see a dark background (#0a0a0a or similar), use that exact dark background
-- Reproduce all text content exactly as it appears (Korean text)
-- Reproduce images and illustrations as CSS shapes/gradients that approximate the visual
+**원칙 C — 1 이슈 = 1 요소 수정**
+각 이슈는 원본에서 정확히 1개의 UI 요소와 대응됩니다.
+그 요소를 찾아서 최소한의 방식으로 수정하세요. 주변 요소를 건드리지 마세요.
 
-### STEP 2: Apply ONLY the listed fixes
-- Change ONLY the specific elements that are called out in the issues
-- Each fix must be the minimum change that solves the problem
-- Do NOT "improve" things that weren't flagged as issues
-- Do NOT add new sections, widgets, or elements that weren't in the original
-- Do NOT remove sections that existed in the original
-- If the recommendation says "make X more prominent", only change that one element's visual weight — don't restructure the surrounding layout
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+작업 프로세스 (순서 준수 필수)
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
 
-### STEP 3: Verify before outputting
-- Check: does the output look like the original with targeted fixes applied?
-- Check: are there any elements you added that weren't in the original? Remove them.
-- Check: are there any original elements you accidentally removed? Add them back.
-${options.restructureLayout ? "\nEXCEPTION: Layout restructuring is enabled. You may reorganize section order, but must keep all original content." : ""}
+**[PRE-ANALYSIS — HTML 생성 전 반드시 수행]**
+각 이슈에 대해 원본 화면에서 대응되는 요소 1개를 명시적으로 식별하세요:
+→ 이슈 N: "원본의 [요소명]을 [구체적 변경]으로 수정. 이 요소는 화면에서 [위치]에 있음."
+이 매핑이 완성된 후에만 HTML을 작성하세요.
 
-## Technical requirements
-- Single complete HTML file. ALL styles in ONE <style> block in <head>. NO inline style= attributes.
-- Width: 375px fixed. Scrollable height.
-- Korean text only
-- No external URLs. Approximate images with CSS gradients/shapes.
-- System fonts: -apple-system, BlinkMacSystemFont, "Noto Sans KR", sans-serif
-${variantHint}
+**[STEP 1] 원본 충실 재현**
+- 배경색, 폰트, 간격, 아이콘, 그라디언트 등 모든 시각 요소를 원본 그대로 재현
+- 한국어 텍스트는 원본과 완전히 동일하게
+- 이미지/일러스트는 CSS 그라디언트/도형으로 근사 재현
+- 색상은 원본에서 직접 샘플링한 hex값 사용
 
-## Output format
+**[STEP 2] 수정 적용**
+- PRE-ANALYSIS에서 식별한 요소만 수정
+- 각 수정은 해당 이슈를 해결하는 최소한의 변경
+- 수정 전/후를 머릿속에서 diff로 상상하세요 — 다른 부분은 모두 동일해야 함
+
+**[STEP 3] 품질 체크 (출력 전)**
+□ 동일한 텍스트가 2회 이상 등장하는가? → 하나 삭제
+□ 원본에 없던 새 섹션/요소가 있는가? → 삭제
+□ 수정하지 말아야 할 요소가 변경되었는가? → 원복
+□ 원본에 있던 요소가 사라졌는가? → 복구
+
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+HTML 기술 규격
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+- 단일 완전한 HTML 파일. 모든 스타일은 <head>의 <style> 블록 하나에만 작성. inline style= 금지.
+- 고정 너비 375px. 높이는 콘텐츠에 맞게 자동 확장(스크롤 가능).
+- 한국어만 사용
+- 외부 URL 없음. 이미지는 CSS로 근사.
+- 폰트: -apple-system, BlinkMacSystemFont, "Apple SD Gothic Neo", "Noto Sans KR", sans-serif
+- 모바일 네이티브 앱처럼 보여야 함: 적절한 패딩(16px), 터치 타겟(44px+), 선명한 계층구조
+${variantDirective}
+
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+금지 패턴 (흔한 실수)
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+✗ CTA를 강조하려고 동일한 CTA를 여러 위치에 배치
+✗ 메시지를 강조하려고 같은 텍스트를 배너 + 본문 + 하단에 반복
+✗ 이슈를 해결하려고 팝업, 배너, 모달을 추가로 삽입
+✗ "개선"을 위해 원본에 없던 섹션 전체를 추가
+✗ 욕망 점수를 올리려고 관련 없는 새 UI 요소 삽입
+
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+출력 형식
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+<ANALYSIS>
+[PRE-ANALYSIS 결과 — 이슈별 수정 요소 매핑]
+</ANALYSIS>
 <CHANGES>
-- [수정 1]: 구체적으로 무엇을 어떻게 바꿨는지 (원본 대비)
+- [수정 1]: 원본 대비 구체적으로 무엇을 어떻게 바꿨는지
 - [수정 2]: ...
 </CHANGES>
 <HTML>
 <!DOCTYPE html>
-...complete HTML reproducing original with targeted fixes...
+...원본을 충실히 재현하고 지정된 수정만 적용한 완전한 HTML...
 </HTML>`;
 }
 
@@ -174,34 +207,44 @@ function buildAnalysisContext(
     ? issues.filter((i) => i.severity === "Critical")
     : issues;
 
-  const issuesSection = `## 수정할 이슈 목록 (${targetIssues.length}건 — 이것만 수정하세요)
-${targetIssues
-  .map(
-    (issue, i) => `
-[수정 ${i + 1}] 심각도: ${issue.severity}
-- 문제: ${issue.issue}
-- 권장 수정: ${issue.recommendation ?? "없음"}
-- 수정 범위: 위 문제에 해당하는 요소만 변경. 주변 레이아웃 건드리지 말 것.`
-  )
-  .join("\n")}`;
+  // Sort: Critical first
+  const sortedIssues = [...targetIssues].sort((a, b) => {
+    const order = { Critical: 0, Medium: 1, Low: 2 };
+    return (order[a.severity as keyof typeof order] ?? 2) - (order[b.severity as keyof typeof order] ?? 2);
+  });
+
+  const issuesSection = `## 수정할 이슈 목록 (총 ${sortedIssues.length}건)
+※ 아래 이슈들은 각각 원본 화면의 기존 UI 요소 하나와 대응됩니다. 새 요소를 추가하지 말고 기존 요소를 수정하세요.
+
+${sortedIssues
+    .map(
+      (issue, i) => `### 이슈 ${i + 1} [${issue.severity}]
+문제: ${issue.issue}
+수정 방향: ${issue.recommendation ?? "해당 요소의 시각적 명확성 개선"}
+주의: 이 이슈와 관련된 원본 요소 1개만 수정. 그 요소가 화면에 이미 있다면 추가 삽입 금지.`
+    )
+    .join("\n\n")}`;
 
   const desireSection =
     options.desireAlignment && desire
       ? `
-## 욕망 충족도 현황 (수정 시 고려, 하지만 기존 디자인을 유지하면서 개선)
-- 효능감: ${desire.utility.score}/10 — ${desire.utility.comment}
+## 욕망 충족도 현황 (수정 시 참고 — 기존 요소의 카피/강조도 개선에만 활용)
+- 효능감(보상 명확성): ${desire.utility.score}/10 — ${desire.utility.comment}
 - 성취·과시: ${desire.healthPride.score}/10 — ${desire.healthPride.comment}
-- 손실회피: ${desire.lossAversion.score}/10 — ${desire.lossAversion.comment}
-※ 욕망 관련 개선도 원본 UI 요소 내에서만 (카피 변경, 수치 강조 등). 새 섹션 추가 금지.`
+- 손실회피(긴박감): ${desire.lossAversion.score}/10 — ${desire.lossAversion.comment}
+→ 새 요소 추가 없이, 기존 텍스트 카피·숫자 강조·색상으로만 개선 가능한 부분을 찾아 수정.`
       : "";
 
-  const descriptionSection = description
-    ? `\n## 추가 지시사항 (반드시 반영)\n${description}`
+  const targetScoreNote = options.targetScore
+    ? `\n목표 점수: ${options.targetScore}/100 (현재 ${score}/100)`
     : "";
 
-  return `
-## 현재 상태
-- 현재 점수: ${score}/100
+  const descriptionSection = description
+    ? `\n## 추가 지시사항 (최우선 반영)\n${description}`
+    : "";
+
+  return `## 현재 상태
+- 현재 점수: ${score}/100${targetScoreNote}
 - 개선 라운드: ${roundNumber}회차
 ${desireSection}
 
@@ -209,7 +252,8 @@ ${issuesSection}
 ${descriptionSection}
 
 ---
-위 수정 사항만 적용한 개선 화면을 생성하세요. 나머지는 원본과 동일하게 유지.`;
+PRE-ANALYSIS → CHANGES → HTML 순서로 출력하세요.
+PRE-ANALYSIS에서 각 이슈에 대응하는 원본 요소를 명시한 뒤 HTML을 작성하세요.`;
 }
 
 function parseResponse(text: string): GenerateImproveResult {
