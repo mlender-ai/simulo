@@ -57,6 +57,7 @@ export interface ComparisonState {
   ours: ComparisonProductInput;
   competitors: ComparisonProductInput[];
   focus: string;
+  comparisonType: "competitor" | "variant";
 }
 
 export type InputTab = "image" | "url" | "figma" | "flow" | "comparison";

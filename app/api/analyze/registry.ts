@@ -65,6 +65,7 @@ const comparisonPlugin: AnalysisPlugin = {
       ours: body.ours as never,
       competitors: body.competitors as never[],
       comparisonFocus: body.comparisonFocus,
+      comparisonType: (body.comparisonType as "competitor" | "variant") ?? "competitor",
     });
   },
 };

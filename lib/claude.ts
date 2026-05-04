@@ -86,6 +86,7 @@ interface ComparisonAnalyzeParams {
   hypothesis?: string;
   targetUser?: string;
   comparisonFocus?: string;
+  comparisonType?: "competitor" | "variant";
   locale?: string;
   apiKey?: string;
   model?: ModelTier;
@@ -331,25 +332,31 @@ export async function analyzeComparisonWithClaude(params: ComparisonAnalyzeParam
   // Comparison always uses Sonnet — more reliable cross-product scoring
   const modelId = MODEL_MAP[params.model || "sonnet"];
 
+  const isVariant = params.comparisonType === "variant";
+  // Variant labels: A안, B안, C안 …
+  const VARIANT_LABELS = ["A안", "B안", "C안", "D안"];
+
   const content: Anthropic.Messages.ContentBlockParam[] = [];
 
   const descriptionBlock = (desc: string | undefined): string => {
     const trimmed = (desc || "").trim();
     return isKo
-      ? `[제품 컨텍스트: ${trimmed || "제공된 설명 없음. 이미지만으로 판단."}]`
-      : `[Product context: ${trimmed || "No description provided. Judge from images only."}]`;
+      ? `[컨텍스트: ${trimmed || "제공된 설명 없음. 이미지만으로 판단."}]`
+      : `[Context: ${trimmed || "No description provided. Judge from images only."}]`;
   };
 
-  // Our product first
-  content.push({
-    type: "text" as const,
-    text: isKo ? `=== 자사 제품: ${params.ours.productName} ===` : `=== Our product: ${params.ours.productName} ===`,
-  });
+  // Primary item (자사 제품 or A안)
+  const oursLabel = isVariant
+    ? (params.ours.productName || VARIANT_LABELS[0])
+    : (isKo ? `자사 제품: ${params.ours.productName}` : `Our product: ${params.ours.productName}`);
+  const oursSectionLabel = isVariant ? `=== ${oursLabel} ===` : (isKo ? `=== 자사 제품: ${params.ours.productName} ===` : `=== Our product: ${params.ours.productName} ===`);
+
+  content.push({ type: "text" as const, text: oursSectionLabel });
   content.push({ type: "text" as const, text: descriptionBlock(params.ours.description) });
   params.ours.images.forEach((base64, i) => {
     content.push({
       type: "text" as const,
-      text: isKo ? `[자사: ${params.ours.productName} / 화면 ${i + 1}]` : `[Ours: ${params.ours.productName} / Screen ${i + 1}]`,
+      text: `[${oursLabel} / 화면 ${i + 1}]`,
     });
     content.push({
       type: "image" as const,
@@ -357,17 +364,20 @@ export async function analyzeComparisonWithClaude(params: ComparisonAnalyzeParam
     });
   });
 
-  // Each competitor
-  for (const comp of params.competitors) {
-    content.push({
-      type: "text" as const,
-      text: isKo ? `=== 경쟁사: ${comp.productName} ===` : `=== Competitor: ${comp.productName} ===`,
-    });
+  // Competitors / other variants
+  for (let ci = 0; ci < params.competitors.length; ci++) {
+    const comp = params.competitors[ci];
+    const compLabel = isVariant
+      ? (comp.productName || VARIANT_LABELS[ci + 1] || `시안 ${ci + 2}`)
+      : (isKo ? `경쟁사: ${comp.productName}` : `Competitor: ${comp.productName}`);
+    const compSectionLabel = isVariant ? `=== ${compLabel} ===` : (isKo ? `=== 경쟁사: ${comp.productName} ===` : `=== Competitor: ${comp.productName} ===`);
+
+    content.push({ type: "text" as const, text: compSectionLabel });
     content.push({ type: "text" as const, text: descriptionBlock(comp.description) });
     comp.images.forEach((base64, i) => {
       content.push({
         type: "text" as const,
-        text: isKo ? `[경쟁사: ${comp.productName} / 화면 ${i + 1}]` : `[Competitor: ${comp.productName} / Screen ${i + 1}]`,
+        text: `[${compLabel} / 화면 ${i + 1}]`,
       });
       content.push({
         type: "image" as const,
@@ -408,15 +418,25 @@ export async function analyzeComparisonWithClaude(params: ComparisonAnalyzeParam
   const isUsabilityCompare = params.mode === "usability";
   const defaultTarget = isKo ? "4050 한국 여성, 야핏무브 핵심 타깃" : "40-50s Korean women, core YafitMove users";
   const effectiveTarget = params.targetUser?.trim() || defaultTarget;
-  const competitorNames = params.competitors.map((c) => c.productName).join(", ");
+  const allNames = [params.ours.productName, ...params.competitors.map((c) => c.productName)];
+  const othersLabel = isVariant
+    ? allNames.slice(1).join(", ")
+    : params.competitors.map((c) => c.productName).join(", ");
+  const primaryLabel = isVariant ? (params.ours.productName || VARIANT_LABELS[0]) : params.ours.productName;
+
+  const variantModePrefix = isVariant && isKo
+    ? `모드: 시안 비교 분석 — 동일 화면의 여러 디자인 시안을 비교합니다. "자사/경쟁사" 프레임이 아닌 "어떤 시안이 더 효과적인가"를 판단하세요.\n`
+    : isVariant
+      ? `Mode: Design variant comparison — comparing different design versions of the same screen. Judge which variant is more effective, not competitor vs ours.\n`
+      : "";
 
   const userPrompt = isUsabilityCompare
     ? (isKo
-        ? `모드: 사용성 비교 분석 (가설 없음)\n타깃 유저: ${effectiveTarget}\n${focusLine}\n${contextInstruction}\n자사 제품(${params.ours.productName})과 경쟁사(${competitorNames})를 동일 사용성 루브릭으로 비교 평가.\n특정 가설 검증이 아니라 각 제품의 사용성 품질과 4050 여성 타깃 적합도를 비교 판단하세요.\nJSON 반환.`
-        : `Mode: Usability comparison (no hypothesis)\nTarget User: ${effectiveTarget}\n${focusLine}\n${contextInstruction}\nCompare our product (${params.ours.productName}) vs competitors (${competitorNames}) using a consistent usability rubric.\nJudge overall usability quality and 4050 target fit per product instead of validating a hypothesis. Return JSON.`)
+        ? `${variantModePrefix}모드: 사용성 비교 분석 (가설 없음)\n타깃 유저: ${effectiveTarget}\n${focusLine}\n${contextInstruction}\n${primaryLabel}과 ${othersLabel}를 동일 사용성 루브릭으로 비교 평가.\n${isVariant ? "어떤 시안이 UX·가독성·전환율 측면에서 더 우수한지 판단하세요." : "특정 가설 검증이 아니라 각 제품의 사용성 품질과 4050 여성 타깃 적합도를 비교 판단하세요."}\nJSON 반환.`
+        : `${variantModePrefix}Mode: Usability comparison (no hypothesis)\nTarget User: ${effectiveTarget}\n${focusLine}\n${contextInstruction}\nCompare ${primaryLabel} vs ${othersLabel} using a consistent usability rubric.\n${isVariant ? "Determine which variant performs better in terms of UX, readability, and conversion." : "Judge overall usability quality and target fit per product."} Return JSON.`)
     : (isKo
-        ? `가설: ${params.hypothesis}\n타깃 유저: ${params.targetUser}\n${focusLine}\n${contextInstruction}\n${perspectiveBlock}\n자사 제품(${params.ours.productName})과 경쟁사(${competitorNames})를 동일 가설로 비교 분석 후 JSON 반환.`
-        : `Hypothesis: ${params.hypothesis}\nTarget User: ${params.targetUser}\n${focusLine}\n${contextInstruction}\n${perspectiveBlock}\nCompare our product (${params.ours.productName}) vs competitors (${competitorNames}) against the same hypothesis. Return JSON.`);
+        ? `${variantModePrefix}가설: ${params.hypothesis}\n타깃 유저: ${params.targetUser}\n${focusLine}\n${contextInstruction}\n${perspectiveBlock}\n${primaryLabel}과 ${othersLabel}를 동일 가설로 비교 분석 후 JSON 반환.`
+        : `${variantModePrefix}Hypothesis: ${params.hypothesis}\nTarget User: ${params.targetUser}\n${focusLine}\n${contextInstruction}\n${perspectiveBlock}\nCompare ${primaryLabel} vs ${othersLabel} against the same hypothesis. Return JSON.`);
 
   content.push({ type: "text" as const, text: userPrompt });
 

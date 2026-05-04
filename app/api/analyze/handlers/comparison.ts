@@ -13,6 +13,7 @@ interface ComparisonHandlerParams extends BaseHandlerParams {
   ours: ComparisonProduct_;
   competitors: ComparisonProduct_[];
   comparisonFocus?: string;
+  comparisonType?: "competitor" | "variant";
   analysisPerspective?: AnalysisPerspectiveInput;
 }
 
@@ -28,7 +29,7 @@ function mergeProductMedia(p: ComparisonProduct_): ComparisonProduct {
 }
 
 export async function handleComparisonAnalysis(params: ComparisonHandlerParams): Promise<HandlerResult> {
-  const { ours, competitors, comparisonFocus, hypothesis, targetUser, locale, apiKey, model, mode, analysisOptions, analysisPerspective, domain, domainFocuses } = params;
+  const { ours, competitors, comparisonFocus, comparisonType, hypothesis, targetUser, locale, apiKey, model, mode, analysisOptions, analysisPerspective, domain, domainFocuses } = params;
 
   const oursWithFrames = mergeProductMedia(ours);
   const competitorsWithFrames = competitors.map(mergeProductMedia);
@@ -62,6 +63,7 @@ export async function handleComparisonAnalysis(params: ComparisonHandlerParams):
     hypothesis,
     targetUser,
     comparisonFocus,
+    comparisonType: comparisonType ?? "competitor",
     locale,
     apiKey,
     model,

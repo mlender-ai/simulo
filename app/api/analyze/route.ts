@@ -31,6 +31,7 @@ export async function POST(request: NextRequest) {
       ours,
       competitors,
       comparisonFocus,
+      comparisonType: rawComparisonType,
       screenDescription,
       analysisPerspective,
       mode: rawMode,
@@ -150,6 +151,8 @@ export async function POST(request: NextRequest) {
     };
 
     // ── Route to input-type handler via plugin registry ──
+    const comparisonType: "competitor" | "variant" = rawComparisonType === "variant" ? "variant" : "competitor";
+
     const plugin = resolvePlugin({
       images,
       videos,
@@ -184,6 +187,7 @@ export async function POST(request: NextRequest) {
       ours,
       competitors,
       comparisonFocus,
+      comparisonType,
     });
 
     const { result, thumbnailUrls, savedFlowSteps, isComparison, comparisonData } = handlerResult;

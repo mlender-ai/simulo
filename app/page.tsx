@@ -78,6 +78,7 @@ export default function Home() {
     ours: { productName: "", images: [], videos: [], description: "" },
     competitors: [{ productName: "", images: [], videos: [], description: "" }],
     focus: "",
+    comparisonType: "competitor",
   });
   const [analysisPerspective, setAnalysisPerspective] = useState<AnalysisPerspective>({
     usability: true,
@@ -256,7 +257,7 @@ export default function Home() {
       ...(ocrReview ? { ocrReview } : {}),
     };
     return isComparison
-      ? { ...commonBody, inputType: "comparison", ours: comparison.ours, competitors: comparison.competitors, comparisonFocus: comparison.focus || undefined }
+      ? { ...commonBody, inputType: "comparison", ours: comparison.ours, competitors: comparison.competitors, comparisonFocus: comparison.focus || undefined, comparisonType: comparison.comparisonType }
       : isFlow
         ? { ...commonBody, inputType: "flow", flowSteps }
         : isFigma
