@@ -34,6 +34,8 @@ export async function POST(req: NextRequest) {
   const productMode: "yafit" | "general" = body.productMode === "general" ? "general" : "yafit";
   const description: string | undefined = typeof body.description === "string" ? body.description : undefined;
   const referenceImages: string[] | undefined = Array.isArray(body.referenceImages) ? body.referenceImages : undefined;
+  // screenIndex: which screen to generate for (0-based). undefined = first screen only.
+  const screenIndex: number = typeof body.screenIndex === "number" ? body.screenIndex : 0;
 
   if (!env.ANTHROPIC_API_KEY) {
     return NextResponse.json({ error: "API key not configured" }, { status: 503 });
@@ -78,7 +80,7 @@ export async function POST(req: NextRequest) {
   const desire: DesireAlignment | null =
     analysisOptions?.result?.desireAlignment ?? null;
 
-  const originalImage = analysis.thumbnailUrls[0] ?? null;
+  const originalImage = analysis.thumbnailUrls[screenIndex] ?? analysis.thumbnailUrls[0] ?? null;
 
   // Generate improvement
   const { generateImprovement } = await import("@/lib/improvement");

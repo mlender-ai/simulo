@@ -17,6 +17,12 @@ interface ImproveResult {
   provider?: string;
 }
 
+interface ScreenResult {
+  screenIndex: number;
+  screenLabel: string;
+  variants: ImproveResult[];
+}
+
 const MAX_VARIANTS = 3;
 
 type PanelState = "idle" | "generating" | "reanalyzing" | "variants" | "comparison";
@@ -40,9 +46,13 @@ export function ImprovementPanel({
   roundNumber,
   onNextRound,
 }: ImprovementPanelProps) {
+  const thumbnailUrls = originalAnalysis.thumbnailUrls ?? [];
+  const isMultiScreen = thumbnailUrls.length > 1;
+
   const [panelState, setPanelState] = useState<PanelState>("idle");
   const [loadingMsgIdx, setLoadingMsgIdx] = useState(0);
-  const [variants, setVariants] = useState<ImproveResult[]>([]);
+  const [screenResults, setScreenResults] = useState<ScreenResult[]>([]);
+  const [activeScreenIdx, setActiveScreenIdx] = useState(0);
   const [activeVariantIdx, setActiveVariantIdx] = useState(0);
   const [improvedAnalysis, setImprovedAnalysis] = useState<AnalysisResult | null>(null);
   const [error, setError] = useState<string | null>(null);
@@ -50,6 +60,8 @@ export function ImprovementPanel({
 
   // ── Options ───────────────────────────────────────────────────────────────
   const [variantCount, setVariantCount] = useState(1);
+  // "all" = generate for every screen; number = specific screen index (0-based)
+  const [selectedScreenMode, setSelectedScreenMode] = useState<"all" | number>(0);
   const [optCriticalOnly, setOptCriticalOnly] = useState(false);
   const [optDesireAlignment, setOptDesireAlignment] = useState(true);
   const [optRestructureLayout, setOptRestructureLayout] = useState(false);
@@ -59,13 +71,13 @@ export function ImprovementPanel({
   const [description, setDescription] = useState("");
   const [referenceImages, setReferenceImages] = useState<string[]>([]);
 
-  // Progress tracking during multi-variant generation
-  const [generatingCount, setGeneratingCount] = useState(0);
-  const [generatedCount, setGeneratedCount] = useState(0);
-  // Mutex: prevents concurrent handleGenerate / handleReanalyze calls
-  // (covers the window between click and panelState re-render)
-  const operationRef = useRef(false);
+  // Progress tracking during multi-variant / multi-screen generation
+  const [generatingTotal, setGeneratingTotal] = useState(0);
+  const [generatingDone, setGeneratingDone] = useState(0);
+  const [generatingScreenLabel, setGeneratingScreenLabel] = useState("");
 
+  // Mutex: prevents concurrent handleGenerate / handleReanalyze calls
+  const operationRef = useRef(false);
   const loadingIntervalRef = useRef<ReturnType<typeof setInterval> | null>(null);
   const iframeRef = useRef<HTMLIFrameElement>(null);
 
@@ -87,67 +99,101 @@ export function ImprovementPanel({
     };
   }, [panelState]); // eslint-disable-line react-hooks/exhaustive-deps
 
-  // ── Generate N variants sequentially ─────────────────────────────────────
+  // ── Generate variants for a single screen ─────────────────────────────────
+  async function generateForScreen(screenIndex: number): Promise<ImproveResult[]> {
+    const results: ImproveResult[] = [];
+    for (let i = 0; i < variantCount; i++) {
+      const res = await fetch("/api/generate-improvement", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({
+          analysisId: originalAnalysis.id,
+          analysis: {
+            score: originalAnalysis.score,
+            issues: originalAnalysis.issues,
+            thumbnailUrls: originalAnalysis.thumbnailUrls,
+            analysisOptions: originalAnalysis.analysisOptions,
+          },
+          options: {
+            criticalOnly: optCriticalOnly,
+            desireAlignment: optDesireAlignment,
+            restructureLayout: optRestructureLayout,
+            targetScore,
+            variantIndex: i,
+          },
+          screenIndex,
+          description: description.trim() || undefined,
+          referenceImages: referenceImages.length > 0 ? referenceImages : undefined,
+          roundNumber,
+          productMode: getProductMode(),
+        }),
+      });
+      if (!res.ok) {
+        const errData = await res.json().catch(() => ({}));
+        throw new Error(errData.detail || errData.error || `시안 ${i + 1} 생성 실패 (${res.status})`);
+      }
+      const data: ImproveResult = await res.json();
+      results.push(data);
+      setGeneratingDone((prev) => prev + 1);
+    }
+    return results;
+  }
+
+  // ── Generate (single or all screens) ─────────────────────────────────────
   const handleGenerate = useCallback(async () => {
     if (operationRef.current) return;
     operationRef.current = true;
     setPanelState("generating");
     setError(null);
-    setGeneratingCount(variantCount);
-    setGeneratedCount(0);
 
-    const newVariants: ImproveResult[] = [];
+    // Determine which screens to generate
+    const screensToGenerate: number[] =
+      selectedScreenMode === "all"
+        ? thumbnailUrls.map((_, i) => i)
+        : [selectedScreenMode as number];
 
-    for (let i = 0; i < variantCount; i++) {
+    const totalOps = screensToGenerate.length * variantCount;
+    setGeneratingTotal(totalOps);
+    setGeneratingDone(0);
+
+    const newScreenResults: ScreenResult[] = [];
+
+    for (const screenIndex of screensToGenerate) {
+      const label =
+        thumbnailUrls.length > 1 ? `화면 ${screenIndex + 1}` : "화면";
+      setGeneratingScreenLabel(label);
       try {
-        const res = await fetch("/api/generate-improvement", {
-          method: "POST",
-          headers: { "Content-Type": "application/json" },
-          body: JSON.stringify({
-            analysisId: originalAnalysis.id,
-            analysis: {
-              score: originalAnalysis.score,
-              issues: originalAnalysis.issues,
-              thumbnailUrls: originalAnalysis.thumbnailUrls,
-              analysisOptions: originalAnalysis.analysisOptions,
-            },
-            options: {
-              criticalOnly: optCriticalOnly,
-              desireAlignment: optDesireAlignment,
-              restructureLayout: optRestructureLayout,
-              targetScore,
-              variantIndex: i, // hint to API to generate distinct variants
-            },
-            description: description.trim() || undefined,
-            referenceImages: referenceImages.length > 0 ? referenceImages : undefined,
-            roundNumber,
-            productMode: getProductMode(),
-          }),
-        });
-        if (!res.ok) {
-          const errData = await res.json().catch(() => ({}));
-          throw new Error(errData.detail || errData.error || `시안 ${i + 1} 생성 실패 (${res.status})`);
-        }
-        const data: ImproveResult = await res.json();
-        newVariants.push(data);
-        setGeneratedCount(i + 1);
+        const variants = await generateForScreen(screenIndex);
+        newScreenResults.push({ screenIndex, screenLabel: label, variants });
       } catch (err) {
-        console.error(`[improve] generate variant ${i + 1}:`, err);
-        setError(err instanceof Error ? err.message : `시안 ${i + 1} 생성 실패`);
-        // Continue with however many succeeded
+        console.error(`[improve] generate screen ${screenIndex}:`, err);
+        setError(err instanceof Error ? err.message : `${label} 생성 실패`);
         break;
       }
     }
 
-    if (newVariants.length > 0) {
-      setVariants(newVariants);
+    if (newScreenResults.length > 0) {
+      setScreenResults(newScreenResults);
+      setActiveScreenIdx(0);
       setActiveVariantIdx(0);
       setPanelState("variants");
     } else {
       setPanelState("idle");
     }
     operationRef.current = false;
-  }, [variantCount, optCriticalOnly, optDesireAlignment, optRestructureLayout, targetScore, description, referenceImages, originalAnalysis, roundNumber]);
+  }, [
+    selectedScreenMode,
+    variantCount,
+    thumbnailUrls,
+    optCriticalOnly,
+    optDesireAlignment,
+    optRestructureLayout,
+    targetScore,
+    description,
+    referenceImages,
+    originalAnalysis,
+    roundNumber,
+  ]); // eslint-disable-line react-hooks/exhaustive-deps
 
   // ── Save active variant as PNG ────────────────────────────────────────────
   const handleSavePng = useCallback(async () => {
@@ -162,6 +208,7 @@ export function ImprovementPanel({
       });
       const body = iframe.contentDocument?.body;
       if (!body) throw new Error("iframe 콘텐츠에 접근할 수 없습니다");
+      const activeScreen = screenResults[activeScreenIdx];
       const dataUrl = await toPng(body, {
         quality: 0.95,
         backgroundColor: "#0f0f0f",
@@ -169,7 +216,8 @@ export function ImprovementPanel({
       });
       const a = document.createElement("a");
       a.href = dataUrl;
-      a.download = `simulo-개선안-${originalAnalysis.id}-시안${activeVariantIdx + 1}.png`;
+      const screenSuffix = activeScreen ? `-${activeScreen.screenLabel}` : "";
+      a.download = `simulo-개선안-${originalAnalysis.id}${screenSuffix}-시안${activeVariantIdx + 1}.png`;
       a.click();
     } catch (err) {
       console.error("[improve] savePng:", err);
@@ -177,22 +225,20 @@ export function ImprovementPanel({
     } finally {
       setSavingPng(false);
     }
-  }, [activeVariantIdx, originalAnalysis.id]);
+  }, [activeScreenIdx, activeVariantIdx, screenResults, originalAnalysis.id]);
 
   // ── Re-analyze ────────────────────────────────────────────────────────────
   const handleReanalyze = useCallback(async () => {
-    // Mutex: captures the window between click and panelState → "reanalyzing"
     if (operationRef.current) return;
-    const activeVariant = variants[activeVariantIdx];
+    const activeVariant = screenResults[activeScreenIdx]?.variants[activeVariantIdx];
     if (!activeVariant) return;
     operationRef.current = true;
 
-    // ── Step 1: capture iframe BEFORE state change (iframe unmounts on reanalyzing state) ──
+    // Step 1: capture iframe BEFORE state change
     let capturedImage: string | null = null;
     try {
       const iframe = iframeRef.current;
       if (iframe) {
-        // Wait up to 5s for iframe to be fully loaded
         await new Promise<void>((resolve) => {
           if (iframe.contentDocument?.readyState === "complete") { resolve(); return; }
           iframe.addEventListener("load", () => resolve(), { once: true });
@@ -217,7 +263,6 @@ export function ImprovementPanel({
       return;
     }
 
-    // ── Step 2: change state to loading AFTER capture ──
     setPanelState("reanalyzing");
     setError(null);
 
@@ -260,18 +305,20 @@ export function ImprovementPanel({
     } finally {
       operationRef.current = false;
     }
-  }, [variants, activeVariantIdx, originalAnalysis, roundNumber]);
+  }, [screenResults, activeScreenIdx, activeVariantIdx, originalAnalysis, roundNumber]);
 
   // ── Next round ────────────────────────────────────────────────────────────
   function handleNextRound() {
     setPanelState("idle");
-    setVariants([]);
+    setScreenResults([]);
+    setActiveScreenIdx(0);
     setActiveVariantIdx(0);
     setImprovedAnalysis(null);
     if (onNextRound) onNextRound(roundNumber + 1);
   }
 
-  const activeVariant = variants[activeVariantIdx] ?? null;
+  const activeScreenResult = screenResults[activeScreenIdx] ?? null;
+  const activeVariant = activeScreenResult?.variants[activeVariantIdx] ?? null;
 
   // ── IDLE ──────────────────────────────────────────────────────────────────
   if (panelState === "idle") {
@@ -283,6 +330,43 @@ export function ImprovementPanel({
             개선 라운드: {roundNumber}회차
           </p>
         </div>
+
+        {/* Screen selector — only when multiple screens attached */}
+        {isMultiScreen && (
+          <div className="mb-5">
+            <p className="text-xs font-medium text-white/60 mb-2">개선할 화면</p>
+            <div className="flex flex-wrap gap-1.5">
+              <button
+                onClick={() => setSelectedScreenMode("all")}
+                className={`px-3 py-2 rounded-md text-xs font-medium transition-colors ${
+                  selectedScreenMode === "all"
+                    ? "bg-white text-black"
+                    : "bg-white/5 text-white/50 hover:bg-white/10 hover:text-white/80 border border-[var(--border)]"
+                }`}
+              >
+                전체 ({thumbnailUrls.length}개)
+              </button>
+              {thumbnailUrls.map((_, i) => (
+                <button
+                  key={i}
+                  onClick={() => setSelectedScreenMode(i)}
+                  className={`px-3 py-2 rounded-md text-xs font-medium transition-colors ${
+                    selectedScreenMode === i
+                      ? "bg-white text-black"
+                      : "bg-white/5 text-white/50 hover:bg-white/10 hover:text-white/80 border border-[var(--border)]"
+                  }`}
+                >
+                  화면 {i + 1}
+                </button>
+              ))}
+            </div>
+            <p className="text-[11px] text-white/25 mt-1.5">
+              {selectedScreenMode === "all"
+                ? `${thumbnailUrls.length}개 화면 각각 개선안을 생성합니다`
+                : `화면 ${(selectedScreenMode as number) + 1}의 개선안만 생성합니다`}
+            </p>
+          </div>
+        )}
 
         {/* Variant count selector */}
         <div className="mb-5">
@@ -438,7 +522,11 @@ export function ImprovementPanel({
           onClick={handleGenerate}
           className="w-full py-2.5 rounded-md bg-white text-black text-sm font-medium hover:bg-white/90 transition-colors"
         >
-          {variantCount === 1 ? "개선안 생성하기" : `개선안 ${variantCount}개 생성하기`}
+          {selectedScreenMode === "all" && isMultiScreen
+            ? `전체 화면 개선안 생성 (${thumbnailUrls.length}개)`
+            : variantCount === 1
+            ? "개선안 생성하기"
+            : `개선안 ${variantCount}개 생성하기`}
         </button>
         <p className="text-center text-[11px] text-white/25 mt-2">
           Simulo AI 기반 · 시안당 약 20-40초 소요
@@ -455,22 +543,55 @@ export function ImprovementPanel({
         <p className="text-sm text-white/60 text-center">
           {loadingMessages[loadingMsgIdx]}
         </p>
-        {panelState === "generating" && generatingCount > 1 && (
-          <p className="text-[11px] text-white/30 mono">
-            {generatedCount} / {generatingCount} 시안 완료
-          </p>
+        {panelState === "generating" && generatingTotal > 1 && (
+          <div className="text-center space-y-0.5">
+            {generatingScreenLabel && isMultiScreen && (
+              <p className="text-[11px] text-white/40">{generatingScreenLabel} 처리 중</p>
+            )}
+            <p className="text-[11px] text-white/30 mono">
+              {generatingDone} / {generatingTotal} 완료
+            </p>
+          </div>
         )}
       </div>
     );
   }
 
   // ── VARIANTS ──────────────────────────────────────────────────────────────
-  if (panelState === "variants" && variants.length > 0) {
+  if (panelState === "variants" && screenResults.length > 0) {
+    const multiScreen = screenResults.length > 1;
+    const currentVariants = activeScreenResult?.variants ?? [];
+
     return (
       <div className="h-full flex flex-col overflow-hidden">
+        {/* Screen tabs — only when multiple screens */}
+        {multiScreen && (
+          <div className="flex items-center gap-1 px-4 pt-3 pb-0 border-b border-[#1a1a1a]">
+            {screenResults.map((sr, i) => (
+              <button
+                key={sr.screenIndex}
+                onClick={() => { setActiveScreenIdx(i); setActiveVariantIdx(0); }}
+                className={`px-3 py-1.5 rounded-t text-xs font-medium transition-colors ${
+                  activeScreenIdx === i
+                    ? "bg-white/10 text-white border-b-2 border-white"
+                    : "text-white/40 hover:text-white/70"
+                }`}
+              >
+                {sr.screenLabel}
+              </button>
+            ))}
+            <button
+              onClick={() => { setScreenResults([]); setActiveScreenIdx(0); setActiveVariantIdx(0); setError(null); setPanelState("idle"); }}
+              className="ml-auto text-[11px] text-white/25 hover:text-white/50 transition-colors px-1"
+            >
+              ↺ 다시
+            </button>
+          </div>
+        )}
+
         {/* Variant tab bar */}
-        <div className="flex items-center gap-1 px-4 pt-4 pb-0 border-b border-[#1a1a1a]">
-          {variants.map((_, i) => (
+        <div className={`flex items-center gap-1 px-4 ${multiScreen ? "pt-2" : "pt-4"} pb-0 border-b border-[#1a1a1a]`}>
+          {currentVariants.map((_, i) => (
             <button
               key={i}
               onClick={() => setActiveVariantIdx(i)}
@@ -483,12 +604,14 @@ export function ImprovementPanel({
               시안 {i + 1}
             </button>
           ))}
-          <button
-            onClick={() => { setVariants([]); setActiveVariantIdx(0); setError(null); setPanelState("idle"); }}
-            className="ml-auto text-[11px] text-white/25 hover:text-white/50 transition-colors px-1"
-          >
-            ↺ 다시
-          </button>
+          {!multiScreen && (
+            <button
+              onClick={() => { setScreenResults([]); setActiveScreenIdx(0); setActiveVariantIdx(0); setError(null); setPanelState("idle"); }}
+              className="ml-auto text-[11px] text-white/25 hover:text-white/50 transition-colors px-1"
+            >
+              ↺ 다시
+            </button>
+          )}
         </div>
 
         {/* Changes summary */}
@@ -510,7 +633,7 @@ export function ImprovementPanel({
           {activeVariant && (
             <iframe
               ref={iframeRef}
-              key={activeVariantIdx}
+              key={`${activeScreenIdx}-${activeVariantIdx}`}
               srcDoc={activeVariant.html}
               className="w-full rounded-lg border border-[#222]"
               style={{ height: "100%", minHeight: 300 }}
