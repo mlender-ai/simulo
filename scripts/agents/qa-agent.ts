@@ -40,6 +40,7 @@ interface QAResults {
   typeCheck: { passed: boolean; output: string };
   e2e: { passed: boolean; output: string };
   devServerHealth: { passed: boolean; output: string };
+  browserCheck: { passed: boolean; output: string };
   cacheCheck: { passed: boolean; output: string };
   codeAnalysis: string;
 }
@@ -61,14 +62,30 @@ function runChecks(): QAResults {
   console.log("[qa-agent] E2E 테스트...");
   const e2e = run("npx playwright test --reporter=list 2>&1 | tail -40");
 
-  // dev 서버 기동 후 헬스체크
-  console.log("[qa-agent] dev 서버 헬스체크...");
-  run("rm -rf .next"); // 빌드 후 캐시가 남으므로 다시 정리
-  const devStart = run("timeout 15 bash -c 'npm run dev:quick &>/dev/null & sleep 8 && curl -s -o /dev/null -w \"%{http_code}\" http://localhost:3000 && kill $(lsof -ti:3000) 2>/dev/null'");
+  // dev 서버 기동 후 헬스체크 + 브라우저 실증 검사
+  console.log("[qa-agent] dev 서버 기동 및 브라우저 실증 검사...");
+  // .next를 완전히 지우고 dev:quick으로 클린 시작 (stale chunk 방지)
+  run("kill $(lsof -ti:3000) 2>/dev/null; rm -rf .next");
+  run("npm run dev:quick > /tmp/simulo-qa-dev.log 2>&1 &");
+  // 서버가 완전히 뜰 때까지 대기
+  run("sleep 10");
+
+  const httpCheck = run("curl -s -o /dev/null -w '%{http_code}' http://localhost:3000");
   const devServerHealth = {
-    passed: devStart.output.includes("200"),
-    output: devStart.output.includes("200") ? "dev server: 200 OK" : `dev server: ${devStart.output || "failed to start"}`,
+    passed: httpCheck.output.includes("200"),
+    output: httpCheck.output.includes("200") ? "dev server: 200 OK" : `dev server HTTP: ${httpCheck.output || "failed to start"}`,
   };
+
+  // 브라우저 실증 검사 — body overflow, dev overlay, 버튼 클릭 가능성
+  console.log("[qa-agent] 브라우저 실증 검사 (Playwright)...");
+  const browserResult = run("node scripts/qa-browser-check.mjs 2>&1");
+  const browserCheck = {
+    passed: browserResult.exitCode === 0,
+    output: browserResult.output.slice(-1500),
+  };
+
+  // 서버 종료
+  run("kill $(lsof -ti:3000) 2>/dev/null");
 
   // 캐시 불일치 체크 — dev 스크립트가 .next 캐시를 자동 정리하는지 확인
   console.log("[qa-agent] 캐시 안전성 검사...");
@@ -164,6 +181,7 @@ ${featureChecks}
     typeCheck: { passed: typeCheck.exitCode === 0, output: typeCheck.output },
     e2e: { passed: e2e.exitCode === 0, output: e2e.output },
     devServerHealth,
+    browserCheck,
     cacheCheck,
     codeAnalysis,
   };
@@ -211,6 +229,9 @@ ${results.e2e.output.slice(-500)}
 ### Dev 서버 헬스체크: ${results.devServerHealth.passed ? "PASS" : "FAIL"}
 ${results.devServerHealth.output}
 
+### 브라우저 실증 검사 (body overflow / dev overlay / 버튼 클릭 가능성): ${results.browserCheck.passed ? "PASS" : "FAIL"}
+${results.browserCheck.output}
+
 ### 캐시 안전성: ${results.cacheCheck.passed ? "PASS" : "FAIL"}
 ${results.cacheCheck.output}
 
@@ -233,6 +254,7 @@ ${results.codeAnalysis}
 | 타입 체크 | PASS/FAIL |
 | E2E 테스트 | PASS/FAIL |
 | Dev 서버 | PASS/FAIL |
+| 브라우저 실증 (UI/버튼/오버레이) | PASS/FAIL |
 | 캐시 안전성 | PASS/FAIL |
 
 ## 기능 정적 검사 요약
@@ -286,7 +308,7 @@ async function main() {
   console.log(`\n[qa-agent] 저장 완료: ${outPath}`);
 
   // 검사 실패 시 exit code 1 (GitHub Actions에서 Issue 생성 트리거)
-  const hasCritical = !results.build.passed || !results.typeCheck.passed || !results.cacheCheck.passed;
+  const hasCritical = !results.build.passed || !results.typeCheck.passed || !results.cacheCheck.passed || !results.browserCheck.passed;
   if (hasCritical) {
     console.error("[qa-agent] CRITICAL 이슈 발견 — exit 1");
     process.exit(1);

@@ -45,7 +45,34 @@ jobs:
       - name: Install Playwright
         run: npx playwright install chromium --with-deps
 
-      - name: Run QA Agent
+      # ── 브라우저 실증 검사 (dev overlay / body overflow / 버튼 클릭 가능성) ──
+      # qa-agent.ts 내부에서도 실행하지만 CI에서 독립 단계로도 명시해
+      # 실패 시 별도 로그로 확인 가능하도록 분리
+      - name: Start dev server for browser check
+        run: |
+          rm -rf .next
+          npm run dev:quick &
+          echo "Waiting for dev server..."
+          for i in $(seq 1 20); do
+            if curl -s -o /dev/null -w "%{http_code}" http://localhost:3000 | grep -q "200"; then
+              echo "Dev server ready"
+              break
+            fi
+            sleep 2
+          done
+        env:
+          DATABASE_URL: ${{ secrets.DATABASE_URL || 'postgresql://ci:ci@localhost:5432/ci' }}
+
+      - name: Browser QA Check (UI/buttons/overlays)
+        id: browser-qa
+        run: node scripts/qa-browser-check.mjs
+        continue-on-error: true
+
+      - name: Stop dev server
+        if: always()
+        run: kill $(lsof -ti:3000) 2>/dev/null || true
+
+      - name: Run QA Agent (full analysis)
         id: qa
         env:
           ANTHROPIC_API_KEY: ${{ secrets.ANTHROPIC_API_KEY }}
@@ -63,7 +90,7 @@ jobs:
           retention-days: 30
 
       - name: Create Issue on failure
-        if: steps.qa.outcome == 'failure'
+        if: steps.qa.outcome == 'failure' || steps.browser-qa.outcome == 'failure'
         uses: actions/github-script@v7
         with:
           script: |
