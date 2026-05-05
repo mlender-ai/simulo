@@ -81,20 +81,18 @@ export default function ReportPage() {
   if (!data) return null;
 
   return (
-    <div style={{ display: "flex", minHeight: "100vh", gap: 0 }}>
-      {/* 좌측: 리포트 */}
+    <div className="flex flex-col md:flex-row min-h-screen">
+      {/* 리포트 본문 */}
       <div
         id="report-main"
-        style={{
-          flex: isPanelOpen ? "0 0 60%" : "0 0 100%",
-          maxWidth: isPanelOpen ? "60%" : "56rem",
-          transition: "flex 0.3s ease, max-width 0.3s ease",
-          padding: "2rem",
-          overflow: "hidden",
-        }}
+        className={[
+          "w-full overflow-hidden transition-all duration-300 p-4 sm:p-6 md:p-8",
+          isPanelOpen ? "md:w-[60%]" : "md:w-full md:max-w-3xl",
+        ].join(" ")}
       >
-        <div className="mb-8">
-          <div className="flex items-center gap-3 mb-4">
+        <div className="mb-6 md:mb-8">
+          {/* 상단 내비게이션 */}
+          <div className="flex flex-wrap items-center gap-2 md:gap-3 mb-4">
             <Link
               href="/history"
               className="text-sm text-[var(--muted)] hover:text-white transition-colors"
@@ -107,7 +105,7 @@ export default function ReportPage() {
             >
               {t("newAnalysis", locale)}
             </Link>
-            <div className="ml-auto flex items-center gap-2">
+            <div className="ml-auto flex items-center gap-1.5 md:gap-2 flex-wrap justify-end">
               <ShareExportPanel analysisId={data.id} analysisData={data} showPng />
               <button
                 onClick={() => handleReanalyze(data)}
@@ -117,24 +115,26 @@ export default function ReportPage() {
               </button>
               <button
                 onClick={() => setIsPanelOpen((v) => !v)}
-                className="flex items-center gap-1.5 px-3 py-1.5 rounded-md text-xs transition-colors"
-                style={{
-                  border: "1px solid #ffffff40",
-                  color: isPanelOpen ? "#ffffff" : "var(--muted)",
-                  background: isPanelOpen ? "rgba(255,255,255,0.08)" : "transparent",
-                }}
+                className={[
+                  "flex items-center gap-1.5 px-3 py-1.5 rounded-md text-xs transition-colors border",
+                  isPanelOpen
+                    ? "border-white/25 bg-white/8 text-white"
+                    : "border-white/25 text-[var(--muted)] bg-transparent",
+                ].join(" ")}
               >
                 <span>✦</span>
-                {isPanelOpen ? "패널 닫기" : "개선안 생성"}
+                <span className="hidden sm:inline">{isPanelOpen ? "패널 닫기" : "개선안 생성"}</span>
+                <span className="sm:hidden">✦</span>
               </button>
             </div>
           </div>
-          <h1 className="text-xl font-semibold mb-2">
+
+          <h1 className="text-lg sm:text-xl font-semibold mb-2">
             {data.mode === "usability"
               ? t("usabilityReportTitle", locale)
               : data.hypothesis}
           </h1>
-          <div className="flex items-center gap-3 text-xs text-[var(--muted)]">
+          <div className="flex flex-wrap items-center gap-2 md:gap-3 text-xs text-[var(--muted)]">
             <span className="mono">
               {new Date(data.createdAt).toLocaleString()}
             </span>
@@ -156,24 +156,36 @@ export default function ReportPage() {
         )}
       </div>
 
-      {/* 우측: 개선안 패널 */}
+      {/* 개선안 패널: 데스크탑 우측 고정 / 모바일 하단 슬라이드 */}
       {isPanelOpen && (
-        <div
-          style={{
-            flex: "0 0 40%",
-            borderLeft: "1px solid #1a1a1a",
-            position: "sticky",
-            top: 0,
-            height: "100vh",
-            overflowY: "auto",
-          }}
-        >
-          <ImprovementPanel
-            originalAnalysis={data}
-            roundNumber={roundNumber}
-            onNextRound={(n) => setRoundNumber(n)}
+        <>
+          {/* 모바일: 하단 드로어 */}
+          <div className="md:hidden fixed inset-x-0 bottom-0 z-40 h-[70vh] bg-[var(--background)] border-t border-[#1a1a1a] overflow-y-auto rounded-t-xl shadow-2xl">
+            <div className="sticky top-0 flex items-center justify-between px-4 py-2 border-b border-[#1a1a1a] bg-[var(--background)]">
+              <span className="text-xs font-medium text-white/60">✦ 개선안 생성</span>
+              <button onClick={() => setIsPanelOpen(false)} className="text-white/40 hover:text-white text-lg leading-none">✕</button>
+            </div>
+            <ImprovementPanel
+              originalAnalysis={data}
+              roundNumber={roundNumber}
+              onNextRound={(n) => setRoundNumber(n)}
+            />
+          </div>
+          {/* 모바일 backdrop */}
+          <div
+            className="md:hidden fixed inset-0 z-30 bg-black/50"
+            onClick={() => setIsPanelOpen(false)}
           />
-        </div>
+
+          {/* 데스크탑: 우측 고정 패널 */}
+          <div className="hidden md:block md:w-[40%] border-l border-[#1a1a1a] sticky top-0 h-screen overflow-y-auto shrink-0">
+            <ImprovementPanel
+              originalAnalysis={data}
+              roundNumber={roundNumber}
+              onNextRound={(n) => setRoundNumber(n)}
+            />
+          </div>
+        </>
       )}
     </div>
   );

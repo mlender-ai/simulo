@@ -406,7 +406,7 @@ export default function Home() {
 
   return (
     <>
-    <div className="flex items-center justify-center min-h-screen px-6">
+    <div className="flex items-center justify-center min-h-screen px-4 sm:px-6 py-8 sm:py-12">
       <div className="w-full max-w-[720px]">
         <OnboardingBanner
           locale={locale}
@@ -418,7 +418,7 @@ export default function Home() {
         />
 
         {/* Product mode toggle */}
-        <div className="flex items-center justify-between mb-6">
+        <div className="flex flex-wrap items-center justify-between gap-2 mb-6">
           <div className="flex items-center gap-1 p-0.5 rounded-lg bg-white/[0.04] border border-[var(--border)]">
             {([
               { key: "yafit" as const, label: "야핏무브" },
@@ -581,7 +581,7 @@ export default function Home() {
         <button
           onClick={handleAnalyze}
           disabled={ocrLoading}
-          className="mt-4 w-full py-3 rounded-md text-sm font-medium transition-colors bg-white text-black hover:bg-white/90 disabled:bg-white/10 disabled:text-[var(--muted)] disabled:cursor-not-allowed"
+          className="mt-4 w-full py-2.5 sm:py-3 rounded-md text-sm font-medium transition-colors bg-white text-black hover:bg-white/90 disabled:bg-white/10 disabled:text-[var(--muted)] disabled:cursor-not-allowed"
         >
           {ocrLoading ? "텍스트 추출 중..." : t("runAnalysis", locale)}
         </button>

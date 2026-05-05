@@ -369,7 +369,7 @@ export function InputSection({
             <p className="text-xs text-[var(--muted)] mb-3">
               {t("analysisPerspectiveHint", locale)}
             </p>
-            <div className="grid grid-cols-2 gap-2 pb-2">
+            <div className="grid grid-cols-1 sm:grid-cols-2 gap-2 pb-2">
               {(
                 [
                   {
@@ -484,7 +484,7 @@ export function InputSection({
           <span className="text-[10px]">{modeOpen ? "▲" : "▼"}</span>
         </button>
         {modeOpen && (
-          <div className="grid grid-cols-2 gap-2 pb-2">
+          <div className="grid grid-cols-1 sm:grid-cols-2 gap-2 pb-2">
             {(["hypothesis", "usability"] as const).map((m) => {
               const selected = mode === m;
               const title = m === "hypothesis" ? t("modeHypothesis", locale) : t("modeUsability", locale);
@@ -630,7 +630,7 @@ export function InputSection({
         </button>
 
         {showAdvanced && (
-          <div className="grid grid-cols-2 gap-3">
+          <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
             {mode === "hypothesis" && (
               <div>
                 <label className="flex items-center text-xs text-[var(--muted)] mb-1.5 uppercase tracking-wider">

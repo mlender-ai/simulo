@@ -744,7 +744,7 @@ export default function DashboardPage() {
             </div>
 
             {/* ── Section 2: 점수 추이 차트 ── */}
-            <div className="bg-[var(--surface)] border border-[var(--border)] rounded-lg p-6 mb-6">
+            <div className="bg-[var(--surface)] border border-[var(--border)] rounded-lg p-4 sm:p-6 mb-6">
               <div className="flex flex-wrap items-center justify-between gap-4 mb-5">
                 <h2 className="text-sm font-semibold">점수 추이</h2>
                 <div className="flex flex-wrap gap-3">
@@ -778,7 +778,7 @@ export default function DashboardPage() {
                 </div>
               ) : (
                 <div className="overflow-x-auto">
-                  <div style={{ minWidth: Math.max(400, chartData.length * 40) }}>
+                  <div style={{ minWidth: Math.max(280, chartData.length * 36) }}>
                     <ResponsiveContainer width="100%" height={280}>
                       <LineChart data={chartData} margin={{ top: 4, right: 16, left: 0, bottom: 4 }}>
                         <XAxis

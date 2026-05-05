@@ -40,8 +40,8 @@ export function OnboardingBanner({ locale, open, onClose }: OnboardingBannerProp
 
   return (
     <div
+      className="overflow-hidden"
       style={{
-        overflow: "hidden",
         transition: "height 0.2s ease, opacity 0.2s ease, margin-bottom 0.2s ease",
         height: 0,
         opacity: 0,
@@ -49,53 +49,27 @@ export function OnboardingBanner({ locale, open, onClose }: OnboardingBannerProp
       }}
     >
       <div ref={innerRef}>
-        <div
-          style={{
-            background: "#111",
-            border: "1px solid #2a2a2a",
-            borderRadius: "8px",
-            padding: "16px 20px",
-            position: "relative",
-          }}
-        >
+        <div className="relative bg-[#111] border border-[#2a2a2a] rounded-lg p-4 sm:p-5">
           <button
             onClick={onClose}
-            style={{
-              position: "absolute",
-              top: "12px",
-              right: "14px",
-              color: "#555",
-              background: "none",
-              border: "none",
-              cursor: "pointer",
-              fontSize: "16px",
-              lineHeight: 1,
-            }}
+            className="absolute top-3 right-3.5 text-[#555] hover:text-white transition-colors text-base leading-none bg-transparent border-none cursor-pointer"
             aria-label="닫기"
           >
             ✕
           </button>
 
-          <p style={{ fontSize: "13px", fontWeight: 600, color: "#e0e0e0", marginBottom: "10px" }}>
+          <p className="text-[13px] font-semibold text-[#e0e0e0] mb-2.5">
             {t("onboardingTitle", locale)}
           </p>
 
-          <div style={{ fontSize: "14px", lineHeight: "1.8", color: "#999" }}>
+          <div className="text-xs sm:text-sm leading-relaxed text-[#999] space-y-0.5">
             <p>{t("onboardingStep1", locale)}</p>
             <p>{t("onboardingStep2", locale)}</p>
             <p>{t("onboardingStep3", locale)}</p>
             <p>{t("onboardingStep4", locale)}</p>
           </div>
 
-          <p
-            style={{
-              fontSize: "12px",
-              color: "#555",
-              marginTop: "12px",
-              borderTop: "1px solid #222",
-              paddingTop: "10px",
-            }}
-          >
+          <p className="text-[11px] text-[#555] mt-3 pt-2.5 border-t border-[#222]">
             {t("onboardingFootnote", locale)}
           </p>
         </div>
