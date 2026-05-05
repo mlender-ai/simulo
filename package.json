@@ -23,7 +23,9 @@
     "agent:qa": "npx tsx scripts/agents/qa-agent.ts",
     "agent:notify": "npx tsx scripts/notifier/notify.ts",
     "agent:watcher": "npx tsx scripts/notifier/watcher.ts",
-    "agent:install": "bash scripts/notifier/setup-watcher.sh"
+    "agent:install": "bash scripts/notifier/setup-watcher.sh",
+    "qa": "node scripts/qa-browser-check.mjs",
+    "qa:ci": "npm run lint && npm run type-check && node scripts/qa-browser-check.mjs"
   },
   "dependencies": {
     "@anthropic-ai/sdk": "^0.82.0",
