@@ -59,20 +59,20 @@ export default function HistoryPage() {
         </p>
       </div>
 
-      {/* Filters */}
-      <div className="flex gap-2 mb-2 flex-wrap items-center">
+      {/* Filters — 검색 + 셀렉트 */}
+      <div className="flex flex-col sm:flex-row gap-2 mb-2">
         <input
           value={filter}
           onChange={(e) => setFilter(e.target.value)}
           placeholder={t("searchPlaceholder", locale)}
-          className="flex-1 min-w-[160px] px-3 py-2.5 bg-[var(--surface)] border border-[var(--border)] rounded-md text-sm focus:outline-none focus:border-white/30"
+          className="flex-1 min-w-0 px-3 py-2.5 bg-[var(--surface)] border border-[var(--border)] rounded-md text-sm focus:outline-none focus:border-white/30 min-h-[44px]"
         />
-        <div className="flex gap-2 flex-wrap">
+        <div className="flex gap-2 flex-wrap sm:flex-nowrap">
           {availableInputTypes.length > 1 && (
             <select
               value={inputTypeFilter}
               onChange={(e) => setInputTypeFilter(e.target.value)}
-              className="px-3 py-2.5 bg-[var(--surface)] border border-[var(--border)] rounded-md text-sm focus:outline-none min-h-[44px]"
+              className="flex-1 sm:flex-none px-3 py-2.5 bg-[var(--surface)] border border-[var(--border)] rounded-md text-sm focus:outline-none min-h-[44px]"
             >
               <option value="all">{t("filterInputTypeAll", locale)}</option>
               {availableInputTypes.map((type) => {
@@ -88,7 +88,7 @@ export default function HistoryPage() {
           <select
             value={modeFilter}
             onChange={(e) => setModeFilter(e.target.value)}
-            className="px-3 py-2.5 bg-[var(--surface)] border border-[var(--border)] rounded-md text-sm focus:outline-none min-h-[44px]"
+            className="flex-1 sm:flex-none px-3 py-2.5 bg-[var(--surface)] border border-[var(--border)] rounded-md text-sm focus:outline-none min-h-[44px]"
           >
             <option value="all">{t("filterModeAll", locale)}</option>
             <option value="hypothesis">{t("filterModeHypothesis", locale)}</option>
@@ -97,7 +97,7 @@ export default function HistoryPage() {
           <select
             value={verdictFilter}
             onChange={(e) => setVerdictFilter(e.target.value)}
-            className="px-3 py-2.5 bg-[var(--surface)] border border-[var(--border)] rounded-md text-sm focus:outline-none min-h-[44px]"
+            className="flex-1 sm:flex-none px-3 py-2.5 bg-[var(--surface)] border border-[var(--border)] rounded-md text-sm focus:outline-none min-h-[44px]"
           >
             <option value="all">{t("all", locale)}</option>
             <option value="Pass">{t("Pass", locale)}</option>
@@ -108,25 +108,25 @@ export default function HistoryPage() {
       </div>
 
       {/* Date range filter */}
-      <div className="flex gap-2 mb-4 items-center flex-wrap">
+      <div className="grid grid-cols-[auto_1fr_auto_1fr] sm:flex sm:flex-row gap-2 mb-4 items-center">
         <span className="text-xs text-[var(--muted)] shrink-0">기간</span>
         <input
           type="date"
           value={fromDate}
           onChange={(e) => setFromDate(e.target.value)}
-          className="flex-1 min-w-[130px] px-3 py-2.5 bg-[var(--surface)] border border-[var(--border)] rounded-md text-sm focus:outline-none text-[var(--muted)] focus:text-white min-h-[44px]"
+          className="min-w-0 px-3 py-2.5 bg-[var(--surface)] border border-[var(--border)] rounded-md text-sm focus:outline-none text-[var(--muted)] focus:text-white min-h-[44px]"
         />
-        <span className="text-xs text-[var(--muted)]">~</span>
+        <span className="text-xs text-[var(--muted)] text-center">~</span>
         <input
           type="date"
           value={toDate}
           onChange={(e) => setToDate(e.target.value)}
-          className="flex-1 min-w-[130px] px-3 py-2.5 bg-[var(--surface)] border border-[var(--border)] rounded-md text-sm focus:outline-none text-[var(--muted)] focus:text-white min-h-[44px]"
+          className="min-w-0 px-3 py-2.5 bg-[var(--surface)] border border-[var(--border)] rounded-md text-sm focus:outline-none text-[var(--muted)] focus:text-white min-h-[44px]"
         />
         {hasActiveFilter && (
           <button
             onClick={clearFilters}
-            className="px-3 py-2.5 text-xs rounded-md border border-[var(--border)] text-[var(--muted)] hover:text-white transition-colors min-h-[44px]"
+            className="col-span-4 sm:col-auto px-3 py-2.5 text-xs rounded-md border border-[var(--border)] text-[var(--muted)] hover:text-white transition-colors min-h-[44px]"
           >
             초기화
           </button>

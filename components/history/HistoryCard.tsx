@@ -92,13 +92,14 @@ export function HistoryCard({
         )}
         <Link
           href={`/report/${analysis.id}`}
-          className="block flex-1 p-4 rounded-lg border border-[var(--border)] bg-[var(--surface)] hover:border-white/20 transition-colors"
+          className="block flex-1 p-3 sm:p-4 rounded-lg border border-[var(--border)] bg-[var(--surface)] hover:border-white/20 transition-colors"
         >
-          <div className="flex items-center gap-3">
+          {/* 썸네일 + 전체 콘텐츠 */}
+          <div className="flex items-start gap-3">
             {analysis.thumbnailUrls?.[0] && analysis.thumbnailUrls[0] !== STRIPPED_IMAGE && (
               <div
                 className="shrink-0 rounded overflow-hidden border border-[var(--border)]"
-                style={{ width: isChild ? 36 : 48, height: isChild ? 36 : 48 }}
+                style={{ width: isChild ? 36 : 44, height: isChild ? 36 : 44 }}
               >
                 <img
                   src={analysis.thumbnailUrls[0]}
@@ -107,21 +108,45 @@ export function HistoryCard({
                 />
               </div>
             )}
-            <div className="flex-1 min-w-0 flex items-start justify-between gap-4">
-              <div className="flex-1 min-w-0">
-                <p className="text-sm truncate mb-1">
+
+            {/* 텍스트 + 하단 메타 + 우측 배지/액션 */}
+            <div className="flex-1 min-w-0">
+              {/* 상단: 제목 + 점수/배지 (한 줄, 모바일에서도 유지) */}
+              <div className="flex items-start justify-between gap-2 mb-1">
+                <p className="text-sm leading-snug line-clamp-2 flex-1 min-w-0">
                   {analysis.isImprovement
                     ? `개선 ${analysis.roundNumber ?? "?"}회차`
                     : isUsability
                     ? t("usabilityReportTitle", locale)
                     : analysis.hypothesis}
                 </p>
-                <div className="flex items-center gap-2 text-xs text-[var(--muted)] flex-wrap">
-                  <span className="mono">
+                {/* 점수 + verdict/grade 배지 — 항상 우측 고정 */}
+                <div className="flex items-center gap-1.5 shrink-0 ml-1">
+                  <span className="mono text-sm font-medium tabular-nums">{analysis.score}</span>
+                  {isUsability || analysis.isImprovement ? (
+                    <span
+                      className="text-[11px] px-1.5 py-0.5 rounded border whitespace-nowrap"
+                      style={gradeBadge ? { background: gradeBadge.bg, color: gradeBadge.color, borderColor: gradeBadge.border } : undefined}
+                    >
+                      {grade}
+                    </span>
+                  ) : (
+                    <span className={`text-[11px] px-1.5 py-0.5 rounded border whitespace-nowrap ${VERDICT_COLORS[analysis.verdict] ?? ""}`}>
+                      {t(verdictKey, locale)}
+                    </span>
+                  )}
+                </div>
+              </div>
+
+              {/* 하단: 메타 배지들 + 액션 버튼 */}
+              <div className="flex items-center justify-between gap-2 flex-wrap">
+                {/* 배지 목록 */}
+                <div className="flex items-center gap-1.5 flex-wrap text-xs text-[var(--muted)]">
+                  <span className="mono text-[11px]">
                     {new Date(analysis.createdAt).toLocaleDateString()}
                   </span>
                   <span
-                    className="px-1.5 py-0.5 rounded border"
+                    className="px-1.5 py-0.5 rounded border text-[11px]"
                     style={{ background: "rgba(255,255,255,0.04)", borderColor: "rgba(255,255,255,0.08)" }}
                   >
                     <span style={{ fontSize: 10, marginRight: 3 }}>{inputBadge.icon}</span>
@@ -129,48 +154,35 @@ export function HistoryCard({
                   </span>
                   {!analysis.isImprovement && modeBadge && (
                     <span
-                      className="px-1.5 py-0.5 rounded border"
+                      className="px-1.5 py-0.5 rounded border text-[11px]"
                       style={{ background: modeBadge.bg, color: modeBadge.color, borderColor: modeBadge.border }}
                     >
                       {t(modeBadge.labelKey, locale)}
                     </span>
                   )}
                   {analysis.isImprovement && (
-                    <span className="px-1.5 py-0.5 rounded bg-white/5 border border-[var(--border)]">
+                    <span className="px-1.5 py-0.5 rounded bg-white/5 border border-[var(--border)] text-[11px]">
                       개선안
                     </span>
                   )}
                   {analysis.projectTag && !analysis.isImprovement && (
-                    <span className="px-1.5 py-0.5 rounded bg-white/5 border border-[var(--border)]">
+                    <span className="px-1.5 py-0.5 rounded bg-white/5 border border-[var(--border)] text-[11px]">
                       {analysis.projectTag}
                     </span>
                   )}
                   {analysis.isComparison && (
-                    <span className="px-1.5 py-0.5 rounded bg-indigo-400/10 border border-indigo-400/20 text-indigo-300">
+                    <span className="px-1.5 py-0.5 rounded bg-indigo-400/10 border border-indigo-400/20 text-indigo-300 text-[11px]">
                       {t("comparisonBadge", locale)}
                     </span>
                   )}
                 </div>
-              </div>
-              <div className="flex items-center gap-3 shrink-0">
-                <span className="mono text-sm font-medium">{analysis.score}</span>
-                {isUsability || analysis.isImprovement ? (
-                  <span
-                    className="text-xs px-2 py-0.5 rounded border"
-                    style={gradeBadge ? { background: gradeBadge.bg, color: gradeBadge.color, borderColor: gradeBadge.border } : undefined}
-                  >
-                    {grade}
-                  </span>
-                ) : (
-                  <span className={`text-xs px-2 py-0.5 rounded border ${VERDICT_COLORS[analysis.verdict] ?? ""}`}>
-                    {t(verdictKey, locale)}
-                  </span>
-                )}
+
+                {/* 액션 버튼 — isChild일 때 숨김 */}
                 {!isChild && (
-                  <div className="flex items-center gap-1" onClick={(e) => e.preventDefault()}>
+                  <div className="flex items-center gap-1 shrink-0" onClick={(e) => e.preventDefault()}>
                     <button
                       onClick={(e) => { e.preventDefault(); e.stopPropagation(); onReanalyze(analysis); }}
-                      className="px-2 py-1 text-xs rounded border border-[var(--border)] text-[var(--muted)] hover:text-white hover:border-white/20 transition-colors"
+                      className="px-2 py-1 text-xs rounded border border-[var(--border)] text-[var(--muted)] hover:text-white hover:border-white/20 transition-colors min-h-[32px]"
                       title={t("reanalyze", locale)}
                     >
                       ↻
