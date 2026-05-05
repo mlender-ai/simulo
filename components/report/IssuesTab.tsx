@@ -48,10 +48,6 @@ export function IssuesTab({
   const hasMultipleScreens = safeThumbnailUrls.length > 1;
   const hasRelevanceData = safeIssues.some((iss) => iss.relevanceToHypothesis);
 
-  if (safeIssues.length === 0) {
-    return <p className="text-sm text-[var(--muted)]">{t("noIssues", locale)}</p>;
-  }
-
   // When multiple screens exist, always filter by selected screen
   const visibleIssues = hasMultipleScreens
     ? safeIssues.filter((issue, _i) => {
@@ -106,6 +102,10 @@ export function IssuesTab({
     setCopied(true);
     setTimeout(() => setCopied(false), 2000);
   }, [filteredVisibleWithIdx]);
+
+  if (safeIssues.length === 0) {
+    return <p className="text-sm text-[var(--muted)]">{t("noIssues", locale)}</p>;
+  }
 
   return (
     <div>

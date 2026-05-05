@@ -78,32 +78,6 @@ function normalizeZone(zone: HeatZone): HeatZone {
   return { ...zone, x, y, width, height };
 }
 
-const SEVERITY_ORDER = ["Critical", "심각", "Medium", "보통", "Low", "낮음"];
-
-function zoneOverlapArea(a: HeatZone, b: HeatZone): number {
-  const ox = Math.max(0, Math.min(a.x + a.width, b.x + b.width) - Math.max(a.x, b.x));
-  const oy = Math.max(0, Math.min(a.y + a.height, b.y + b.height) - Math.max(a.y, b.y));
-  return ox * oy;
-}
-
-function deduplicateZones(issues: HeatmapIssue[]): HeatmapIssue[] {
-  const OVERLAP_THRESHOLD = 0.4; // drop zone if >40% of its area overlaps a kept zone
-  const kept: HeatmapIssue[] = [];
-  const sorted = [...issues].sort(
-    (a, b) => SEVERITY_ORDER.indexOf(a.severity) - SEVERITY_ORDER.indexOf(b.severity)
-  );
-  for (const issue of sorted) {
-    const z = normalizeZone(issue.heatZone!);
-    const area = z.width * z.height;
-    const overlaps = kept.some((k) => {
-      const ov = zoneOverlapArea(z, normalizeZone(k.heatZone!));
-      return area > 0 && ov / area > OVERLAP_THRESHOLD;
-    });
-    if (!overlaps) kept.push(issue);
-  }
-  return kept;
-}
-
 export function HeatmapViewer({
   imageUrl,
   imageName,

@@ -1,3 +1,5 @@
+import { getDomainFocuses } from "./domainFocuses";
+
 // ──────────────────────────────────────────────
 // lib/prompts.ts — Layered Claude system prompts for Simulo
 //
@@ -893,8 +895,6 @@ export function buildSystemPrompt(params: BuildSystemPromptParams): string {
 
     // Inject selected domain focus areas as concentrated observation directives
     if (domainFocuses && domainFocuses.length > 0) {
-      // Import focus definitions lazily to avoid circular deps — inline the lookup
-      const { getDomainFocuses } = require("./domainFocuses") as typeof import("./domainFocuses");
       const allFocuses = getDomainFocuses(domain);
       const selected = allFocuses.filter((f) => domainFocuses.includes(f.key));
       if (selected.length > 0) {

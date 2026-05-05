@@ -23,7 +23,6 @@ interface ScreenResult {
   variants: ImproveResult[];
 }
 
-const MAX_VARIANTS = 3;
 
 type PanelState = "idle" | "generating" | "reanalyzing" | "variants" | "comparison";
 

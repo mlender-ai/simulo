@@ -176,7 +176,6 @@ export function InputSection({
 
   // Allow parent override (backward compat)
   const resolvedInputReady = inputReadyProp || inputReady;
-  const resolvedContextReady = contextReadyProp || contextReady;
 
   // Auto-fill Figma token from settings
   useEffect(() => {
