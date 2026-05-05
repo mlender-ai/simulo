@@ -8,7 +8,7 @@
 
 import { NextRequest, NextResponse } from "next/server";
 import type { DesireAlignment } from "@/lib/storage";
-import { env } from "@/lib/env";
+import { env, resolveApiKey } from "@/lib/env";
 import { extractApiError } from "@/lib/api-errors";
 
 interface ImprovementOptions {
@@ -36,8 +36,12 @@ export async function POST(req: NextRequest) {
   const referenceImages: string[] | undefined = Array.isArray(body.referenceImages) ? body.referenceImages : undefined;
   // screenIndex: which screen to generate for (0-based). undefined = first screen only.
   const screenIndex: number = typeof body.screenIndex === "number" ? body.screenIndex : 0;
+  const userApiKey: string | undefined = typeof body.apiKey === "string" ? body.apiKey : undefined;
 
-  if (!env.ANTHROPIC_API_KEY) {
+  let apiKey: string;
+  try {
+    apiKey = resolveApiKey(userApiKey);
+  } catch {
     return NextResponse.json({ error: "API key not configured" }, { status: 503 });
   }
 
@@ -96,6 +100,7 @@ export async function POST(req: NextRequest) {
       productMode,
       description,
       referenceImages,
+      apiKey,
     });
 
     return NextResponse.json({

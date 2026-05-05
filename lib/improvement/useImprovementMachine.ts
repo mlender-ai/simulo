@@ -97,6 +97,7 @@ export function useImprovementMachine(
             referenceImages: opts.referenceImages.length > 0 ? opts.referenceImages : undefined,
             roundNumber,
             productMode: getProductMode(),
+            apiKey: localStorage.getItem("simulo_anthropic_key") || undefined,
           }),
         });
         if (!res.ok) {

@@ -5,6 +5,7 @@
 // 향후:  IMPROVEMENT_MODEL=claude-design    → claudeDesignGenerator로 자동 전환
 
 import type { GenerateImproveParams, GenerateImproveResult } from "./opusGenerator";
+export type { GenerateImproveParams, GenerateImproveResult };
 import { env } from "@/lib/env";
 
 export async function generateImprovement(

@@ -3,7 +3,6 @@
 //    generate-improvement/route.ts의 import 경로만 변경하면 된다.
 
 import Anthropic from "@anthropic-ai/sdk";
-import { env } from "@/lib/env";
 
 export interface GenerateImproveParams {
   originalImage: string | null;
@@ -31,6 +30,7 @@ export interface GenerateImproveParams {
   productMode?: "yafit" | "general";
   description?: string;
   referenceImages?: string[];
+  apiKey: string;
 }
 
 export interface GenerateImproveResult {
@@ -39,7 +39,7 @@ export interface GenerateImproveResult {
 }
 
 export async function generateImprovement(input: GenerateImproveParams): Promise<GenerateImproveResult> {
-  const anthropic = new Anthropic({ apiKey: env.ANTHROPIC_API_KEY });
+  const anthropic = new Anthropic({ apiKey: input.apiKey });
   const { originalImage, issues, desire, options, score, roundNumber, description, referenceImages } = input;
 
   const content: Anthropic.MessageParam["content"] = [];
