@@ -1,7 +1,8 @@
 "use client";
 
-import { useEffect, useState } from "react";
+import { useEffect, useState, useCallback } from "react";
 import { useParams } from "next/navigation";
+import { useRouter } from "next/navigation";
 import Link from "next/link";
 import { storage, type AnalysisResult } from "@/lib/storage";
 import { ReportTabs } from "@/components/ReportTabs";
@@ -13,11 +14,26 @@ import { ImprovementPanel } from "@/components/ImprovementPanel";
 
 export default function ReportPage() {
   const params = useParams();
+  const router = useRouter();
   const [data, setData] = useState<AnalysisResult | null>(null);
   const [locale, setLocale] = useState<Locale>("ko");
   const [notFound, setNotFound] = useState(false);
   const [isPanelOpen, setIsPanelOpen] = useState(false);
   const [roundNumber, setRoundNumber] = useState(1);
+
+  const handleReanalyze = useCallback((analysis: AnalysisResult) => {
+    const reanalyzeParams = {
+      analysisId: analysis.id,
+      hypothesis: analysis.hypothesis,
+      targetUser: analysis.targetUser,
+      task: analysis.task,
+      projectTag: analysis.projectTag,
+      mode: analysis.mode ?? "hypothesis",
+      inputType: analysis.inputType,
+    };
+    sessionStorage.setItem("simulo_reanalyze", JSON.stringify(reanalyzeParams));
+    router.push("/");
+  }, [router]);
 
   useEffect(() => {
     setLocale(getLocale());
@@ -93,6 +109,12 @@ export default function ReportPage() {
             </Link>
             <div className="ml-auto flex items-center gap-2">
               <ShareExportPanel analysisId={data.id} analysisData={data} showPng />
+              <button
+                onClick={() => handleReanalyze(data)}
+                className="text-sm text-[var(--muted)] hover:text-white transition-colors"
+              >
+                재분석
+              </button>
               <button
                 onClick={() => setIsPanelOpen((v) => !v)}
                 className="flex items-center gap-1.5 px-3 py-1.5 rounded-md text-xs transition-colors"
