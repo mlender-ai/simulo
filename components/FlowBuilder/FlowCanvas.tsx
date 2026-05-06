@@ -1,6 +1,6 @@
 "use client";
 
-import { useCallback, useRef, useMemo } from "react";
+import { useCallback, useRef, useMemo, useState } from "react";
 import ReactFlow, {
   Controls,
   Background,
@@ -25,6 +25,7 @@ interface FlowCanvasProps {
   onEdgesChange: OnEdgesChange;
   onConnect: (connection: Connection) => void;
   onAddNodeAtPosition: (type: string, x: number, y: number) => void;
+  onImagesDropped: (images: { name: string; base64: string }[]) => void;
   onInit: (instance: ReactFlowInstance) => void;
 }
 
@@ -35,10 +36,12 @@ export function FlowCanvas({
   onEdgesChange,
   onConnect,
   onAddNodeAtPosition,
+  onImagesDropped,
   onInit,
 }: FlowCanvasProps) {
   const reactFlowWrapper = useRef<HTMLDivElement>(null);
   const rfInstanceRef = useRef<ReactFlowInstance | null>(null);
+  const [dragOverImages, setDragOverImages] = useState(false);
 
   const nodeTypes = useMemo(
     () => ({
@@ -71,15 +74,64 @@ export function FlowCanvas({
     [onConnect]
   );
 
-  // Drop from palette
+  const hasImageFiles = (dt: DataTransfer): boolean => {
+    if (dt.types.includes("Files")) {
+      for (let i = 0; i < dt.items.length; i++) {
+        if (dt.items[i].type.startsWith("image/")) return true;
+      }
+    }
+    return false;
+  };
+
+  // Drop from palette OR image files
   const handleDragOver = useCallback((e: React.DragEvent) => {
     e.preventDefault();
-    e.dataTransfer.dropEffect = "move";
+    if (hasImageFiles(e.dataTransfer)) {
+      e.dataTransfer.dropEffect = "copy";
+      setDragOverImages(true);
+    } else {
+      e.dataTransfer.dropEffect = "move";
+      setDragOverImages(false);
+    }
+  }, []);
+
+  const handleDragLeave = useCallback(() => {
+    setDragOverImages(false);
   }, []);
 
   const handleDrop = useCallback(
     (e: React.DragEvent) => {
       e.preventDefault();
+      setDragOverImages(false);
+
+      // Check for image files first
+      if (hasImageFiles(e.dataTransfer)) {
+        const files = Array.from(e.dataTransfer.files).filter((f) =>
+          f.type.startsWith("image/")
+        );
+        if (files.length > 0) {
+          const results: { name: string; base64: string }[] = [];
+          let loaded = 0;
+          files.forEach((file) => {
+            const reader = new FileReader();
+            reader.onload = () => {
+              results.push({
+                name: file.name.replace(/\.[^.]+$/, ""),
+                base64: reader.result as string,
+              });
+              loaded++;
+              if (loaded === files.length) {
+                results.sort((a, b) => a.name.localeCompare(b.name, "ko"));
+                onImagesDropped(results);
+              }
+            };
+            reader.readAsDataURL(file);
+          });
+          return;
+        }
+      }
+
+      // Fallback: node palette drop
       const type = e.dataTransfer.getData("application/reactflow");
       if (!type || !rfInstanceRef.current || !reactFlowWrapper.current) return;
 
@@ -91,7 +143,7 @@ export function FlowCanvas({
 
       onAddNodeAtPosition(type, position.x, position.y);
     },
-    [onAddNodeAtPosition]
+    [onAddNodeAtPosition, onImagesDropped]
   );
 
   // Double-click to add screen node
@@ -109,7 +161,27 @@ export function FlowCanvas({
   );
 
   return (
-    <div ref={reactFlowWrapper} className="flex-1 h-full">
+    <div ref={reactFlowWrapper} className="flex-1 h-full relative">
+      {/* Image drop overlay */}
+      {dragOverImages && (
+        <div className="absolute inset-0 z-50 flex items-center justify-center bg-black/60 border-2 border-dashed border-white/40 rounded-lg pointer-events-none">
+          <div className="text-center">
+            <p className="text-white text-sm font-medium">이미지를 놓으면 플로우가 자동 생성됩니다</p>
+            <p className="text-white/40 text-xs mt-1">시작 → 화면1 → 화면2 → ... → 종료</p>
+          </div>
+        </div>
+      )}
+
+      {/* Empty state */}
+      {nodes.length === 0 && !dragOverImages && (
+        <div className="absolute inset-0 z-10 flex items-center justify-center pointer-events-none">
+          <div className="text-center">
+            <p className="text-white/20 text-sm">이미지를 여기에 드래그하거나</p>
+            <p className="text-white/20 text-sm">왼쪽 패널에서 &quot;이미지로 플로우 만들기&quot;를 클릭하세요</p>
+          </div>
+        </div>
+      )}
+
       <ReactFlow
         nodes={nodes}
         edges={edges}
@@ -119,6 +191,7 @@ export function FlowCanvas({
         onInit={handleInit}
         onDragOver={handleDragOver}
         onDrop={handleDrop}
+        onDragLeave={handleDragLeave}
         onDoubleClick={handleDoubleClick}
         nodeTypes={nodeTypes}
         edgeTypes={edgeTypes}

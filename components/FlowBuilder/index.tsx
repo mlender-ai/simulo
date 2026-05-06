@@ -113,6 +113,91 @@ export function FlowBuilder({ locale }: FlowBuilderProps) {
     [setNodes]
   );
 
+  // --- Auto-scaffold flow from images ---
+
+  const scaffoldFlowFromImages = useCallback(
+    (images: { name: string; base64: string }[]) => {
+      if (images.length === 0) return;
+
+      const GAP = 280;
+      const Y = 200;
+      const startX = 100;
+
+      const newNodes: Node[] = [];
+      const newEdges: Edge[] = [];
+
+      // Start node
+      const startId = uuidv4();
+      newNodes.push({
+        id: startId,
+        type: "start",
+        position: { x: startX, y: Y },
+        data: { label: t("fbStart", locale) },
+      });
+
+      // Screen nodes from images
+      let prevId = startId;
+      images.forEach((img, i) => {
+        const screenId = uuidv4();
+        newNodes.push({
+          id: screenId,
+          type: "screen",
+          position: { x: startX + (i + 1) * GAP, y: Y },
+          data: {
+            name: img.name || `화면 ${i + 1}`,
+            imageBase64: img.base64,
+            analysisResult: null,
+            onNameChange: handleNameChange,
+            onImageUpload: handleImageUpload,
+          } as ScreenNodeData,
+        });
+
+        newEdges.push({
+          id: uuidv4(),
+          source: prevId,
+          sourceHandle: prevId === startId ? undefined : "a",
+          target: screenId,
+          type: "dropoff",
+          animated: true,
+        });
+
+        prevId = screenId;
+      });
+
+      // End node
+      const endId = uuidv4();
+      newNodes.push({
+        id: endId,
+        type: "end",
+        position: { x: startX + (images.length + 1) * GAP, y: Y },
+        data: {
+          label: t("fbEndLabel", locale),
+          onLabelChange: handleEndLabelChange,
+        },
+      });
+      newEdges.push({
+        id: uuidv4(),
+        source: prevId,
+        sourceHandle: "a",
+        target: endId,
+        type: "dropoff",
+        animated: true,
+      });
+
+      setNodes(newNodes);
+      setEdges(newEdges);
+      setFlowSummary(null);
+      setPaths([]);
+      setShowAnalysisPanel(false);
+
+      // Fit view after render
+      setTimeout(() => {
+        rfInstance.current?.fitView({ padding: 0.2, duration: 400 });
+      }, 100);
+    },
+    [locale, setNodes, setEdges, handleNameChange, handleImageUpload, handleEndLabelChange]
+  );
+
   // --- Add node ---
 
   const addNode = useCallback(
@@ -437,9 +522,11 @@ export function FlowBuilder({ locale }: FlowBuilderProps) {
           targetUser={targetUser}
           analyzing={analyzing}
           hasStartNode={hasStartNode}
+          hasScreenNodes={nodes.some((n) => n.type === "screen")}
           onHypothesisChange={setHypothesis}
           onTargetUserChange={setTargetUser}
           onAddNode={handleAddNode}
+          onImagesUpload={scaffoldFlowFromImages}
           onAnalyze={handleAnalyze}
         />
         <div className="flex-1 flex flex-col overflow-hidden relative">
@@ -450,6 +537,7 @@ export function FlowBuilder({ locale }: FlowBuilderProps) {
             onEdgesChange={onEdgesChange}
             onConnect={handleConnect}
             onAddNodeAtPosition={handleAddNodeAtPosition}
+            onImagesDropped={scaffoldFlowFromImages}
             onInit={(inst) => { rfInstance.current = inst; }}
           />
 

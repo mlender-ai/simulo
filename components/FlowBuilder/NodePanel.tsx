@@ -1,5 +1,6 @@
 "use client";
 
+import { useRef } from "react";
 import { type Locale, t } from "@/lib/i18n";
 
 interface NodePanelProps {
@@ -8,9 +9,11 @@ interface NodePanelProps {
   targetUser: string;
   analyzing: boolean;
   hasStartNode: boolean;
+  hasScreenNodes: boolean;
   onHypothesisChange: (value: string) => void;
   onTargetUserChange: (value: string) => void;
   onAddNode: (type: "start" | "screen" | "end") => void;
+  onImagesUpload: (images: { name: string; base64: string }[]) => void;
   onAnalyze: () => void;
 }
 
@@ -20,22 +23,77 @@ export function NodePanel({
   targetUser,
   analyzing,
   hasStartNode,
+  hasScreenNodes,
   onHypothesisChange,
   onTargetUserChange,
   onAddNode,
+  onImagesUpload,
   onAnalyze,
 }: NodePanelProps) {
+  const fileRef = useRef<HTMLInputElement>(null);
+
   const onDragStart = (e: React.DragEvent, nodeType: string) => {
     e.dataTransfer.setData("application/reactflow", nodeType);
     e.dataTransfer.effectAllowed = "move";
   };
 
+  const handleFilesSelected = (files: FileList | null) => {
+    if (!files || files.length === 0) return;
+    const imageFiles = Array.from(files).filter((f) => f.type.startsWith("image/"));
+    if (imageFiles.length === 0) return;
+
+    const results: { name: string; base64: string }[] = [];
+    let loaded = 0;
+    imageFiles.forEach((file) => {
+      const reader = new FileReader();
+      reader.onload = () => {
+        results.push({
+          name: file.name.replace(/\.[^.]+$/, ""),
+          base64: reader.result as string,
+        });
+        loaded++;
+        if (loaded === imageFiles.length) {
+          // Sort by file name to preserve order
+          results.sort((a, b) => a.name.localeCompare(b.name, "ko"));
+          onImagesUpload(results);
+        }
+      };
+      reader.readAsDataURL(file);
+    });
+  };
+
   return (
     <div className="w-60 shrink-0 border-r border-[var(--border)] bg-[var(--surface)] flex flex-col h-full overflow-y-auto">
-      {/* Node palette */}
+      {/* Quick start — image upload */}
+      <div className="p-4 border-b border-[var(--border)]">
+        <p className="text-[10px] uppercase tracking-wider text-[var(--muted)] mb-2">
+          빠른 시작
+        </p>
+        <button
+          onClick={() => fileRef.current?.click()}
+          className="w-full py-3 rounded-lg border-2 border-dashed border-white/20 hover:border-white/40 text-white/60 hover:text-white transition-colors text-xs flex flex-col items-center gap-1"
+        >
+          <span className="text-lg leading-none">+</span>
+          <span>이미지로 플로우 만들기</span>
+          <span className="text-[10px] text-white/30">여러 장 선택 가능 · 순서대로 연결</span>
+        </button>
+        <input
+          ref={fileRef}
+          type="file"
+          accept="image/*"
+          multiple
+          className="hidden"
+          onChange={(e) => {
+            handleFilesSelected(e.target.files);
+            e.target.value = "";
+          }}
+        />
+      </div>
+
+      {/* Node palette (advanced) */}
       <div className="p-4 border-b border-[var(--border)]">
         <p className="text-[10px] uppercase tracking-wider text-[var(--muted)] mb-3">
-          노드
+          노드 수동 추가
         </p>
         <div className="flex gap-2">
           <button
@@ -98,11 +156,16 @@ export function NodePanel({
       <div className="p-4 border-t border-[var(--border)]">
         <button
           onClick={onAnalyze}
-          disabled={analyzing}
+          disabled={analyzing || !hasScreenNodes}
           className="w-full py-2.5 rounded-lg bg-white text-black text-sm font-medium hover:bg-white/90 transition-colors disabled:opacity-50 disabled:cursor-not-allowed"
         >
           {analyzing ? t("fbAnalyzing", locale) : t("fbRunAnalysis", locale)}
         </button>
+        {!hasScreenNodes && !analyzing && (
+          <p className="text-center text-[10px] text-white/25 mt-1.5">
+            화면 이미지를 먼저 추가하세요
+          </p>
+        )}
       </div>
     </div>
   );
