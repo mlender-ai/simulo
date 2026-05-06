@@ -2,7 +2,7 @@
 
 import { useState, useEffect, useCallback } from "react";
 import { useRouter } from "next/navigation";
-import { storage, type AnalysisResult } from "@/lib/storage";
+import { type AnalysisResult } from "@/lib/storage";
 import { getLocale, t, type Locale } from "@/lib/i18n";
 import { useHistory, GROUP_ORDER } from "@/hooks/useHistory";
 import { HistoryCard, INPUT_TYPE_BADGE } from "@/components/history/HistoryCard";
