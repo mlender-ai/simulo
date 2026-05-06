@@ -46,7 +46,9 @@ export function ImprovementPanel({
   const [savingPng, setSavingPng] = useState(false);
   const [loadingMsgIdx, setLoadingMsgIdx] = useState(0);
 
-  // Options
+  // ── Options ───────────────────────────────────────────────────────────────
+  const [showOriginal, setShowOriginal] = useState(false);
+
   const [variantCount, setVariantCount] = useState(1);
   const [selectedScreenMode, setSelectedScreenMode] = useState<"all" | number>(0);
   const [optCriticalOnly, setOptCriticalOnly] = useState(false);
@@ -448,37 +450,80 @@ export function ImprovementPanel({
           </div>
         )}
 
-        {/* iframe */}
-        <div className="flex-1 overflow-hidden px-4 py-3">
-          {activeVariant && (
-            <iframe
-              ref={iframeRef}
-              key={`${activeScreenIdx}-${activeVariantIdx}`}
-              srcDoc={activeVariant.html}
-              className="w-full rounded-lg border border-[#222]"
-              style={{ height: "100%", minHeight: 300 }}
-              sandbox="allow-scripts allow-same-origin"
-              title={`개선 시안 ${activeVariantIdx + 1}`}
-            />
-          )}
-        </div>
+        {/* Original / improved toggle + preview */}
+        {(() => {
+          const originalThumb = thumbnailUrls[activeScreenIdx];
+          const hasOriginal =
+            !!originalThumb &&
+            originalThumb !== "STRIPPED_IMAGE" &&
+            !originalThumb.startsWith("STRIPPED");
 
-        {/* Actions */}
-        <div className="px-4 pb-4 flex gap-2 shrink-0">
-          <button
-            onClick={handleSavePng}
-            disabled={savingPng}
-            className="flex-1 py-2 rounded-md text-xs text-white bg-white/10 hover:bg-white/15 border border-white/10 transition-colors disabled:opacity-50"
-          >
-            {savingPng ? "저장 중…" : "↓ PNG 저장"}
-          </button>
-          <button
-            onClick={() => handleReanalyze(screenResults)}
-            className="flex-1 py-2 rounded-md text-xs text-white bg-white/10 hover:bg-white/15 border border-white/10 transition-colors"
-          >
-            → 재분석
-          </button>
-        </div>
+          return (
+            <>
+              {/* Toggle buttons — only when original thumb is available */}
+              {hasOriginal && (
+                <div className="flex gap-1 px-4 pt-2 shrink-0">
+                  {(["개선안", "원본"] as const).map((label, i) => (
+                    <button
+                      key={label}
+                      onClick={() => setShowOriginal(i === 1)}
+                      className={`px-3 py-1.5 text-xs rounded-t transition-colors ${
+                        showOriginal === (i === 1)
+                          ? "bg-white/10 text-white border-b-2 border-white"
+                          : "text-white/40 hover:text-white/70"
+                      }`}
+                    >
+                      {label}
+                    </button>
+                  ))}
+                </div>
+              )}
+
+              {/* Preview area */}
+              <div className="flex-1 overflow-hidden px-4 py-3">
+                {activeVariant && (
+                  showOriginal && hasOriginal ? (
+                    /* eslint-disable-next-line @next/next/no-img-element */
+                    <img
+                      src={originalThumb}
+                      alt="원본 화면"
+                      className="w-full rounded-lg border border-[#222] object-contain"
+                      style={{ height: "100%", minHeight: 300, background: "#0a0a0a" }}
+                    />
+                  ) : (
+                    <iframe
+                      ref={iframeRef}
+                      key={`${activeScreenIdx}-${activeVariantIdx}`}
+                      srcDoc={activeVariant.html}
+                      className="w-full rounded-lg border border-[#222]"
+                      style={{ height: "100%", minHeight: 300 }}
+                      sandbox="allow-scripts allow-same-origin"
+                      title={`개선 시안 ${activeVariantIdx + 1}`}
+                    />
+                  )
+                )}
+              </div>
+
+              {/* Actions */}
+              <div className="px-4 pb-4 flex gap-2 shrink-0">
+                <button
+                  onClick={handleSavePng}
+                  disabled={savingPng || showOriginal}
+                  title={showOriginal ? "개선안 뷰에서만 저장 가능합니다" : undefined}
+                  className="flex-1 py-2 rounded-md text-xs text-white bg-white/10 hover:bg-white/15 border border-white/10 transition-colors disabled:opacity-30 disabled:cursor-not-allowed"
+                >
+                  {savingPng ? "저장 중…" : "↓ PNG 저장"}
+                </button>
+                <button
+                  onClick={() => handleReanalyze(screenResults)}
+                  className="flex-1 py-2 rounded-md text-xs text-white bg-white/10 hover:bg-white/15 border border-white/10 transition-colors"
+                >
+                  → 재분석
+                </button>
+              </div>
+            </>
+          );
+        })()}
       </div>
     );
   }
