@@ -4,6 +4,7 @@ import { useState, useEffect, useCallback } from "react";
 import type { AnalysisResult, ComparisonResult, ComparisonProductResult } from "@/lib/storage";
 import { t, type Locale } from "@/lib/i18n";
 import { ComparisonScoreBar } from "./ComparisonScoreBar";
+import { ExpandableText } from "./report/ExpandableText";
 
 const VERDICT_COLORS: Record<string, string> = {
   Pass: "text-emerald-400 bg-emerald-400/10 border-emerald-400/20",
@@ -140,9 +141,7 @@ export function ComparisonReportTabs({ analysis, locale }: ComparisonReportTabsP
               <div className="text-xs uppercase tracking-wider text-[var(--muted)] mb-2">
                 {t("ourProductPosition", locale)}
               </div>
-              <p className="text-sm text-white/90 leading-relaxed">
-                {data.comparison.ourProductPosition}
-              </p>
+              <ExpandableText text={data.comparison.ourProductPosition} maxLines={3} className="text-sm text-white/90 leading-relaxed" />
             </div>
           )}
 
@@ -322,9 +321,7 @@ export function ComparisonReportTabs({ analysis, locale }: ComparisonReportTabsP
                     {t(p.verdict as "Pass" | "Partial" | "Fail", locale)}
                   </span>
                 </div>
-                <p className="text-xs text-[var(--muted)] leading-relaxed mb-4">
-                  {p.summary}
-                </p>
+                <ExpandableText text={p.summary} maxLines={2} className="text-xs text-[var(--muted)] leading-relaxed mb-4" />
                 {p.strengths && p.strengths.length > 0 && (
                   <div className="mb-3">
                     <div className="text-[10px] uppercase tracking-wider text-[var(--muted)] mb-1.5">
@@ -402,7 +399,7 @@ function ProductDetailCard({
         </div>
       </div>
 
-      <p className="text-sm text-[var(--muted)] leading-relaxed mb-4">{product.summary}</p>
+      <ExpandableText text={product.summary} maxLines={2} className="text-sm text-[var(--muted)] leading-relaxed mb-4" />
 
       <div className="grid grid-cols-2 gap-4 mb-4">
         {product.strengths && product.strengths.length > 0 && (
@@ -495,8 +492,8 @@ function ProductDetailCard({
                     {issue.screen}
                   </span>
                 </div>
-                <p className="text-xs text-white/90 mb-1">{issue.issue}</p>
-                <p className="text-xs text-[var(--muted)]">→ {issue.recommendation}</p>
+                <ExpandableText text={issue.issue} maxLines={2} className="text-xs text-white/90 mb-1" />
+                <ExpandableText text={`→ ${issue.recommendation}`} maxLines={1} className="text-xs text-[var(--muted)]" />
               </div>
             ))}
           </div>

@@ -16,6 +16,7 @@ import { groupIssuesByScreen, countIssuesPerScreen } from "./report/helpers";
 import { Lightbox } from "./report/Lightbox";
 import { IssuesTab } from "./report/IssuesTab";
 import { CoinIcon, RunnerIcon, BoltIcon } from "./report/icons";
+import { ExpandableText } from "./report/ExpandableText";
 
 type Tab = "overview" | "quickWins" | "issues";
 const VALID_TABS: readonly Tab[] = ["overview", "quickWins", "issues"];
@@ -130,7 +131,7 @@ export function UsabilityReportTabs({ data, locale }: { data: AnalysisResult; lo
       {tab === "overview" && (
         <div className="space-y-6">
           <div className="p-4 rounded-lg border border-[var(--border)] bg-[var(--surface)]">
-            <p className="text-sm leading-relaxed">{data.summary}</p>
+            <ExpandableText text={data.summary} maxLines={3} className="text-sm leading-relaxed" />
           </div>
 
           {data.scoreBreakdown && (
@@ -155,7 +156,7 @@ export function UsabilityReportTabs({ data, locale }: { data: AnalysisResult; lo
                       <div className="h-1.5 rounded-full bg-white/10 overflow-hidden mb-2">
                         <div className="h-full rounded-full" style={{ width: `${pct}%`, background: barColor }} />
                       </div>
-                      <p style={{ fontSize: "13px", color: "#888", lineHeight: "1.5" }}>{entry.reason}</p>
+                      <ExpandableText text={entry.reason} maxLines={2} style={{ fontSize: "13px", color: "#888", lineHeight: "1.5" }} />
                     </div>
                   );
                 })}
@@ -190,7 +191,7 @@ export function UsabilityReportTabs({ data, locale }: { data: AnalysisResult; lo
                         </div>
                         <span className="text-sm font-bold mono shrink-0">{desire.score}/10</span>
                       </div>
-                      <p style={{ fontSize: "13px", color: "#666", lineHeight: "1.6" }}>{desire.comment}</p>
+                      <ExpandableText text={desire.comment} maxLines={2} style={{ fontSize: "13px", color: "#666", lineHeight: "1.6" }} />
                     </div>
                   );
                 })}
@@ -220,9 +221,7 @@ export function UsabilityReportTabs({ data, locale }: { data: AnalysisResult; lo
                       <div className="text-xs text-[var(--muted)] uppercase tracking-wider mb-1">
                         {t(item.labelKey, locale)}
                       </div>
-                      <p style={{ fontSize: "13px", color: "#aaa", lineHeight: "1.6" }}>
-                        {data.accessibility4050![item.key]}
-                      </p>
+                      <ExpandableText text={data.accessibility4050![item.key]} maxLines={2} style={{ fontSize: "13px", color: "#aaa", lineHeight: "1.6" }} />
                     </div>
                   ))}
                 </div>
@@ -255,9 +254,7 @@ export function UsabilityReportTabs({ data, locale }: { data: AnalysisResult; lo
                 </div>
                 <div>
                   <span className="text-xs text-[var(--muted)] block mb-1">{t("mainRiskReasonLabel", locale)}</span>
-                  <p style={{ fontSize: "14px", color: "#aaa", lineHeight: "1.7" }}>
-                    {data.retentionRisk.mainRiskReason}
-                  </p>
+                  <ExpandableText text={data.retentionRisk.mainRiskReason} maxLines={2} style={{ fontSize: "14px", color: "#aaa", lineHeight: "1.7" }} />
                 </div>
               </div>
             </div>
@@ -366,11 +363,11 @@ export function UsabilityReportTabs({ data, locale }: { data: AnalysisResult; lo
                         ★ {t("quickWinsLowEffortHigh", locale)}
                       </div>
                     )}
-                    <p className="text-sm mb-2">{qw.issue}</p>
-                    <p className="text-sm text-[var(--muted)] mb-3">
-                      <span className="text-xs uppercase tracking-wider">{t("recommendation", locale)}: </span>
-                      {qw.fix}
-                    </p>
+                    <ExpandableText text={qw.issue} maxLines={2} className="text-sm mb-2" />
+                    <div className="mb-3">
+                      <span className="text-xs uppercase tracking-wider text-[var(--muted)]">{t("recommendation", locale)}: </span>
+                      <ExpandableText text={qw.fix} maxLines={2} className="text-sm text-[var(--muted)] inline" />
+                    </div>
                     <div className="flex items-center gap-4 text-xs">
                       <div>
                         <span className="text-[var(--muted)] uppercase tracking-wider mr-1">

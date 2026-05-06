@@ -12,6 +12,7 @@ import {
   HEATMAP_STORAGE_KEY,
 } from "./constants";
 import { CoinIcon, RunnerIcon, BoltIcon } from "./icons";
+import { ExpandableText } from "./ExpandableText";
 
 interface OverviewTabProps {
   data: AnalysisResult;
@@ -72,7 +73,7 @@ export function OverviewTab({ data, locale, issueCountPerScreen, isFlow, onScree
       {data.verdictReason && (
         <div className="flex gap-2 text-sm">
           <span className="text-[var(--muted)] shrink-0">{t("verdictReasonLabel", locale)}:</span>
-          <span style={{ color: "#aaa" }}>{data.verdictReason}</span>
+          <ExpandableText text={data.verdictReason} maxLines={2} style={{ fontSize: "14px", color: "#aaa", lineHeight: "1.5" }} />
         </div>
       )}
 
@@ -102,7 +103,7 @@ export function OverviewTab({ data, locale, issueCountPerScreen, isFlow, onScree
                   <div className="h-1.5 rounded-full bg-white/10 overflow-hidden mb-2">
                     <div className="h-full rounded-full transition-all" style={{ width: `${pct}%`, background: barColor }} />
                   </div>
-                  <p style={{ fontSize: "13px", color: "#888", lineHeight: "1.5" }}>{entry.reason}</p>
+                  <ExpandableText text={entry.reason} maxLines={2} style={{ fontSize: "13px", color: "#888", lineHeight: "1.5" }} />
                 </div>
               );
             })}
@@ -111,7 +112,7 @@ export function OverviewTab({ data, locale, issueCountPerScreen, isFlow, onScree
       )}
 
       <div className="p-4 rounded-lg border border-[var(--border)] bg-[var(--surface)]">
-        <p className="text-sm leading-relaxed">{data.summary}</p>
+        <ExpandableText text={data.summary} maxLines={3} className="text-sm leading-relaxed" />
       </div>
 
       {(data.evidenceFor?.length || data.evidenceAgainst?.length) && (
@@ -167,7 +168,7 @@ export function OverviewTab({ data, locale, issueCountPerScreen, isFlow, onScree
 
       <div>
         <h3 className="text-xs text-[var(--muted)] uppercase tracking-wider mb-2">{t("taskSuccessReasoning", locale)}</h3>
-        <p className="text-sm text-[var(--muted)] leading-relaxed">{data.taskSuccessReason}</p>
+        <ExpandableText text={data.taskSuccessReason ?? ""} maxLines={2} className="text-sm text-[var(--muted)] leading-relaxed" />
       </div>
 
       {safeStrengths.length > 0 && (
@@ -208,7 +209,7 @@ export function OverviewTab({ data, locale, issueCountPerScreen, isFlow, onScree
                     </div>
                     <span className="text-sm font-bold mono shrink-0">{desire.score}/10</span>
                   </div>
-                  <p style={{ fontSize: "13px", color: "#666", lineHeight: "1.6" }}>{desire.comment}</p>
+                  <ExpandableText text={desire.comment} maxLines={2} style={{ fontSize: "13px", color: "#666", lineHeight: "1.6" }} />
                 </div>
               );
             })}
@@ -239,7 +240,7 @@ export function OverviewTab({ data, locale, issueCountPerScreen, isFlow, onScree
             </div>
             <div>
               <span className="text-xs text-[var(--muted)] block mb-1">{t("mainRiskReasonLabel", locale)}</span>
-              <p style={{ fontSize: "14px", color: "#aaa", lineHeight: "1.7" }}>{data.retentionRisk.mainRiskReason}</p>
+              <ExpandableText text={data.retentionRisk.mainRiskReason} maxLines={2} style={{ fontSize: "14px", color: "#aaa", lineHeight: "1.7" }} />
             </div>
           </div>
         </div>

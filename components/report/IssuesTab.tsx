@@ -7,6 +7,7 @@ import { STRIPPED_IMAGE } from "@/lib/storage";
 import { t, type Locale } from "@/lib/i18n";
 import { HeatmapViewer, HeatmapIssueDetail, type HeatmapIssue } from "@/components/HeatmapViewer";
 import { SEVERITY_COLORS, DESIRE_TYPE_BADGE_STYLES } from "./constants";
+import { ExpandableText } from "./ExpandableText";
 
 interface IssuesTabProps {
   data: AnalysisResult;
@@ -324,21 +325,6 @@ export function IssuesTab({
                       <div style={{ width: 3, background: "#333", flexShrink: 0 }} />
                     )}
                     <div className="p-4 flex-1">
-                      {issue.backfireRisk === "High" && (
-                        <div className="mb-3 p-3 rounded-md" style={{ background: "#431407" }}>
-                          <div className="text-xs font-medium mb-1" style={{ color: "#fdba74" }}>
-                            &#9888; {t("backfireWarning", locale)}
-                          </div>
-                          {issue.backfireReason && (
-                            <p style={{ fontSize: "13px", color: "#fdba74", lineHeight: "1.5", margin: 0 }}>{issue.backfireReason}</p>
-                          )}
-                          {issue.alternative && (
-                            <p style={{ fontSize: "13px", color: "#fdba74", lineHeight: "1.5", marginTop: "4px" }}>
-                              {t("backfireAlternative", locale)}: {issue.alternative}
-                            </p>
-                          )}
-                        </div>
-                      )}
                       <div className="flex items-center gap-2 mb-2 flex-wrap">
                         <span className={`text-xs px-2 py-0.5 rounded border ${SEVERITY_COLORS[issue.severity] ?? ""}`}>
                           {t(severityKey, locale)}
@@ -366,16 +352,42 @@ export function IssuesTab({
                         )}
                         <span className="text-xs text-[var(--muted)] mono">{issue.screen}</span>
                       </div>
-                      <p className="text-sm mb-2">{issue.issue}</p>
-                      <p className="text-sm text-[var(--muted)]">
-                        <span className="text-xs uppercase tracking-wider">{t("recommendation", locale)}: </span>
-                        {issue.recommendation}
-                      </p>
-                      {issue.retentionImpact && (
-                        <div className="mt-2">
-                          <span style={{ fontSize: "12px", color: "#666", textTransform: "uppercase", letterSpacing: "0.05em" }}>{t("retentionImpact", locale)}: </span>
-                          <span style={{ fontSize: "13px", color: "#666", fontStyle: "italic" }}>{issue.retentionImpact}</span>
-                        </div>
+                      {isHighlighted ? (
+                        <p className="text-sm mb-2">{issue.issue}</p>
+                      ) : (
+                        <ExpandableText text={issue.issue} maxLines={2} className="text-sm mb-2" />
+                      )}
+                      {isHighlighted && (
+                        <>
+                          {issue.backfireRisk === "High" && (
+                            <div className="mb-3 p-3 rounded-md" style={{ background: "#431407" }}>
+                              <div className="text-xs font-medium mb-1" style={{ color: "#fdba74" }}>
+                                &#9888; {t("backfireWarning", locale)}
+                              </div>
+                              {issue.backfireReason && (
+                                <p style={{ fontSize: "13px", color: "#fdba74", lineHeight: "1.5", margin: 0 }}>{issue.backfireReason}</p>
+                              )}
+                              {issue.alternative && (
+                                <p style={{ fontSize: "13px", color: "#fdba74", lineHeight: "1.5", marginTop: "4px" }}>
+                                  {t("backfireAlternative", locale)}: {issue.alternative}
+                                </p>
+                              )}
+                            </div>
+                          )}
+                          <p className="text-sm text-[var(--muted)]">
+                            <span className="text-xs uppercase tracking-wider">{t("recommendation", locale)}: </span>
+                            {issue.recommendation}
+                          </p>
+                          {issue.retentionImpact && (
+                            <div className="mt-2">
+                              <span style={{ fontSize: "12px", color: "#666", textTransform: "uppercase", letterSpacing: "0.05em" }}>{t("retentionImpact", locale)}: </span>
+                              <span style={{ fontSize: "13px", color: "#666", fontStyle: "italic" }}>{issue.retentionImpact}</span>
+                            </div>
+                          )}
+                        </>
+                      )}
+                      {!isHighlighted && (
+                        <p className="text-[11px] text-white/20 mt-1">클릭하여 상세 보기</p>
                       )}
                     </div>
                   </div>
