@@ -8,7 +8,7 @@
 
 import { NextRequest, NextResponse } from "next/server";
 import type { DesireAlignment } from "@/lib/storage";
-import { env, resolveApiKey } from "@/lib/env";
+import { resolveApiKey } from "@/lib/env";
 import { extractApiError } from "@/lib/api-errors";
 
 interface ImprovementOptions {
