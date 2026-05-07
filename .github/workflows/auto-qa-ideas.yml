@@ -23,6 +23,9 @@ jobs:
   # ─────────────────────────────────────────────
   auto-qa:
     runs-on: ubuntu-latest
+    permissions:
+      contents: write
+      issues: write
     steps:
       - uses: actions/checkout@v4
         with:
@@ -188,13 +191,13 @@ jobs:
             -H 'Content-type: application/json' \
             -d "{\"text\": \"$TITLE\n\`\`\`\n$PREVIEW\n\`\`\`\"}"
 
-      - name: Commit idea file
+      - name: Commit idea files
         if: steps.check.outputs.created == 'true'
         run: |
           git config user.name 'Simulo Agent'
           git config user.email 'agent@simulo.dev'
-          git add ideas/
-          git diff --staged --quiet || git commit -m "chore: 자동 아이디어 리포트 $(date +%Y-%m-%d)"
+          git add ideas/ ideas/reviews/ ideas/rejected/
+          git diff --staged --quiet || git commit -m "chore: 자동 아이디어 리포트 + PO 검증 $(date +%Y-%m-%d)"
           git push
 
       - name: Report failure

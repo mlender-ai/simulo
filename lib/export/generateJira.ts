@@ -41,7 +41,7 @@ export function generateJiraDrafts(analysis: AnalysisResult): JiraDraft[] {
       `${issue.screen ?? "(미지정)"}`,
       ``,
       `h2. 권장 개선사항`,
-      `${issue.recommendation}`,
+      `${issue.recommendation ?? "(없음)"}`,
       issue.retentionImpact ? `\nh2. 리텐션 영향\n${issue.retentionImpact}` : "",
       ``,
       `----`,
@@ -52,8 +52,9 @@ export function generateJiraDrafts(analysis: AnalysisResult): JiraDraft[] {
       .filter(Boolean)
       .join("\n");
 
+    const issueText = issue.issue ?? "";
     drafts.push({
-      summary: `[Simulo/${modeLabel}] ${issue.severity === "Critical" ? "🔴 " : issue.severity === "Medium" ? "🟡 " : "🟢 "}${issue.issue.slice(0, 80)}`,
+      summary: `[Simulo/${modeLabel}] ${issue.severity === "Critical" ? "🔴 " : issue.severity === "Medium" ? "🟡 " : "🟢 "}${issueText.slice(0, 80)}`,
       description,
       issueType: issue.severity === "Critical" ? "Bug" : "Task",
       priority,
