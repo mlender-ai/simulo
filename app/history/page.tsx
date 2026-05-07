@@ -6,10 +6,12 @@ import { type AnalysisResult } from "@/lib/storage";
 import { getLocale, t, type Locale } from "@/lib/i18n";
 import { useHistory, GROUP_ORDER } from "@/hooks/useHistory";
 import { HistoryCard, INPUT_TYPE_BADGE } from "@/components/history/HistoryCard";
+import { TrendChart } from "@/components/history/TrendChart";
 
 export default function HistoryPage() {
   const router = useRouter();
   const [locale, setLocale] = useState<Locale>("ko");
+  const [view, setView] = useState<"list" | "trend">("list");
 
   useEffect(() => { setLocale(getLocale()); }, []);
 
@@ -59,6 +61,40 @@ export default function HistoryPage() {
         </p>
       </div>
 
+      {/* View toggle */}
+      {analyses.length > 0 && (
+        <div className="flex gap-1 mb-5">
+          <button
+            onClick={() => setView("list")}
+            className={`px-3 py-1.5 text-xs rounded-md border transition-colors ${
+              view === "list"
+                ? "bg-white/10 text-white border-white/20"
+                : "text-[var(--muted)] border-[var(--border)] hover:text-white"
+            }`}
+          >
+            목록
+          </button>
+          <button
+            onClick={() => setView("trend")}
+            className={`px-3 py-1.5 text-xs rounded-md border transition-colors ${
+              view === "trend"
+                ? "bg-white/10 text-white border-white/20"
+                : "text-[var(--muted)] border-[var(--border)] hover:text-white"
+            }`}
+          >
+            트렌드
+          </button>
+        </div>
+      )}
+
+      {/* Trend view */}
+      {view === "trend" && (
+        <TrendChart analyses={filtered} />
+      )}
+
+      {/* List view filters and cards */}
+      {view === "list" && (
+      <>
       {/* Filters — 검색 + 셀렉트 */}
       <div className="flex flex-col sm:flex-row gap-2 mb-2">
         <input
@@ -215,6 +251,8 @@ export default function HistoryPage() {
           ))
         )}
       </div>
+      </>
+      )}
     </div>
   );
 }
