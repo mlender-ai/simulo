@@ -50,7 +50,7 @@ export default function HistoryPage() {
   }, [router]);
 
   return (
-    <div className="p-4 md:p-8 max-w-4xl">
+    <div className="p-4 md:p-8 max-w-4xl mx-auto">
       {/* Header */}
       <div className="mb-5 md:mb-8">
         <h1 className="text-xl md:text-2xl font-semibold mb-1">{t("history", locale)}</h1>

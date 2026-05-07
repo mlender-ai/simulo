@@ -442,9 +442,9 @@ export function ImprovementPanel({
         {activeVariant && (
           <div className="px-4 py-3 border-b border-[#1a1a1a] shrink-0">
             <p className="text-[11px] font-medium text-white/50 mb-1.5">개선 내용</p>
-            <ul className="space-y-0.5">
+            <ul className="space-y-1">
               {activeVariant.changes.map((c, i) => (
-                <li key={i} className="text-[12px] text-[var(--muted)]">• {c}</li>
+                <li key={i} className="text-xs text-[var(--muted)] leading-relaxed">• {c}</li>
               ))}
             </ul>
           </div>

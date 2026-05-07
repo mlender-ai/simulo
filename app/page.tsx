@@ -658,12 +658,12 @@ export default function Home() {
         )}
 
         {validationErrors.length > 0 && (
-          <div className="mt-4 p-3 rounded-md border" style={{ background: "rgba(239,68,68,0.08)", borderColor: "rgba(239,68,68,0.25)" }}>
-            <p className="text-xs font-medium mb-1.5" style={{ color: "#f87171" }}>필수 항목을 입력해주세요</p>
+          <div className="mt-4 p-3 rounded-md border bg-red-500/[0.08] border-red-500/25">
+            <p className="text-xs font-medium mb-1.5 text-red-400">필수 항목을 입력해주세요</p>
             <ul className="space-y-1">
               {validationErrors.map((msg, i) => (
-                <li key={i} className="flex items-center gap-1.5 text-sm" style={{ color: "#f87171" }}>
-                  <span style={{ fontSize: 10 }}>●</span>
+                <li key={i} className="flex items-center gap-1.5 text-sm text-red-400">
+                  <span className="text-[10px]">●</span>
                   {msg}
                 </li>
               ))}

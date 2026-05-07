@@ -160,7 +160,7 @@ export default function ReportPage() {
       {isPanelOpen && (
         <>
           {/* 모바일: 하단 드로어 */}
-          <div className="md:hidden fixed inset-x-0 bottom-0 z-40 h-[70vh] bg-[var(--background)] border-t border-[#1a1a1a] overflow-y-auto rounded-t-xl shadow-2xl">
+          <div className="md:hidden fixed inset-x-0 bottom-0 z-40 max-h-[80vh] h-[70vh] bg-[var(--background)] border-t border-[#1a1a1a] overflow-y-auto rounded-t-xl shadow-2xl">
             <div className="sticky top-0 flex items-center justify-between px-4 py-2 border-b border-[#1a1a1a] bg-[var(--background)]">
               <span className="text-xs font-medium text-white/60">✦ 개선안 생성</span>
               <button onClick={() => setIsPanelOpen(false)} className="text-white/40 hover:text-white text-lg leading-none">✕</button>

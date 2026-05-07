@@ -232,12 +232,12 @@ export function InputSection({
   return (
     <div className="space-y-5">
       {/* Input Type Tabs */}
-      <div className="flex gap-1 p-1 bg-white/[0.03] rounded-lg border border-[var(--border)] w-fit">
+      <div className="flex gap-1 p-1 bg-white/[0.03] rounded-lg border border-[var(--border)] w-fit max-w-full overflow-x-auto scrollbar-none">
         {tabs.map((tab) => (
           <button
             key={tab.key}
             onClick={() => onActiveTabChange(tab.key)}
-            className={`flex items-center px-4 py-1.5 text-sm rounded-md transition-colors ${
+            className={`flex items-center px-3 sm:px-4 py-1.5 text-xs sm:text-sm rounded-md transition-colors whitespace-nowrap shrink-0 ${
               activeTab === tab.key
                 ? "bg-white/10 text-white"
                 : "text-[var(--muted)] hover:text-white"
@@ -721,8 +721,7 @@ function HypothesisTemplateButton({ onSelect }: { onSelect: (text: string) => vo
       </button>
       {open && (
         <div
-          className="absolute right-0 top-full mt-1 z-50 rounded-lg border border-[var(--border)] bg-[#111] shadow-xl"
-          style={{ width: 340 }}
+          className="absolute right-0 top-full mt-1 z-50 rounded-lg border border-[var(--border)] bg-[#111] shadow-xl w-[340px] max-w-[90vw]"
         >
           {/* Category tabs */}
           <div className="flex overflow-x-auto gap-1 p-2 border-b border-[var(--border)] scrollbar-hide">

@@ -74,7 +74,7 @@ export function DraftResult({
       </div>
 
       {/* Toggle: original vs improved */}
-      <div className="flex items-center gap-2">
+      <div className="flex items-center gap-2 flex-wrap">
         <div className="flex gap-1 p-0.5 rounded-lg bg-white/[0.04] border border-[var(--border)]">
           <button
             onClick={() => setShowOriginal(false)}
@@ -114,7 +114,7 @@ export function DraftResult({
 
       {/* Preview */}
       <div className="flex justify-center">
-        <div className="w-[375px] bg-white rounded-xl overflow-hidden shadow-2xl border border-[var(--border)]">
+        <div className="w-full max-w-[375px] bg-white rounded-xl overflow-hidden shadow-2xl border border-[var(--border)]">
           {showOriginal ? (
             <img
               src={originalImage}

@@ -155,12 +155,12 @@ export function DraftTab({
         <label className="block text-xs text-[var(--muted)] mb-2 uppercase tracking-wider">
           개선 방향 (선택하거나 직접 입력)
         </label>
-        <div className="flex flex-wrap gap-1.5 mb-2">
+        <div className="grid grid-cols-2 sm:grid-cols-3 gap-1.5 mb-2">
           {QUICK_INSTRUCTIONS.map((qi) => (
             <button
               key={qi.label}
               onClick={() => onInstructionChange(qi.value)}
-              className={`px-3 py-1.5 rounded-full text-xs transition-colors border ${
+              className={`px-3 py-1.5 rounded-lg text-xs transition-colors border ${
                 instruction === qi.value
                   ? "border-white/40 bg-white/10 text-white"
                   : "border-[var(--border)] text-[var(--muted)] hover:text-white hover:border-white/20"

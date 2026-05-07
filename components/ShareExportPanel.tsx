@@ -141,7 +141,7 @@ export function ShareExportPanel({ analysisId, analysisData, showPng = false }: 
       </button>
 
       {open && (
-        <div className="absolute right-0 top-full mt-2 w-80 rounded-xl border border-[var(--border)] bg-[var(--surface)] shadow-2xl z-50 overflow-hidden">
+        <div className="absolute right-0 top-full mt-2 w-80 max-w-[90vw] rounded-xl border border-[var(--border)] bg-[var(--surface)] shadow-2xl z-50 overflow-hidden">
           {/* Share link section */}
           <div className="p-4 border-b border-[var(--border)]">
             <p className="text-xs font-medium text-white/80 mb-2">공유 링크</p>

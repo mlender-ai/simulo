@@ -55,7 +55,7 @@ export default function SettingsPage() {
   };
 
   return (
-    <div className="p-4 md:p-8 max-w-2xl pb-28 md:pb-8">
+    <div className="p-4 md:p-8 max-w-2xl mx-auto pb-24 md:pb-8">
       <div className="mb-6 md:mb-8">
         <h1 className="text-xl md:text-2xl font-semibold mb-2">
           {t("settings", locale)}

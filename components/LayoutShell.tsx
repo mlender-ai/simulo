@@ -31,7 +31,7 @@ export function LayoutShellClient({ children }: { children: React.ReactNode }) {
   }
 
   return (
-    <div className="flex min-h-screen min-h-dvh">
+    <div className="flex min-h-dvh">
       {/* ── Desktop sidebar (hidden on mobile) ── */}
       <div className="hidden md:block fixed left-0 top-0 h-screen w-56 border-r border-[var(--border)] z-50">
         <Sidebar />
