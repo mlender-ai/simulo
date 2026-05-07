@@ -166,6 +166,12 @@ const translations = {
     // Section label
     analysisTarget: "분석 대상",
 
+    // Draft improvement
+    draft: "개선안 드래프트",
+    tooltipDraft: "분석 없이 바로 개선안을 생성합니다. 이미지를 첨부하고 개선 방향을 지시하면 즉시 개선된 화면을 받을 수 있습니다.",
+    generateDraft: "개선안 생성",
+    generatingDraft: "개선안 생성 중...",
+
     // Comparison
     comparison: "비교 분석",
     tooltipComparison: "자사 제품과 경쟁사 제품을 동일 가설로 비교합니다. 강약점, 키 차이, 우선순위 개선점을 한 번에 확인할 수 있습니다.",
@@ -504,6 +510,12 @@ const translations = {
 
     // Section label
     analysisTarget: "Analysis Target",
+
+    // Draft improvement
+    draft: "Draft Improvement",
+    tooltipDraft: "Generate improvements directly without analysis. Upload an image and describe what to improve for instant results.",
+    generateDraft: "Generate Draft",
+    generatingDraft: "Generating...",
 
     // Comparison
     comparison: "Comparison",

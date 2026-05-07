@@ -21,6 +21,7 @@ import OCRReviewModal from "@/components/OCRReviewModal";
 import { loadPresets, savePreset, deletePreset, type AnalysisPreset } from "@/lib/analysisPresets";
 import type { OCRResult } from "@/lib/ocr";
 import { type ProductMode, getProductMode, setProductMode as persistProductMode } from "@/lib/productMode";
+import { DraftResult } from "@/components/DraftResult";
 
 const LOADING_STEP_KEYS = [
   "loadingStep1",
@@ -102,6 +103,13 @@ export default function Home() {
   const [presets, setPresets] = useState<AnalysisPreset[]>([]);
   const [presetName, setPresetName] = useState("");
   const [showPresetSave, setShowPresetSave] = useState(false);
+
+  // Draft tab state
+  const [draftImages, setDraftImages] = useState<string[]>([]);
+  const [draftInstruction, setDraftInstruction] = useState("");
+  const [draftReferenceImages, setDraftReferenceImages] = useState<string[]>([]);
+  const [draftGenerating, setDraftGenerating] = useState(false);
+  const [draftResult, setDraftResult] = useState<{ html: string; changes: string[] } | null>(null);
 
   const handleProductModeChange = (m: ProductMode) => {
     setProductModeState(m);
@@ -192,6 +200,7 @@ export default function Home() {
   const isFlow = activeTab === "flow";
   const isFigma = activeTab === "figma";
   const isComparison = activeTab === "comparison";
+  const isDraft = activeTab === "draft";
   const flowReady = isFlow && flowSteps.length >= 2 && flowSteps.every((s) => s.image !== "");
   const figmaReady = isFigma && figma.status === "validated" && figma.selectedFrameIds.length > 0;
   const comparisonReady =
@@ -203,12 +212,15 @@ export default function Home() {
       (c) => c.productName.trim() !== "" && c.images.length > 0
     );
   const urlReady = isUrl && urlInput.trim().length > 0;
-  const imageReady = !isFlow && !isFigma && !isComparison && !isUrl && images.length > 0;
-  const inputReady = imageReady || urlReady || flowReady || figmaReady || comparisonReady;
+  const draftReady = isDraft && draftImages.length > 0 && draftInstruction.trim().length > 0;
+  const imageReady = !isFlow && !isFigma && !isComparison && !isUrl && !isDraft && images.length > 0;
+  const inputReady = imageReady || urlReady || flowReady || figmaReady || comparisonReady || draftReady;
   const contextReady =
-    mode === "usability"
+    isDraft
       ? true
-      : hypothesis.trim() !== "" && targetUser.trim() !== "";
+      : mode === "usability"
+        ? true
+        : hypothesis.trim() !== "" && targetUser.trim() !== "";
   const canSubmit = inputReady && contextReady;
 
   const validationErrors: string[] = [];
@@ -218,6 +230,10 @@ export default function Home() {
       else if (isFigma) validationErrors.push("Figma 프레임을 1개 이상 선택해주세요");
       else if (isComparison) validationErrors.push("자사/경쟁사 제품명과 이미지를 모두 입력해주세요");
       else if (isUrl) validationErrors.push("분석할 URL을 입력해주세요");
+      else if (isDraft) {
+        if (draftImages.length === 0) validationErrors.push("개선할 화면 이미지를 업로드해주세요");
+        if (!draftInstruction.trim()) validationErrors.push("개선 지시사항을 입력해주세요");
+      }
       else validationErrors.push("화면 이미지를 1장 이상 업로드해주세요");
     }
     if (mode === "hypothesis") {
@@ -326,6 +342,12 @@ export default function Home() {
   }, []);
 
   const handleAnalyze = async () => {
+    // Draft mode uses a different handler
+    if (isDraft) {
+      await handleGenerateDraft();
+      return;
+    }
+
     if (!canSubmit) {
       setShowErrors(true);
       return;
@@ -366,6 +388,70 @@ export default function Home() {
     setPendingOCRReview(null);
     await runAnalysis(buildAnalysisBody(reviewedOCR) as Record<string, unknown>);
   };
+
+  const handleGenerateDraft = async () => {
+    if (!draftReady) {
+      setShowErrors(true);
+      return;
+    }
+    setShowErrors(false);
+    setDraftGenerating(true);
+    setError(null);
+    try {
+      const savedApiKey = localStorage.getItem("simulo_anthropic_key");
+      const response = await fetch("/api/generate-draft", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({
+          image: draftImages[0],
+          instruction: draftInstruction,
+          referenceImages: draftReferenceImages.length > 0 ? draftReferenceImages : undefined,
+          apiKey: savedApiKey || undefined,
+        }),
+      });
+      if (!response.ok) {
+        const data = await response.json();
+        throw new Error(data.error || data.detail || "개선안 생성 실패");
+      }
+      const result = await response.json();
+      setDraftResult(result);
+    } catch (err) {
+      setError(err instanceof Error ? err.message : "개선안 생성 실패");
+    } finally {
+      setDraftGenerating(false);
+    }
+  };
+
+  // Draft generating state
+  if (draftGenerating) {
+    return (
+      <div className="flex items-center justify-center min-h-screen">
+        <div className="text-center space-y-4">
+          <div className="w-8 h-8 border-2 border-white/20 border-t-white rounded-full animate-spin mx-auto" />
+          <p className="text-sm text-white">{t("generatingDraft", locale)}</p>
+          <p className="text-xs text-[var(--muted)]">Claude Opus 4.6</p>
+        </div>
+      </div>
+    );
+  }
+
+  // Draft result view
+  if (draftResult) {
+    return (
+      <div className="flex items-center justify-center min-h-screen px-4 sm:px-6 py-8 sm:py-12">
+        <div className="w-full max-w-[720px]">
+          <DraftResult
+            html={draftResult.html}
+            changes={draftResult.changes}
+            originalImage={draftImages[0] ?? ""}
+            onBack={() => setDraftResult(null)}
+            onRegenerate={handleGenerateDraft}
+            generating={draftGenerating}
+          />
+        </div>
+      </div>
+    );
+  }
 
   if (ocrLoading) {
     return (
@@ -497,10 +583,16 @@ export default function Home() {
           onDomainChange={setDomain}
           domainFocuses={domainFocuses}
           onDomainFocusesChange={setDomainFocuses}
+          draftImages={draftImages}
+          onDraftImagesChange={setDraftImages}
+          draftInstruction={draftInstruction}
+          onDraftInstructionChange={setDraftInstruction}
+          draftReferenceImages={draftReferenceImages}
+          onDraftReferenceImagesChange={setDraftReferenceImages}
         />
 
-        {/* Preset toolbar */}
-        <div className="mt-3 flex items-center gap-2 flex-wrap">
+        {/* Preset toolbar — hidden in draft mode */}
+        {!isDraft && <div className="mt-3 flex items-center gap-2 flex-wrap">
           {presets.length > 0 && (
             <select
               onChange={(e) => {
@@ -546,8 +638,9 @@ export default function Home() {
             </button>
           )}
         </div>
+        }
         {/* Preset delete buttons rendered inline in dropdown */}
-        {presets.length > 0 && !showPresetSave && (
+        {!isDraft && presets.length > 0 && !showPresetSave && (
           <div className="mt-1 flex gap-1 flex-wrap">
             {presets.map((p) => (
               <span key={p.id} className="flex items-center gap-1 px-2 py-0.5 rounded bg-white/5 border border-[var(--border)] text-xs text-[var(--muted)]">
@@ -580,10 +673,10 @@ export default function Home() {
 
         <button
           onClick={handleAnalyze}
-          disabled={ocrLoading}
+          disabled={ocrLoading || draftGenerating}
           className="mt-4 w-full py-2.5 sm:py-3 rounded-md text-sm font-medium transition-colors bg-white text-black hover:bg-white/90 disabled:bg-white/10 disabled:text-[var(--muted)] disabled:cursor-not-allowed"
         >
-          {ocrLoading ? "텍스트 추출 중..." : t("runAnalysis", locale)}
+          {ocrLoading ? "텍스트 추출 중..." : isDraft ? t("generateDraft", locale) : t("runAnalysis", locale)}
         </button>
       </div>
     </div>

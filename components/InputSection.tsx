@@ -11,6 +11,7 @@ import { ImageUploadTab } from "./input/ImageUploadTab";
 import { FigmaTab } from "./input/FigmaTab";
 import { FlowInputTab } from "./input/FlowInputTab";
 import { ComparisonTab } from "./input/ComparisonTab";
+import { DraftTab } from "./input/DraftTab";
 import { useInputValidation } from "@/hooks/useInputValidation";
 export type { UploadedVideo, VideoFrame } from "./MediaUploader";
 
@@ -60,7 +61,7 @@ export interface ComparisonState {
   comparisonType: "competitor" | "variant";
 }
 
-export type InputTab = "image" | "url" | "figma" | "flow" | "comparison";
+export type InputTab = "image" | "url" | "figma" | "flow" | "comparison" | "draft";
 
 export type AnalysisMode = "hypothesis" | "usability";
 
@@ -113,6 +114,13 @@ interface InputSectionProps {
   onDomainChange?: (domain: string) => void;
   domainFocuses?: string[];
   onDomainFocusesChange?: (focuses: string[]) => void;
+  // Draft tab
+  draftInstruction?: string;
+  onDraftInstructionChange?: (value: string) => void;
+  draftReferenceImages?: string[];
+  onDraftReferenceImagesChange?: (images: string[]) => void;
+  draftImages?: string[];
+  onDraftImagesChange?: (images: string[]) => void;
 }
 
 export function InputSection({
@@ -157,6 +165,12 @@ export function InputSection({
   onDomainChange,
   domainFocuses = [],
   onDomainFocusesChange,
+  draftInstruction = "",
+  onDraftInstructionChange,
+  draftReferenceImages = [],
+  onDraftReferenceImagesChange,
+  draftImages = [],
+  onDraftImagesChange,
 }: InputSectionProps) {
   const isGeneral = productMode === "general";
   const [showAdvanced, setShowAdvanced] = useState(false);
@@ -195,13 +209,15 @@ export function InputSection({
       | "tooltipUrl"
       | "tooltipFigma"
       | "tooltipFlow"
-      | "tooltipComparison";
+      | "tooltipComparison"
+      | "tooltipDraft";
   }[] = [
     { key: "image", tooltipKey: "tooltipImageUpload" },
     { key: "url", tooltipKey: "tooltipUrl" },
     { key: "figma", tooltipKey: "tooltipFigma" },
     { key: "flow", tooltipKey: "tooltipFlow" },
     { key: "comparison", tooltipKey: "tooltipComparison" },
+    { key: "draft", tooltipKey: "tooltipDraft" },
   ];
 
   const tabLabels: Record<InputTab, string> = {
@@ -210,6 +226,7 @@ export function InputSection({
     figma: t("figma", locale),
     flow: t("flow", locale),
     comparison: t("comparison", locale),
+    draft: t("draft", locale),
   };
 
   return (
@@ -262,8 +279,20 @@ export function InputSection({
         <ComparisonTab locale={locale} comparison={comparison} onComparisonChange={onComparisonChange} />
       )}
 
-      {/* Domain category — general mode only */}
-      {isGeneral && (
+      {activeTab === "draft" && (
+        <DraftTab
+          images={draftImages}
+          onImagesChange={onDraftImagesChange ?? (() => {})}
+          instruction={draftInstruction}
+          onInstructionChange={onDraftInstructionChange ?? (() => {})}
+          referenceImages={draftReferenceImages}
+          onReferenceImagesChange={onDraftReferenceImagesChange ?? (() => {})}
+          showError={showErrors}
+        />
+      )}
+
+      {/* Domain category — general mode only (hidden in draft tab) */}
+      {isGeneral && activeTab !== "draft" && (
         <div className="pt-4 border-t border-[var(--border)] space-y-3">
           <div>
             <label className="block text-xs text-[var(--muted)] mb-2 uppercase tracking-wider">
@@ -354,8 +383,8 @@ export function InputSection({
         </div>
       )}
 
-      {/* Analysis perspective (checkboxes) */}
-      <div className="border-t border-[var(--border)]">
+      {/* Analysis perspective (checkboxes) — hidden in draft tab */}
+      {activeTab !== "draft" && <div className="border-t border-[var(--border)]">
         <button
           type="button"
           onClick={() => setPerspectiveOpen((v) => !v)}
@@ -465,10 +494,11 @@ export function InputSection({
             </div>
           </>
         )}
-      </div>
+      </div>}
 
 
       {/* Mode selector */}
+      {activeTab !== "draft" &&
       <div className="border-t border-[var(--border)]">
         <button
           type="button"
@@ -510,9 +540,10 @@ export function InputSection({
             })}
           </div>
         )}
-      </div>
+      </div>}
 
       {/* Context Inputs */}
+      {activeTab !== "draft" &&
       <div className="space-y-3">
         {mode === "hypothesis" && (
           <div>
@@ -659,7 +690,7 @@ export function InputSection({
             </div>
           </div>
         )}
-      </div>
+      </div>}
     </div>
   );
 }
