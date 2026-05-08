@@ -790,7 +790,8 @@ export function tMode(
 ): string {
   if (productMode === "general") {
     const overrides = locale === "en" ? generalOverridesEn : generalOverridesKo;
-    if (overrides[key]) return overrides[key]!;
+    const val = overrides[key];
+    if (val) return val;
   }
   return t(key, locale);
 }

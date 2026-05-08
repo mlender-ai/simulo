@@ -25,7 +25,8 @@
     "agent:watcher": "npx tsx scripts/notifier/watcher.ts",
     "agent:install": "bash scripts/notifier/setup-watcher.sh",
     "qa": "node scripts/qa-browser-check.mjs",
-    "qa:ci": "npm run lint && npm run type-check && node scripts/qa-browser-check.mjs"
+    "qa:ci": "npm run lint && npm run type-check && node scripts/qa-browser-check.mjs",
+    "prepare": "husky"
   },
   "dependencies": {
     "@anthropic-ai/sdk": "^0.82.0",
@@ -59,9 +60,20 @@
     "eslint": "^8",
     "eslint-config-next": "14.2.35",
     "eslint-plugin-unused-imports": "^4.4.1",
+    "husky": "^9.1.7",
+    "lint-staged": "^17.0.2",
     "postcss": "^8",
     "tailwindcss": "^3.4.1",
     "tsx": "^4.21.0",
     "typescript": "^5"
+  },
+  "lint-staged": {
+    "*.{ts,tsx}": [
+      "eslint --max-warnings 0",
+      "bash -c 'tsc --noEmit'"
+    ],
+    "*.{js,jsx}": [
+      "eslint --max-warnings 0"
+    ]
   }
 }
