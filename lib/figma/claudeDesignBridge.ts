@@ -95,7 +95,7 @@ async function generateWithRestApi(
 // ─── Claude Design API provider (stub — implement when API launches) ──────────
 
 async function generateWithClaudeDesign(
-  input: DesignGeneratorInput,
+  _input: DesignGeneratorInput,
 ): Promise<DesignGeneratorOutput> {
   // ── TODO: Uncomment and implement when Claude Design API is available ────────
   //

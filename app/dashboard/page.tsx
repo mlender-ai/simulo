@@ -345,7 +345,7 @@ export default function DashboardPage() {
   const [insights, setInsights] = useState<Insights | null>(null);
   const [loadingInsights, setLoadingInsights] = useState(false);
   const [insightsCached, setInsightsCached] = useState(false);
-  const [insightsInsufficient, setInsightsInsufficient] = useState(false);
+  const [_insightsInsufficient, setInsightsInsufficient] = useState(false);
   const [expandedIssueIdx, setExpandedIssueIdx] = useState<number | null>(null);
 
   // Active score lines

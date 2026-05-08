@@ -129,7 +129,7 @@ function clampElement(el: OCRElement): OCRElement {
 export async function extractTextFromImages(
   base64Images: string[],
   apiKey?: string,
-  productMode?: string
+  _productMode?: string
 ): Promise<OCRResult[]> {
   const key = apiKey || process.env.ANTHROPIC_API_KEY;
   if (!key) throw new Error("ANTHROPIC_API_KEY is not set.");
