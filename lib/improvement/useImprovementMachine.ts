@@ -1,6 +1,6 @@
 "use client";
 
-import { useReducer, useRef, useCallback } from "react";
+import { useReducer, useRef, useCallback, useEffect } from "react";
 import type { AnalysisResult } from "@/lib/storage";
 import { getProductMode } from "@/lib/productMode";
 import type { PanelState, ScreenResult, ImproveResult, GenerateOptions } from "./types";
@@ -15,6 +15,7 @@ type Action =
   | { type: "REANALYZE_START" }
   | { type: "REANALYZE_COMPLETE"; improvedAnalysis: AnalysisResult; screenResults: ScreenResult[] }
   | { type: "ERROR"; message: string; prev: PanelState["status"] }
+  | { type: "CANCEL" }
   | { type: "RESET" };
 
 // ── Reducer ───────────────────────────────────────────────────────────────────
@@ -48,6 +49,9 @@ function reducer(state: PanelState, action: Action): PanelState {
     case "ERROR":
       return { status: "error", prev: action.prev, message: action.message };
 
+    case "CANCEL":
+      return { status: "idle" };
+
     case "RESET":
       return { status: "idle" };
 
@@ -67,16 +71,18 @@ export function useImprovementMachine(
 
   // Mutex: blocks concurrent generate/reanalyze calls
   const busyRef = useRef(false);
+  const abortRef = useRef<AbortController | null>(null);
 
   // ── Generate single screen variants ────────────────────────────────────────
 
   const generateForScreen = useCallback(
-    async (screenIndex: number, opts: GenerateOptions): Promise<ImproveResult[]> => {
+    async (screenIndex: number, opts: GenerateOptions, signal?: AbortSignal): Promise<ImproveResult[]> => {
       const results: ImproveResult[] = [];
       for (let i = 0; i < opts.variantCount; i++) {
         const res = await fetch("/api/generate-improvement", {
           method: "POST",
           headers: { "Content-Type": "application/json" },
+          signal,
           body: JSON.stringify({
             analysisId: originalAnalysis.id,
             analysis: {
@@ -120,6 +126,9 @@ export function useImprovementMachine(
       if (busyRef.current) return;
       busyRef.current = true;
 
+      const ac = new AbortController();
+      abortRef.current = ac;
+
       const thumbnailUrls = originalAnalysis.thumbnailUrls ?? [];
       const screensToGenerate: number[] =
         opts.selectedScreenMode === "all"
@@ -135,21 +144,28 @@ export function useImprovementMachine(
         const label = thumbnailUrls.length > 1 ? `화면 ${screenIndex + 1}` : "화면";
         dispatch({ type: "GENERATE_SCREEN_START", screenLabel: label });
         try {
-          const variants = await generateForScreen(screenIndex, opts);
+          const variants = await generateForScreen(screenIndex, opts, ac.signal);
           newScreenResults.push({ screenIndex, screenLabel: label, variants });
         } catch (err) {
+          if (err instanceof DOMException && err.name === "AbortError") {
+            busyRef.current = false;
+            abortRef.current = null;
+            return;
+          }
           dispatch({
             type: "ERROR",
             message: err instanceof Error ? err.message : `${label} 생성 실패`,
             prev: "generating",
           });
           busyRef.current = false;
+          abortRef.current = null;
           return;
         }
       }
 
       dispatch({ type: "GENERATE_COMPLETE", screenResults: newScreenResults });
       busyRef.current = false;
+      abortRef.current = null;
     },
     [originalAnalysis, generateForScreen],
   );
@@ -206,6 +222,22 @@ export function useImprovementMachine(
     [originalAnalysis, roundNumber],
   );
 
+  // ── Cancel ──────────────────────────────────────────────────────────────────
+
+  const cancel = useCallback(() => {
+    abortRef.current?.abort();
+    abortRef.current = null;
+    busyRef.current = false;
+    dispatch({ type: "CANCEL" });
+  }, []);
+
+  // Abort on unmount
+  useEffect(() => {
+    return () => {
+      abortRef.current?.abort();
+    };
+  }, []);
+
   // ── Reset (다시 / 다음 라운드) ─────────────────────────────────────────────
 
   const reset = useCallback(() => {
@@ -217,5 +249,5 @@ export function useImprovementMachine(
     onNextRound?.(roundNumber + 1);
   }, [onNextRound, roundNumber]);
 
-  return { state, generate, reanalyze, reset, nextRound, isBusy: busyRef };
+  return { state, generate, reanalyze, cancel, reset, nextRound, isBusy: busyRef };
 }

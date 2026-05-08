@@ -34,7 +34,7 @@ export function ImprovementPanel({
   const thumbnailUrls = originalAnalysis.thumbnailUrls ?? [];
   const isMultiScreen = thumbnailUrls.length > 1;
 
-  const { state, generate, reanalyze, reset, nextRound } = useImprovementMachine(
+  const { state, generate, reanalyze, cancel, reset, nextRound } = useImprovementMachine(
     originalAnalysis,
     roundNumber,
     onNextRound,
@@ -374,6 +374,14 @@ export function ImprovementPanel({
               {state.done} / {state.total} 완료
             </p>
           </div>
+        )}
+        {state.status === "generating" && (
+          <button
+            onClick={cancel}
+            className="px-4 py-1.5 rounded-md text-xs text-white/40 hover:text-white/70 border border-white/10 hover:border-white/20 transition-colors"
+          >
+            취소
+          </button>
         )}
       </div>
     );
