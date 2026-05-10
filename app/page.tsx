@@ -1,6 +1,6 @@
 "use client";
 
-import { useState, useEffect, useCallback } from "react";
+import { useState, useEffect, useCallback, useRef } from "react";
 import { useRouter } from "next/navigation";
 import {
   InputSection,
@@ -110,6 +110,7 @@ export default function Home() {
   const [draftReferenceImages, setDraftReferenceImages] = useState<string[]>([]);
   const [draftGenerating, setDraftGenerating] = useState(false);
   const [draftResult, setDraftResult] = useState<{ html: string; changes: string[] } | null>(null);
+  const draftAbortRef = useRef<AbortController | null>(null);
 
   const handleProductModeChange = (m: ProductMode) => {
     setProductModeState(m);
@@ -397,6 +398,8 @@ export default function Home() {
     setShowErrors(false);
     setDraftGenerating(true);
     setError(null);
+    const ac = new AbortController();
+    draftAbortRef.current = ac;
     try {
       const savedApiKey = localStorage.getItem("simulo_anthropic_key");
       const response = await fetch("/api/generate-draft", {
@@ -408,6 +411,7 @@ export default function Home() {
           referenceImages: draftReferenceImages.length > 0 ? draftReferenceImages : undefined,
           apiKey: savedApiKey || undefined,
         }),
+        signal: ac.signal,
       });
       if (!response.ok) {
         const data = await response.json();
@@ -416,10 +420,18 @@ export default function Home() {
       const result = await response.json();
       setDraftResult(result);
     } catch (err) {
+      if (err instanceof DOMException && err.name === "AbortError") return;
       setError(err instanceof Error ? err.message : "개선안 생성 실패");
     } finally {
+      draftAbortRef.current = null;
       setDraftGenerating(false);
     }
+  };
+
+  const handleCancelDraft = () => {
+    draftAbortRef.current?.abort();
+    draftAbortRef.current = null;
+    setDraftGenerating(false);
   };
 
   // Draft generating state
@@ -430,6 +442,12 @@ export default function Home() {
           <div className="w-8 h-8 border-2 border-white/20 border-t-white rounded-full animate-spin mx-auto" />
           <p className="text-sm text-white">{t("generatingDraft", locale)}</p>
           <p className="text-xs text-[var(--muted)]">Claude Opus 4.6</p>
+          <button
+            onClick={handleCancelDraft}
+            className="px-4 py-1.5 rounded-md text-xs text-white/40 hover:text-white/70 border border-white/10 hover:border-white/20 transition-colors"
+          >
+            취소
+          </button>
         </div>
       </div>
     );
