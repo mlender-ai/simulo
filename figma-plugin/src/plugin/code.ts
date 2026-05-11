@@ -22,6 +22,8 @@ type PluginMessage =
   | { type: "get-selection" }
   | { type: "get-selection-for-writing" }
   | { type: "get-file-info" }
+  | { type: "save-api-key"; key: string }
+  | { type: "load-api-key" }
   | { type: "close" };
 
 figma.ui.onmessage = async (msg: PluginMessage) => {
@@ -126,6 +128,15 @@ figma.ui.onmessage = async (msg: PluginMessage) => {
       selectionCount: figma.currentPage.selection.length,
       names: figma.currentPage.selection.map((n) => n.name),
     });
+  }
+
+  if (msg.type === "save-api-key") {
+    await figma.clientStorage.setAsync("simulo_api_key", msg.key);
+  }
+
+  if (msg.type === "load-api-key") {
+    const key = await figma.clientStorage.getAsync("simulo_api_key");
+    figma.ui.postMessage({ type: "api-key-loaded", key: key || "" });
   }
 
   if (msg.type === "close") {

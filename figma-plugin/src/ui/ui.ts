@@ -52,23 +52,14 @@ function escapeHtml(s: string): string {
 
 // -------- Initialization --------
 window.addEventListener("DOMContentLoaded", () => {
-  // Restore saved API key
-  try {
-    const savedKey = localStorage.getItem("simulo_api_key");
-    if (savedKey) {
-      $<HTMLInputElement>("apiKey").value = savedKey;
-    }
-  } catch {
-    // localStorage may be blocked in iframe; ignore
-  }
+  // Request saved API key from plugin sandbox (persisted via figma.clientStorage)
+  parent.postMessage({ pluginMessage: { type: "load-api-key" } }, "*");
 
-  // Wire up listeners
+  // Save API key on change
   $("apiKey").addEventListener("change", (e) => {
     const val = (e.target as HTMLInputElement).value.trim();
-    try {
-      if (val) localStorage.setItem("simulo_api_key", val);
-    } catch {
-      /* ignore */
+    if (val) {
+      parent.postMessage({ pluginMessage: { type: "save-api-key", key: val } }, "*");
     }
   });
 
@@ -104,6 +95,13 @@ window.addEventListener("DOMContentLoaded", () => {
 window.onmessage = (event) => {
   const msg = event.data.pluginMessage;
   if (!msg) return;
+
+  if (msg.type === "api-key-loaded") {
+    const key = msg.key as string;
+    if (key) {
+      $<HTMLInputElement>("apiKey").value = key;
+    }
+  }
 
   if (msg.type === "selection-changed") {
     updateSelectionBar(msg.count, msg.names);
@@ -179,13 +177,7 @@ function runAnalysis() {
 }
 
 function getApiKey(): string {
-  const val = $<HTMLInputElement>("apiKey").value.trim();
-  if (val) return val;
-  try {
-    return localStorage.getItem("simulo_api_key") || "";
-  } catch {
-    return "";
-  }
+  return $<HTMLInputElement>("apiKey").value.trim();
 }
 
 // -------- Claude API call --------
