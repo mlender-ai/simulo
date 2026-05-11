@@ -70,6 +70,7 @@ export default function OCRReviewModal({ ocrResults, images, onConfirm, onCancel
                 {/* Thumbnail */}
                 {thumbnail && (
                   <div className="shrink-0 w-24">
+                    {/* eslint-disable-next-line @next/next/no-img-element */}
                     <img
                       src={`data:image/png;base64,${thumbnail}`}
                       alt={`화면 ${result.screenIndex + 1}`}

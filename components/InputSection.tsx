@@ -159,7 +159,7 @@ export function InputSection({
   onAnalysisOptionsChange,
   showErrors = false,
   inputReady: inputReadyProp = false,
-  contextReady: contextReadyProp = false,
+  contextReady: _contextReadyProp = false,
   productMode = "yafit",
   domain = "",
   onDomainChange,
@@ -177,7 +177,7 @@ export function InputSection({
   const [perspectiveOpen, setPerspectiveOpen] = useState(false);
   const [modeOpen, setModeOpen] = useState(false);
 
-  const { fieldErrors, inputReady, contextReady } = useInputValidation({
+  const { fieldErrors, inputReady, contextReady: _contextReady } = useInputValidation({
     mode,
     activeTab,
     hypothesis,

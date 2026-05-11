@@ -118,7 +118,7 @@ function arrowDef(id = "arrow", color = MUTED): string {
   </defs>`;
 }
 
-function arrow(
+function _arrow(
   x1: number, y1: number, x2: number, y2: number,
   { color = MUTED, markerId = "arrow" }: { color?: string; markerId?: string } = {}
 ): string {
@@ -453,7 +453,7 @@ export function generateTaxonomySVG(eventTaxonomy: EventTaxonomyItem[]): string 
   const PAD = 40;
   const COL1 = 180; // screen name col width
   const COL2 = 380; // events col width
-  const COL3 = 240; // next screens col width
+  const _COL3 = 240; // next screens col width
   const ROW_H_BASE = 48;
   const parts: string[] = [];
   let y = 64;

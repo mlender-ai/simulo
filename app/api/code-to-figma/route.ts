@@ -227,14 +227,14 @@ async function createFigmaVariables(
     : null;
 
   // Build variable create/update payload
-  const variableCreates: Array<{
+  const _variableCreates: Array<{
     action: "CREATE";
     name: string;
     variableCollectionId: string;
     resolvedType: "COLOR" | "FLOAT" | "STRING";
   }> = [];
 
-  const valueSets: Array<{
+  const _valueSets: Array<{
     action: "CREATE";
     variableId: string;
     modeId: string;
@@ -244,8 +244,8 @@ async function createFigmaVariables(
   // POST to Figma Variables batch API
   const payload: {
     variableCollections?: Array<{ action: "CREATE"; name: string; id: string }>;
-    variables?: typeof variableCreates;
-    variableModeValues?: typeof valueSets;
+    variables?: typeof _variableCreates;
+    variableModeValues?: typeof _valueSets;
   } = {};
 
   // Create collection if not exists

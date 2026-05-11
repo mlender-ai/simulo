@@ -283,7 +283,7 @@ export default function CodeToFigmaPage() {
   const [taxonomy, setTaxonomy] = useState("");
 
   // Common Figma fields
-  const [figmaUrl, setFigmaUrl] = useState("");
+  const [figmaUrl, _setFigmaUrl] = useState("");
   const [figmaToken, setFigmaToken] = useState("");
 
   // Analysis state
