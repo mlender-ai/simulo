@@ -20,6 +20,7 @@ function uint8ToBase64(bytes: Uint8Array): string {
 
 type PluginMessage =
   | { type: "get-selection" }
+  | { type: "get-selection-for-writing" }
   | { type: "get-file-info" }
   | { type: "close" };
 
@@ -68,6 +69,52 @@ figma.ui.onmessage = async (msg: PluginMessage) => {
       type: "selection-ready",
       images,
       count: images.length,
+    });
+  }
+
+  if (msg.type === "get-selection-for-writing") {
+    const selection = figma.currentPage.selection;
+
+    if (selection.length === 0) {
+      figma.ui.postMessage({
+        type: "error",
+        message: "분석할 프레임이나 레이어를 선택해주세요.",
+      });
+      return;
+    }
+
+    const nodes = selection.slice(0, 8);
+    const frames: { name: string; base64: string }[] = [];
+
+    for (const node of nodes) {
+      try {
+        if ("exportAsync" in node) {
+          const bytes = await (node as ExportMixin).exportAsync({
+            format: "PNG",
+            constraint: { type: "SCALE", value: 2 },
+          });
+          frames.push({
+            name: node.name,
+            base64: uint8ToBase64(bytes),
+          });
+        }
+      } catch (e) {
+        console.error("이미지 추출 실패:", node.name, e);
+      }
+    }
+
+    if (frames.length === 0) {
+      figma.ui.postMessage({
+        type: "error",
+        message: "선택한 항목에서 이미지를 추출할 수 없습니다.",
+      });
+      return;
+    }
+
+    figma.ui.postMessage({
+      type: "writing-selection-ready",
+      frames,
+      count: frames.length,
     });
   }
 

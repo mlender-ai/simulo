@@ -238,6 +238,114 @@
     .error-msg.visible { display: block; }
 
     .empty { color: #555; font-size: 12px; padding: 8px 0; }
+
+    /* Mode tabs */
+    .mode-bar {
+      display: flex;
+      border-bottom: 1px solid #1a1a1a;
+    }
+    .mode-tab {
+      flex: 1;
+      padding: 10px;
+      text-align: center;
+      font-size: 12px;
+      font-weight: 500;
+      color: #555;
+      cursor: pointer;
+      border-bottom: 2px solid transparent;
+      margin-bottom: -1px;
+      user-select: none;
+      transition: color 0.15s;
+    }
+    .mode-tab:hover { color: #888; }
+    .mode-tab.active { color: #e5e5e5; border-bottom-color: #e5e5e5; }
+
+    /* Writing form */
+    .writing-form {
+      padding: 16px;
+      display: none;
+      flex-direction: column;
+      gap: 14px;
+    }
+    .writing-hint {
+      font-size: 12px;
+      color: #666;
+      line-height: 1.6;
+      padding: 12px;
+      background: #111;
+      border: 1px solid #1a1a1a;
+      border-radius: 6px;
+    }
+
+    /* Writing report */
+    .writing-report { display: none; padding: 16px; }
+    .writing-report.visible { display: block; }
+
+    .writing-frame-result {
+      margin-bottom: 20px;
+      padding-bottom: 20px;
+      border-bottom: 1px solid #1a1a1a;
+    }
+    .writing-frame-result:last-child { border-bottom: none; }
+    .writing-frame-name { font-size: 12px; color: #888; }
+
+    .score-good { color: #86efac; }
+    .score-ok { color: #fdba74; }
+    .score-bad { color: #fca5a5; }
+
+    .writing-issue {
+      padding: 10px 12px;
+      background: #111;
+      border: 1px solid #1a1a1a;
+      border-radius: 6px;
+      margin-bottom: 8px;
+    }
+    .writing-issue-header {
+      display: flex;
+      align-items: center;
+      gap: 6px;
+      margin-bottom: 8px;
+    }
+    .writing-principle {
+      font-size: 10px;
+      color: #444;
+      margin-left: auto;
+    }
+    .writing-compare {
+      display: flex;
+      flex-direction: column;
+      gap: 4px;
+      margin-bottom: 6px;
+    }
+    .writing-before, .writing-after {
+      display: flex;
+      gap: 8px;
+      align-items: baseline;
+      padding: 6px 8px;
+      border-radius: 4px;
+      background: #0a0a0a;
+    }
+    .writing-label {
+      font-size: 10px;
+      color: #555;
+      flex-shrink: 0;
+      min-width: 24px;
+    }
+    .writing-label-good { color: #86efac; }
+    .writing-text-del {
+      font-size: 12px;
+      color: #666;
+      text-decoration: line-through;
+    }
+    .writing-text-new {
+      font-size: 12px;
+      color: #e5e5e5;
+    }
+    .writing-reason {
+      font-size: 11px;
+      color: #555;
+      line-height: 1.5;
+    }
   </style>
 </head>
 <body>
@@ -246,7 +354,12 @@
     <span class="version">v1.0</span>
   </div>
 
-  <div class="selection-bar" id="selectionBar">
+  <div class="mode-bar">
+    <div class="mode-tab active" data-mode="analysis">UX 분석</div>
+    <div class="mode-tab" data-mode="writing">UX 라이팅</div>
+  </div>
+
+  <div class="selection-bar" id="selectionBar" data-count="0" data-names="">
     프레임이나 레이어를 선택해주세요
   </div>
 
@@ -310,5 +423,17 @@
 
     <button class="btn-secondary" id="resetBtn">← 다시 분석</button>
   </div>
+
+  <div class="writing-form" id="writingForm">
+    <div class="writing-hint">
+      Figma에서 프레임을 선택한 후 아래 버튼을 누르면, 화면의 모든 텍스트를 분석하여 UX 라이팅 개선점을 찾아드립니다.
+    </div>
+    <button class="btn-primary" id="runWritingBtn" disabled>
+      선택된 항목 없음
+    </button>
+  </div>
+
+  <div class="writing-report" id="writingReport"></div>
+  <button class="btn-secondary" id="writingResetBtn" style="display:none;margin:0 16px 16px">← 다시 체크</button>
 </body>
 </html>
