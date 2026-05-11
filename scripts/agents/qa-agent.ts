@@ -67,8 +67,9 @@ function runChecks(): QAResults {
   // .next를 완전히 지우고 dev:quick으로 클린 시작 (stale chunk 방지)
   run("kill $(lsof -ti:3000) 2>/dev/null; rm -rf .next");
   run("npm run dev:quick > /tmp/simulo-qa-dev.log 2>&1 &");
-  // 서버가 완전히 뜰 때까지 대기
-  run("sleep 10");
+  // 서버가 완전히 뜰 때까지 대기 (CI 환경에서는 10초로 부족할 수 있음)
+  // 최대 30초까지 폴링하며 대기
+  run("for i in $(seq 1 30); do curl -s -o /dev/null http://localhost:3000 && break; sleep 1; done");
 
   const httpCheck = run("curl -s -o /dev/null -w '%{http_code}' http://localhost:3000");
   const devServerHealth = {
@@ -122,9 +123,9 @@ function runChecks(): QAResults {
   const sharePanelHasFetchExport = sharePanelContent.includes("fetchExport");
   const sharePanelHasShowPng = sharePanelContent.includes("showPng");
 
-  // 히스토리 페이지에서 analysisData를 넘기는지 확인
-  const historyPageContent = readFileIfExists("app/history/page.tsx");
-  const historyPassesData = historyPageContent.includes("analysisData={analysis}");
+  // 히스토리 카드에서 analysisData를 넘기는지 확인 (HistoryCard가 ShareExportPanel 사용)
+  const historyCardContent = readFileIfExists("components/history/HistoryCard.tsx");
+  const historyPassesData = historyCardContent.includes("analysisData={analysis}");
 
   // 공유 페이지가 localStorage fallback을 갖는지 확인
   const sharePageContent = readFileIfExists("app/share/[id]/page.tsx");
@@ -132,7 +133,8 @@ function runChecks(): QAResults {
 
   // URL 탭이 이미지 업로드 없이 URL만으로 분석 가능한지 확인
   const urlHandlerExists = run("ls app/api/analyze/handlers/url.ts 2>/dev/null").exitCode === 0;
-  const urlPluginRegistered = readFileIfExists("app/api/analyze/registry.ts").includes("urlPlugin");
+  // registry.ts가 3000자를 초과하므로 grep으로 등록 여부를 확인
+  const urlPluginRegistered = run("grep -q 'urlPlugin' app/api/analyze/registry.ts 2>/dev/null").exitCode === 0;
 
   const featureChecks = `
 ## 기능 정적 검사 (no-DB 환경 기준)
