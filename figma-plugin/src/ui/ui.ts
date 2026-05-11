@@ -1,9 +1,17 @@
 // Simulo Figma Plugin — UI logic (iframe side)
 // Communicates with plugin sandbox via parent.postMessage.
 
+interface ExtractedText {
+  text: string;
+  parentName: string;
+  fontSize: number | null;
+  fontWeight: string | null;
+}
+
 interface ImageItem {
   name: string;
   base64: string;
+  texts?: ExtractedText[];
 }
 
 interface AnalysisResult {
@@ -380,6 +388,25 @@ function runWritingCheck() {
   parent.postMessage({ pluginMessage: { type: "get-selection-for-writing" } }, "*");
 }
 
+function buildWritingUserPrompt(frame: ImageItem): string {
+  let prompt = `이 UI 화면("${frame.name}")에 보이는 모든 텍스트의 UX 라이팅 품질을 분석해주세요.\n\n`;
+
+  if (frame.texts && frame.texts.length > 0) {
+    prompt += `## Figma에서 추출한 실제 텍스트 목록\n아래는 이 화면의 Figma 레이어에서 직접 추출한 정확한 텍스트입니다. 이미지의 텍스트를 OCR로 읽지 말고, 아래 텍스트를 기준으로 분석하세요. 이미지는 레이아웃과 시각적 맥락 파악용으로만 참고하세요.\n\n`;
+    for (const t of frame.texts) {
+      const meta: string[] = [];
+      if (t.parentName) meta.push(`위치: ${t.parentName}`);
+      if (t.fontSize) meta.push(`${t.fontSize}px`);
+      if (t.fontWeight === "bold") meta.push("볼드");
+      prompt += `- "${t.text}"${meta.length > 0 ? ` (${meta.join(", ")})` : ""}\n`;
+    }
+    prompt += `\n총 ${frame.texts.length}개 텍스트 노드.\n`;
+  }
+
+  prompt += `\nJSON만 반환하세요.`;
+  return prompt;
+}
+
 async function startWritingCheck(frames: ImageItem[]) {
   const apiKey = getApiKey();
 
@@ -501,7 +528,7 @@ CTA는 누른 뒤 무엇이 일어날지 직접 말한다.
               },
               {
                 type: "text",
-                text: `이 UI 화면("${frames[i].name}")에 보이는 모든 텍스트의 UX 라이팅 품질을 분석해주세요. JSON만 반환하세요.`,
+                text: buildWritingUserPrompt(frames[i]),
               },
             ],
           }],

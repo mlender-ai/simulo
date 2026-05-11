@@ -18,6 +18,45 @@ function uint8ToBase64(bytes: Uint8Array): string {
   return btoa(binary);
 }
 
+interface ExtractedText {
+  text: string;
+  parentName: string;
+  fontSize: number | null;
+  fontWeight: string | null;
+}
+
+function extractTextNodes(node: SceneNode): ExtractedText[] {
+  const results: ExtractedText[] = [];
+
+  if (node.type === "TEXT") {
+    const textNode = node as TextNode;
+    if (textNode.characters.trim()) {
+      let fontSize: number | null = null;
+      let fontWeight: string | null = null;
+      try {
+        const fs = textNode.fontSize;
+        if (typeof fs === "number") fontSize = fs;
+        const fw = textNode.fontWeight;
+        if (typeof fw === "number") fontWeight = fw >= 600 ? "bold" : "normal";
+      } catch { /* mixed styles */ }
+      results.push({
+        text: textNode.characters.trim(),
+        parentName: node.parent?.name ?? "",
+        fontSize,
+        fontWeight,
+      });
+    }
+  }
+
+  if ("children" in node) {
+    for (const child of (node as ChildrenMixin).children) {
+      results.push(...extractTextNodes(child as SceneNode));
+    }
+  }
+
+  return results;
+}
+
 type PluginMessage =
   | { type: "get-selection" }
   | { type: "get-selection-for-writing" }
@@ -86,7 +125,7 @@ figma.ui.onmessage = async (msg: PluginMessage) => {
     }
 
     const nodes = selection.slice(0, 8);
-    const frames: { name: string; base64: string }[] = [];
+    const frames: { name: string; base64: string; texts: ExtractedText[] }[] = [];
 
     for (const node of nodes) {
       try {
@@ -95,9 +134,11 @@ figma.ui.onmessage = async (msg: PluginMessage) => {
             format: "PNG",
             constraint: { type: "SCALE", value: 2 },
           });
+          const texts = extractTextNodes(node);
           frames.push({
             name: node.name,
             base64: uint8ToBase64(bytes),
+            texts,
           });
         }
       } catch (e) {
