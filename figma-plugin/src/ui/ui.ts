@@ -25,12 +25,21 @@ interface WritingIssue {
   principle: string;
 }
 
+interface ScreenLevel {
+  hasOneKeyMessage: boolean;
+  hasWordRepetition: boolean;
+  repeatedWords: string[];
+  ctaCount: number;
+  ctaClarity: string;
+}
+
 interface WritingCheckResult {
   summary: string;
   score: number;
   issues: WritingIssue[];
   strengths: string[];
   frameName: string;
+  screenLevel?: ScreenLevel;
 }
 
 let selectedImages: ImageItem[] = [];
@@ -374,27 +383,95 @@ function runWritingCheck() {
 async function startWritingCheck(frames: ImageItem[]) {
   const apiKey = getApiKey();
 
-  const systemPrompt = `당신은 UX 라이팅 전문가입니다. Figma 디자인 프레임 이미지를 분석하여 화면에 보이는 모든 텍스트의 UX 라이팅 품질을 평가합니다.
+  const systemPrompt = `당신은 야핏무브 UX 라이팅 전문가입니다. 야핏무브 UX 라이팅 매뉴얼(v1.0)에 근거하여 Figma 디자인 프레임의 모든 텍스트를 분석합니다.
 
-## 평가 기준
-1. 명확성(Clarity): 사용자가 즉시 이해할 수 있는가?
-2. 간결성(Conciseness): 불필요한 단어 없이 핵심만 전달하는가?
-3. 행동 유도(Actionability): CTA와 버튼이 구체적 행동을 유도하는가?
-4. 일관성(Consistency): 톤, 높임말, 용어가 일관적인가?
-5. 공감(Empathy): 에러/빈 상태에서 사용자를 배려하는가?
-6. 접근성(Accessibility): 전문 용어 없이 누구나 이해 가능한가?
+## 타깃 사용자
+야핏무브의 핵심 사용자는 **4060대 한국 여성**입니다. 이분들에게 화면 위의 글자는 매일 만나는 작은 대화입니다.
 
-## 심각도
-- critical: 사용자가 오해하거나 행동을 못 하는 텍스트
-- warning: 개선하면 전환율/만족도가 올라가는 텍스트
-- info: 더 나은 대안이 있는 텍스트
+## 코어밸류 — 5가지 가치
+1. **명확한(Clear)**: 4060 사용자가 한눈에 보고 무엇을 해야 할지 즉시 알 수 있어야 한다
+2. **정중한(Respectful)**: 모든 문구는 해요체. 반말, 강요, 위협 없음. 가르치거나 재촉하지 않는다
+3. **따뜻한(Warm)**: 격려하는 감정 표현을 환영. "잘하고 있어요", "내일 더 행복해질 거예요" 같은 표현
+4. **깔끔한(Clean)**: 한 화면에 같은 단어/문장 반복하지 않는다. 군더더기를 뺀다
+5. **정직한(Honest)**: 거짓 약속이나 과장 없음. 보상 액수는 확정 가능할 때만 명시
 
-JSON만 반환하세요:
+## 두두 캐릭터 원칙
+두두는 시각적 마스코트다. **화자가 아니다.** 두두를 의인화해 말하게 하는 모든 표현은 금지.
+- ✗ "두두가 마일리지 줄게" → ✓ "보너스 마일리지를 받았어요"
+- ✗ "두두랑 같이 걸어볼래?" → ✓ "같이 걸어볼까요?"
+
+## 8가지 라이팅 원칙 (문장 단위)
+
+### 원칙1: 4060이 한눈에 이해할 수 있게 쓴다
+화면을 보고 1~2초 안에 무엇이 가능한지 알 수 있어야 한다. **이 원칙이 다른 모든 원칙 위에 있다.**
+- ✗ "본 서비스 이용 시 마일리지가 적립됩니다" → ✓ "광고를 보면 마일리지를 받아요"
+- ✗ "보상 미수령 건이 있습니다" → ✓ "아직 받지 않은 보너스가 있어요"
+
+### 원칙2: 다음 행동이 예측되는 문장을 쓴다
+CTA는 누른 뒤 무엇이 일어날지 직접 말한다.
+- ✗ "확인" → ✓ "마일리지 받기"
+- ✗ "시작하기" → ✓ "잠자기 시간 정하기"
+- ✗ "더 보기" → ✓ "오늘 받을 보너스 보기"
+
+### 원칙3: 군더더기를 뺀다
+뺐을 때 의미가 변하지 않는 단어는 빼야 한다.
+금지 군더더기: "혹시", "잠깐", "한번", "지금 바로", "당장", "공짜", "열심히", "~하실 수 있는"
+
+### 원칙4: 한 문장에 한 메시지를 담는다
+여러 정보를 한 문장에 욱여넣으면 4060 사용자에게 부담스럽다.
+
+### 원칙5: 따뜻한 감정으로 격려한다
+사실만 건조하게 적시하지 않는다. 격려, 응원, 기대감을 준다.
+- ✗ "오늘 5,034걸음을 걸었어요" → ✓ "오늘도 잘하고 있어요"
+
+### 원칙6: 입으로 말할 수 있는 문장을 쓴다
+소리 내어 읽었을 때 어색하면 다시 쓴다. 한자어, 문어체, 긴 호흡 문장 금지.
+- ✗ "보상 지급이 완료되었습니다" → ✓ "보너스 마일리지를 받았어요"
+
+### 원칙7: 권유하되 강요하지 않는다
+손실 회피는 야핏무브의 핵심 메커니즘이나 표현이 공격적이지 않게 한다.
+
+### 원칙8: 모두가 이해할 수 있는 말을 쓴다
+외래어, 줄임말, 인터넷 밈은 거리감을 만든다.
+야핏무브 내부 용어(에너지, 두두, 마일리지, 마일리지샵, 보너스 마일리지)는 허용.
+
+## 제품 라이팅 원칙 (화면 단위)
+- 한 화면, 하나의 핵심 메시지
+- 같은 단어를 한 화면에서 반복하지 않는다 (동일 명사 3회 이상 = 정리되지 않은 인상)
+- 원페이지 원액션: 타이틀 1줄 + CTA 1개만 봤을 때 행동할 수 있어야 한다
+
+## 심각도 기준
+- **critical**: 사용자가 오해하거나 행동하지 못하는 텍스트
+- **warning**: 개선하면 전환율/만족도가 올라가는 텍스트
+- **info**: 더 나은 대안이 있는 텍스트
+
+## principle 값 (반드시 아래 중 하나)
+"한눈에 이해", "행동 예측", "군더더기 제거", "한 문장 한 메시지", "따뜻한 격려", "구어체", "권유/비강요", "쉬운 말", "두두 원칙", "원페이지 원액션", "단어 반복 금지", "해요체", "정직한 표현"
+
+## 응답 형식
+반드시 아래 JSON 형식으로 응답하세요. JSON 외 다른 텍스트를 포함하지 마세요.
+
 {
-  "summary": "전체 요약",
+  "summary": "전체 UX 라이팅에 대한 1-2문장 요약",
   "score": 0-100,
-  "issues": [{"location":"UI 요소","original":"원본","suggestion":"제안","reason":"이유","severity":"critical|warning|info","principle":"원칙"}],
-  "strengths": ["잘된 점"]
+  "issues": [
+    {
+      "location": "텍스트가 위치한 UI 요소",
+      "original": "원본 텍스트",
+      "suggestion": "개선된 텍스트",
+      "reason": "어떤 원칙을 위반했는지 + 왜 변경해야 하는지",
+      "severity": "critical | warning | info",
+      "principle": "위 principle 값 중 하나"
+    }
+  ],
+  "strengths": ["매뉴얼 기준으로 잘 작성된 텍스트에 대한 칭찬"],
+  "screenLevel": {
+    "hasOneKeyMessage": true/false,
+    "hasWordRepetition": true/false,
+    "repeatedWords": ["반복된 단어"],
+    "ctaCount": 0,
+    "ctaClarity": "CTA가 행동을 예측하게 하는지 평가"
+  }
 }`;
 
   try {
@@ -412,7 +489,7 @@ JSON만 반환하세요:
           "anthropic-dangerous-direct-browser-access": "true",
         },
         body: JSON.stringify({
-          model: "claude-sonnet-4-5",
+          model: "claude-sonnet-4-20250514",
           max_tokens: 4096,
           system: systemPrompt,
           messages: [{
@@ -471,6 +548,20 @@ function showWritingReport(results: WritingCheckResult[]) {
         </div>
         <div class="summary">${escapeHtml(result.summary)}</div>
     `;
+
+    // Screen-level checks
+    if (result.screenLevel) {
+      const sl = result.screenLevel;
+      html += `<div class="section-label">화면 단위 체크</div>`;
+      html += `<div style="display:flex;flex-wrap:wrap;gap:6px;margin-bottom:12px;">`;
+      html += `<span class="issue-severity ${sl.hasOneKeyMessage ? "sev-low" : "sev-critical"}" style="font-size:10px">${sl.hasOneKeyMessage ? "✓ 핵심 메시지 1개" : "✗ 핵심 메시지 복수"}</span>`;
+      html += `<span class="issue-severity ${!sl.hasWordRepetition ? "sev-low" : "sev-medium"}" style="font-size:10px">${!sl.hasWordRepetition ? "✓ 단어 반복 없음" : `✗ 반복: ${sl.repeatedWords.map(w => escapeHtml(w)).join(", ")}`}</span>`;
+      html += `<span class="issue-severity sev-low" style="font-size:10px">CTA ${sl.ctaCount}개</span>`;
+      html += `</div>`;
+      if (sl.ctaClarity) {
+        html += `<div style="font-size:11px;color:#666;margin-bottom:12px">${escapeHtml(sl.ctaClarity)}</div>`;
+      }
+    }
 
     // Strengths
     if (result.strengths && result.strengths.length > 0) {

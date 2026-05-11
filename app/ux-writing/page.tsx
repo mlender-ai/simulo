@@ -20,12 +20,21 @@ interface WritingIssue {
   principle: string;
 }
 
+interface ScreenLevel {
+  hasOneKeyMessage: boolean;
+  hasWordRepetition: boolean;
+  repeatedWords: string[];
+  ctaCount: number;
+  ctaClarity: string;
+}
+
 interface WritingCheckResult {
   summary: string;
   score: number;
   issues: WritingIssue[];
   strengths: string[];
   frameName: string;
+  screenLevel?: ScreenLevel;
 }
 
 type InputMode = "figma" | "image";
@@ -479,6 +488,27 @@ function ResultsView({
           )}
         </div>
       </div>
+
+      {/* Screen-level checks */}
+      {active.screenLevel && (
+        <div className="bg-white/[0.03] border border-[var(--border)] rounded-lg p-4 space-y-3">
+          <p className="text-xs text-[var(--muted)] uppercase tracking-wider">화면 단위 체크</p>
+          <div className="flex flex-wrap gap-2">
+            <span className={`text-xs px-2 py-1 rounded ${active.screenLevel.hasOneKeyMessage ? "bg-emerald-500/10 text-emerald-400" : "bg-red-500/10 text-red-400"}`}>
+              {active.screenLevel.hasOneKeyMessage ? "✓ 핵심 메시지 1개" : "✗ 핵심 메시지 복수"}
+            </span>
+            <span className={`text-xs px-2 py-1 rounded ${!active.screenLevel.hasWordRepetition ? "bg-emerald-500/10 text-emerald-400" : "bg-amber-500/10 text-amber-400"}`}>
+              {!active.screenLevel.hasWordRepetition ? "✓ 단어 반복 없음" : `✗ 반복: ${active.screenLevel.repeatedWords.join(", ")}`}
+            </span>
+            <span className="text-xs px-2 py-1 rounded bg-white/5 text-white/60">
+              CTA {active.screenLevel.ctaCount}개
+            </span>
+          </div>
+          {active.screenLevel.ctaClarity && (
+            <p className="text-xs text-white/50">{active.screenLevel.ctaClarity}</p>
+          )}
+        </div>
+      )}
 
       {/* Strengths */}
       {active.strengths.length > 0 && (
