@@ -71,7 +71,11 @@ export function ReportTabs({ data, locale }: { data: AnalysisResult; locale: Loc
   const handleTabChange = useCallback((newTab: Tab) => {
     setTab(newTab);
     const url = new URL(window.location.href);
-    url.searchParams.set("tab", newTab);
+    if (newTab === "overview") {
+      url.searchParams.delete("tab");
+    } else {
+      url.searchParams.set("tab", newTab);
+    }
     window.history.replaceState(null, "", url.toString());
   }, []);
 
