@@ -57,6 +57,7 @@ export default function Home() {
   const [projectTag, setProjectTag] = useState("");
   const [loading, setLoading] = useState(false);
   const [loadingStep, setLoadingStep] = useState(0);
+  const [progressMessages, setProgressMessages] = useState<{ step: string; detail?: string }[]>([]);
   const [error, setError] = useState<string | null>(null);
   const [activeTab, setActiveTab] = useState<InputTab>("image");
   const [urlInput, setUrlInput] = useState("");
@@ -288,22 +289,83 @@ export default function Home() {
     setLoading(true);
     setError(null);
     setLoadingStep(0);
+    setProgressMessages([]);
+
+    // Fallback timer for generic loading steps (if SSE doesn't send progress)
     const stepInterval = setInterval(() => {
       setLoadingStep((prev) => prev < loadingKeys.length - 1 ? prev + 1 : prev);
-    }, 3000);
+    }, 4000);
+
     try {
       const response = await fetch("/api/analyze", {
         method: "POST",
-        headers: { "Content-Type": "application/json" },
+        headers: {
+          "Content-Type": "application/json",
+          "Accept": "text/event-stream",
+        },
         body: JSON.stringify(body),
       });
+
       if (!response.ok) {
-        const data = await response.json();
+        const data = await response.json().catch(() => ({}));
         throw new Error(data.error || "Analysis failed");
       }
-      const result: AnalysisResult = await response.json();
-      storage.save(result);
-      router.push(`/report/${result.id}`);
+
+      const contentType = response.headers.get("content-type") || "";
+
+      if (contentType.includes("text/event-stream") && response.body) {
+        // SSE streaming mode — read real-time progress
+        const reader = response.body.getReader();
+        const decoder = new TextDecoder();
+        let buffer = "";
+        let finalResult: AnalysisResult | null = null;
+
+        while (true) {
+          const { done, value } = await reader.read();
+          if (done) break;
+          buffer += decoder.decode(value, { stream: true });
+
+          const lines = buffer.split("\n");
+          buffer = lines.pop() || "";
+
+          let eventType = "";
+          for (const line of lines) {
+            if (line.startsWith("event: ")) {
+              eventType = line.slice(7).trim();
+            } else if (line.startsWith("data: ") && eventType) {
+              try {
+                const data = JSON.parse(line.slice(6));
+                if (eventType === "progress") {
+                  setProgressMessages((prev) => [...prev, { step: data.step, detail: data.detail }]);
+                } else if (eventType === "result") {
+                  finalResult = data as AnalysisResult;
+                } else if (eventType === "error") {
+                  throw new Error(data.error || "Analysis failed");
+                }
+              } catch (e) {
+                if (e instanceof Error && e.message !== "Analysis failed" && !e.message.startsWith("Analysis")) {
+                  // JSON parse error — skip
+                } else {
+                  throw e;
+                }
+              }
+              eventType = "";
+            }
+          }
+        }
+
+        if (finalResult) {
+          storage.save(finalResult);
+          router.push(`/report/${finalResult.id}`);
+        } else {
+          throw new Error("분석 결과를 받지 못했습니다");
+        }
+      } else {
+        // Fallback: non-streaming JSON response
+        const result: AnalysisResult = await response.json();
+        storage.save(result);
+        router.push(`/report/${result.id}`);
+      }
     } catch (err) {
       setError(err instanceof Error ? err.message : "Analysis failed");
     } finally {
@@ -484,25 +546,54 @@ export default function Home() {
   }
 
   if (loading) {
+    const hasProgress = progressMessages.length > 0;
     return (
       <div className="flex items-center justify-center min-h-screen">
-        <div className="text-center space-y-6">
+        <div className="text-center space-y-6 max-w-sm">
           <div className="w-8 h-8 border-2 border-white/20 border-t-white rounded-full animate-spin mx-auto" />
-          <div className="space-y-2">
-            {loadingKeys.map((key, i) => (
-              <p
-                key={key}
-                className={`text-sm transition-opacity duration-500 ${
-                  i <= loadingStep
-                    ? "text-white opacity-100"
-                    : "text-[var(--muted)] opacity-30"
-                }`}
-              >
-                {i < loadingStep ? "✓" : i === loadingStep ? "→" : " "}{" "}
-                {tMode(key, locale, productMode)}
-              </p>
-            ))}
-          </div>
+
+          {/* Real-time progress from SSE */}
+          {hasProgress && (
+            <div className="space-y-1.5">
+              {progressMessages.map((msg, i) => (
+                <p
+                  key={i}
+                  className={`text-sm transition-all duration-500 ${
+                    i === progressMessages.length - 1
+                      ? "text-white opacity-100"
+                      : "text-[var(--muted)] opacity-60"
+                  }`}
+                >
+                  {i < progressMessages.length - 1 ? "✓" : "→"}{" "}
+                  {msg.step}
+                  {msg.detail && (
+                    <span className="text-xs text-[var(--muted)] ml-1.5">
+                      {msg.detail}
+                    </span>
+                  )}
+                </p>
+              ))}
+            </div>
+          )}
+
+          {/* Fallback generic steps (if no SSE progress yet) */}
+          {!hasProgress && (
+            <div className="space-y-2">
+              {loadingKeys.map((key, i) => (
+                <p
+                  key={key}
+                  className={`text-sm transition-opacity duration-500 ${
+                    i <= loadingStep
+                      ? "text-white opacity-100"
+                      : "text-[var(--muted)] opacity-30"
+                  }`}
+                >
+                  {i < loadingStep ? "✓" : i === loadingStep ? "→" : " "}{" "}
+                  {tMode(key, locale, productMode)}
+                </p>
+              ))}
+            </div>
+          )}
         </div>
       </div>
     );

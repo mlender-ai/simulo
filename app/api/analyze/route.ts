@@ -10,8 +10,81 @@ import { validateImages, validateFigmaInputs, validateFlowSteps, logPreflightWar
 
 // Note: ANTHROPIC_API_KEY presence is validated at request time via resolveApiKey()
 
+type ProgressCallback = (step: string, detail?: string) => void;
+
 export async function POST(request: NextRequest) {
+  const wantsStream = request.headers.get("accept")?.includes("text/event-stream");
+
+  if (wantsStream) {
+    return handleStreamingAnalysis(request);
+  }
+
+  return handleAnalysis(request);
+}
+
+async function handleStreamingAnalysis(request: NextRequest) {
+  const encoder = new TextEncoder();
+  const stream = new TransformStream();
+  const writer = stream.writable.getWriter();
+
+  const sendEvent = async (event: string, data: unknown) => {
+    await writer.write(encoder.encode(`event: ${event}\ndata: ${JSON.stringify(data)}\n\n`));
+  };
+
+  const progress: ProgressCallback = async (step, detail) => {
+    try { await sendEvent("progress", { step, detail }); } catch { /* client disconnected */ }
+  };
+
+  // Run analysis in background, piping events
+  (async () => {
+    try {
+      const result = await runAnalysisPipeline(request, progress);
+      await sendEvent("result", result);
+    } catch (error: unknown) {
+      const message = error instanceof Error ? error.message : "Analysis failed";
+      await sendEvent("error", { error: message });
+    } finally {
+      await writer.close();
+    }
+  })();
+
+  return new Response(stream.readable, {
+    headers: {
+      "Content-Type": "text/event-stream",
+      "Cache-Control": "no-cache",
+      Connection: "keep-alive",
+    },
+  });
+}
+
+async function handleAnalysis(request: NextRequest) {
   try {
+    const result = await runAnalysisPipeline(request);
+    return NextResponse.json(result);
+  } catch (error: unknown) {
+    console.error("[analyze] ===== ERROR =====");
+    let message = "Analysis failed";
+    let status = 500;
+    if (error && typeof error === "object") {
+      const err = error as Record<string, unknown>;
+      console.error("[analyze] status:", err.status, "| message:", err.message);
+      if (err.status && typeof err.status === "number") status = err.status;
+      if (err.message && typeof err.message === "string") message = err.message;
+      if (err.error && typeof err.error === "object") {
+        const innerError = err.error as Record<string, unknown>;
+        if (innerError.message) message = `${status} ${JSON.stringify(err.error)}`;
+      }
+    } else if (error instanceof Error) {
+      message = error.message;
+    }
+    return NextResponse.json({ error: message }, { status });
+  }
+}
+
+// eslint-disable-next-line @typescript-eslint/no-unused-vars
+const noopProgress: ProgressCallback = (_step, _detail) => {};
+
+async function runAnalysisPipeline(request: NextRequest, onProgress: ProgressCallback = noopProgress) {
     const body = await request.json();
     const {
       images: rawImages,
@@ -80,6 +153,8 @@ export async function POST(request: NextRequest) {
     }
 
     // ── OCR pipeline (Skip for comparison/figma) ──
+    await onProgress("입력 검증 완료", `${inputType || "image"} 모드`);
+
     let ocrContext: string | undefined;
     const shouldRunOCR = inputType !== "comparison" && inputType !== "figma" && inputType !== "url" && images.length > 0;
     if (shouldRunOCR) {
@@ -89,6 +164,7 @@ export async function POST(request: NextRequest) {
           console.log("[analyze] Using client-reviewed OCR results:", ocrReview.length, "screens");
           finalOCR = ocrReview;
         } else {
+          await onProgress("화면 텍스트 추출 중", `${images.length}개 이미지 OCR 분석`);
           console.log("[analyze] Pass 1: Preprocessing", images.length, "images");
           const processedImages = await preprocessImages(images);
           console.log("[analyze] Pass 2: OCR extraction with claude-opus-4-7");
@@ -96,6 +172,7 @@ export async function POST(request: NextRequest) {
           finalOCR = validateOCRResults(rawOCR, productMode);
         }
         ocrContext = formatOCRForPrompt(finalOCR, locale || "ko");
+        await onProgress("텍스트 추출 완료", `${ocrContext.length}자 컨텍스트 확보`);
         console.log("[analyze] OCR context ready:", ocrContext.slice(0, 120));
       } catch (ocrErr) {
         console.warn("[analyze] OCR pass failed (non-fatal):", ocrErr);
@@ -175,6 +252,7 @@ export async function POST(request: NextRequest) {
     }
 
     console.log("[analyze] Dispatching to plugin:", plugin.id);
+    await onProgress("AI 분석 시작", `${plugin.id} 핸들러 실행 중`);
     const handlerResult = await plugin.handle(baseParams, {
       images,
       videos,
@@ -191,6 +269,7 @@ export async function POST(request: NextRequest) {
     });
 
     const { result, thumbnailUrls, savedFlowSteps, isComparison, comparisonData } = handlerResult;
+    await onProgress("AI 분석 완료", "리포트 구성 중");
 
     // ── Output schema validation ──
     const validation = validateHandlerOutput(result, isComparison);
@@ -395,33 +474,7 @@ export async function POST(request: NextRequest) {
       }
     }
 
+    await onProgress("리포트 생성 완료", `점수: ${topLevel.score}`);
     console.log("[analyze] Success! Verdict:", topLevel.verdict, "Score:", topLevel.score);
-    return NextResponse.json(analysis);
-  } catch (error: unknown) {
-    console.error("[analyze] ===== ERROR =====");
-    if (error && typeof error === "object") {
-      const err = error as Record<string, unknown>;
-      console.error("[analyze] status:", err.status, "| message:", err.message);
-      console.error("[analyze] error:", JSON.stringify(err.error, null, 2));
-    } else {
-      console.error("[analyze] Raw error:", error);
-    }
-
-    let message = "Analysis failed";
-    let status = 500;
-
-    if (error && typeof error === "object") {
-      const err = error as Record<string, unknown>;
-      if (err.status && typeof err.status === "number") status = err.status;
-      if (err.message && typeof err.message === "string") message = err.message;
-      if (err.error && typeof err.error === "object") {
-        const innerError = err.error as Record<string, unknown>;
-        if (innerError.message) message = `${status} ${JSON.stringify(err.error)}`;
-      }
-    } else if (error instanceof Error) {
-      message = error.message;
-    }
-
-    return NextResponse.json({ error: message }, { status });
-  }
+    return analysis;
 }
