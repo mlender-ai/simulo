@@ -214,10 +214,22 @@ async function startAnalysisWithImages() {
       type: "image",
       source: { type: "base64", media_type: "image/png", data: img.base64 },
     });
+    // 추출된 텍스트가 있으면 이미지 바로 뒤에 첨부
+    if (img.texts && img.texts.length > 0) {
+      let textList = `\n[화면 ${i + 1} 텍스트 — Figma에서 직접 추출 (OCR 아님)]\n`;
+      for (const t of img.texts) {
+        const meta: string[] = [];
+        if (t.parentName) meta.push(t.parentName);
+        if (t.fontSize) meta.push(`${t.fontSize}px`);
+        if (t.fontWeight === "bold") meta.push("볼드");
+        textList += `- "${t.text}"${meta.length ? ` (${meta.join(", ")})` : ""}\n`;
+      }
+      content.push({ type: "text", text: textList });
+    }
   });
   content.push({
     type: "text",
-    text: `가설: "${hypothesis}"\n타깃 유저: "${targetUser || "일반 사용자"}"\n\n위 화면들을 분석하여 가설에 대한 사용성 평가를 JSON으로 반환해주세요.`,
+    text: `가설: "${hypothesis}"\n타깃 유저: "${targetUser || "일반 사용자"}"\n\n위 화면들을 분석하여 가설에 대한 사용성 평가를 JSON으로 반환해주세요.\n\n중요: 각 화면의 텍스트는 Figma 레이어에서 직접 추출한 것이므로 정확합니다. 이미지에서 텍스트를 OCR로 읽지 말고 추출된 텍스트를 기준으로 분석하세요.`,
   });
 
   const systemPrompt = `You are a professional UX analysis agent for YafitMove, a Korean fitness reward app. Analyze the provided design screens against the given hypothesis and target user profile. Respond ONLY in pure JSON, no markdown, no code blocks.
@@ -244,8 +256,8 @@ async function startAnalysisWithImages() {
         "anthropic-dangerous-direct-browser-access": "true",
       },
       body: JSON.stringify({
-        model: "claude-sonnet-4-5",
-        max_tokens: 2048,
+        model: "claude-sonnet-4-20250514",
+        max_tokens: 4096,
         system: systemPrompt,
         messages: [{ role: "user", content }],
       }),

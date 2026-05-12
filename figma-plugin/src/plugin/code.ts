@@ -78,7 +78,7 @@ figma.ui.onmessage = async (msg: PluginMessage) => {
     }
 
     const nodes = selection.slice(0, 8);
-    const images: { name: string; base64: string }[] = [];
+    const images: { name: string; base64: string; texts: ExtractedText[] }[] = [];
 
     for (const node of nodes) {
       try {
@@ -88,9 +88,11 @@ figma.ui.onmessage = async (msg: PluginMessage) => {
             format: "PNG",
             constraint: { type: "SCALE", value: 1.5 },
           });
+          const texts = extractTextNodes(node);
           images.push({
             name: node.name,
             base64: uint8ToBase64(bytes),
+            texts,
           });
         }
       } catch (e) {
