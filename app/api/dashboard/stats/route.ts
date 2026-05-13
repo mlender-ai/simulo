@@ -62,6 +62,13 @@ function extractDesireScores(row: {
   return null;
 }
 
+export interface ProjectTagStat {
+  tag: string;
+  count: number;
+  avgScore: number;
+  latestScore: number;
+}
+
 export async function POST(req: Request) {
   if (!process.env.DATABASE_URL) {
     return NextResponse.json({
@@ -76,6 +83,7 @@ export async function POST(req: Request) {
       keywords: [],
       desireTimeline: [],
       projectTags: [],
+      projectTagStats: [],
     });
   }
 
@@ -251,6 +259,28 @@ export async function POST(req: Request) {
       .map((t) => t.projectTag)
       .filter((tag): tag is string => tag !== null);
 
+    // ── Project tag stats ──
+    const tagGroupMap: Record<string, { scores: number[]; latestScore: number; latestDate: Date }> = {};
+    for (const row of rows) {
+      const tagKey = row.projectTag ?? "(태그 없음)";
+      if (!tagGroupMap[tagKey]) {
+        tagGroupMap[tagKey] = { scores: [], latestScore: row.score, latestDate: row.createdAt };
+      }
+      tagGroupMap[tagKey].scores.push(row.score);
+      if (row.createdAt > tagGroupMap[tagKey].latestDate) {
+        tagGroupMap[tagKey].latestDate = row.createdAt;
+        tagGroupMap[tagKey].latestScore = row.score;
+      }
+    }
+    const projectTagStats: ProjectTagStat[] = Object.entries(tagGroupMap)
+      .map(([tag, data]) => ({
+        tag,
+        count: data.scores.length,
+        avgScore: avg(data.scores),
+        latestScore: data.latestScore,
+      }))
+      .sort((a, b) => b.avgScore - a.avgScore);
+
     return NextResponse.json({
       totalAnalyses,
       prevTotalAnalyses,
@@ -263,6 +293,7 @@ export async function POST(req: Request) {
       keywords,
       desireTimeline,
       projectTags,
+      projectTagStats,
     });
   } catch (error) {
     console.error("[dashboard/stats]", error);
