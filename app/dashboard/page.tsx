@@ -49,6 +49,13 @@ interface KeywordEntry {
   count: number;
 }
 
+interface ProjectTagStat {
+  tag: string;
+  count: number;
+  avgScore: number;
+  latestScore: number;
+}
+
 interface DashboardStats {
   totalAnalyses: number;
   prevTotalAnalyses: number;
@@ -61,6 +68,7 @@ interface DashboardStats {
   keywords: KeywordEntry[];
   desireTimeline: DesirePoint[];
   projectTags: string[];
+  projectTagStats: ProjectTagStat[];
 }
 
 interface Trend {
@@ -218,7 +226,7 @@ const EMPTY_STATS: DashboardStats = {
   avgDesire: { utility: 0, healthPride: 0, lossAversion: 0 },
   resolvedIssueRate: 0,
   scoreTimeline: [], topIssues: [], keywords: [], desireTimeline: [],
-  projectTags: [],
+  projectTags: [], projectTagStats: [],
 };
 
 function computeStatsFromLocal(analyses: AnalysisResult[], period: Period): DashboardStats {
@@ -315,6 +323,29 @@ function computeStatsFromLocal(analyses: AnalysisResult[], period: Period): Dash
 
   const projectTags = Array.from(new Set(analyses.map((a) => a.projectTag).filter((t): t is string => !!t)));
 
+  // Project tag stats
+  const tagGroupMap: Record<string, { scores: number[]; latestScore: number; latestDate: number }> = {};
+  for (const a of filtered) {
+    const tagKey = a.projectTag ?? "(태그 없음)";
+    const t = new Date(a.createdAt).getTime();
+    if (!tagGroupMap[tagKey]) {
+      tagGroupMap[tagKey] = { scores: [], latestScore: a.score, latestDate: t };
+    }
+    tagGroupMap[tagKey].scores.push(a.score);
+    if (t > tagGroupMap[tagKey].latestDate) {
+      tagGroupMap[tagKey].latestDate = t;
+      tagGroupMap[tagKey].latestScore = a.score;
+    }
+  }
+  const projectTagStats: ProjectTagStat[] = Object.entries(tagGroupMap)
+    .map(([tag, data]) => ({
+      tag,
+      count: data.scores.length,
+      avgScore: avg(data.scores),
+      latestScore: data.latestScore,
+    }))
+    .sort((a, b) => b.avgScore - a.avgScore);
+
   return {
     totalAnalyses: filtered.length,
     prevTotalAnalyses: prev.length,
@@ -331,6 +362,7 @@ function computeStatsFromLocal(analyses: AnalysisResult[], period: Period): Dash
     keywords,
     desireTimeline,
     projectTags,
+    projectTagStats,
   };
 }
 
@@ -890,6 +922,47 @@ export default function DashboardPage() {
                 </div>
               )}
             </div>
+
+            {/* ── Section 2.5: 프로젝트별 UX 점수 ── */}
+            {stats.projectTagStats.filter((s) => s.tag !== "(태그 없음)").length >= 2 && (
+              <div className="bg-[var(--surface)] border border-[var(--border)] rounded-lg p-4 sm:p-6 mb-6">
+                <h2 className="text-sm font-semibold mb-4">프로젝트별 UX 점수</h2>
+                <div className="space-y-1">
+                  {stats.projectTagStats.map((tagStat) => {
+                    const grade = getScoreGrade(tagStat.avgScore);
+                    return (
+                      <button
+                        key={tagStat.tag}
+                        onClick={() => setProjectTag(tagStat.tag === "(태그 없음)" ? "" : tagStat.tag)}
+                        className="w-full text-left px-3 py-2.5 rounded-md hover:bg-white/5 transition-colors"
+                      >
+                        <div className="flex items-center gap-4">
+                          <div className="w-32 shrink-0 min-w-0">
+                            <div className="text-sm font-medium text-white truncate">{tagStat.tag}</div>
+                            <div className="text-[10px] text-[var(--muted)]">{tagStat.count}회</div>
+                          </div>
+                          <div className="flex-1 min-w-0">
+                            <MiniBar
+                              value={tagStat.avgScore}
+                              max={100}
+                              color={grade.color}
+                              threshold={SCORE_TARGET}
+                            />
+                          </div>
+                          <div className="flex items-center gap-2 shrink-0 w-28 justify-end">
+                            <span className="text-sm font-mono text-white">{tagStat.avgScore}</span>
+                            <GradeBadge score={tagStat.avgScore} />
+                          </div>
+                        </div>
+                      </button>
+                    );
+                  })}
+                </div>
+                <div className="mt-2 text-[10px] text-[var(--muted)]">
+                  ┃ = 목표 기준 ({SCORE_TARGET}점) · 행 클릭 시 해당 프로젝트 필터 적용
+                </div>
+              </div>
+            )}
 
             {/* ── Section 3 & 4: Issues + Keywords (side by side on large) ── */}
             <div className="grid grid-cols-1 lg:grid-cols-2 gap-6 mb-6">
