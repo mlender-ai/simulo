@@ -734,12 +734,60 @@ function ChecklistView({
     sessions[0]?.id ?? null
   );
   const [severityFilter, setSeverityFilter] = useState<"all" | "critical" | "warning" | "info">("all");
+  const [showImport, setShowImport] = useState(false);
+  const [importText, setImportText] = useState("");
+  const [importError, setImportError] = useState("");
 
-  if (sessions.length === 0) {
+  const handleImport = () => {
+    setImportError("");
+    try {
+      // compact JSON 형식 또는 정규 형식 모두 지원
+      const parsed = JSON.parse(importText.trim());
+      let frames: WritingCheckFrame[];
+
+      if (Array.isArray(parsed) && parsed[0]?.f !== undefined) {
+        // compact format (from plugin)
+        frames = parsed.map((c: { f: string; s: number; i: { l: string; o: string; g: string; r: string; v: string; p: string }[] }) => ({
+          frameName: c.f,
+          score: c.s,
+          summary: "",
+          issues: c.i.map((i) => ({
+            location: i.l,
+            original: i.o,
+            suggestion: i.g,
+            reason: i.r,
+            severity: i.v as "critical" | "warning" | "info",
+            principle: i.p,
+          })),
+          strengths: [],
+        }));
+      } else if (Array.isArray(parsed) && parsed[0]?.frameName !== undefined) {
+        // full format
+        frames = parsed;
+      } else {
+        throw new Error("올바른 형식이 아닙니다");
+      }
+
+      writingStorage.save(frames);
+      onRefresh();
+      setShowImport(false);
+      setImportText("");
+    } catch {
+      setImportError("JSON 파싱 실패. 플러그인에서 복사한 데이터를 붙여넣어주세요.");
+    }
+  };
+
+  if (sessions.length === 0 && !showImport) {
     return (
       <div className="text-center py-16">
         <p className="text-[var(--muted)] text-sm mb-2">저장된 체크리스트가 없습니다</p>
-        <p className="text-white/30 text-xs">UX 라이팅 체크를 실행하면 결과가 자동으로 저장됩니다</p>
+        <p className="text-white/30 text-xs mb-6">UX 라이팅 체크를 실행하면 결과가 자동으로 저장됩니다</p>
+        <button
+          onClick={() => setShowImport(true)}
+          className="text-xs px-4 py-2 rounded-md border border-[var(--border)] text-[var(--muted)] hover:text-white hover:border-white/20 transition-colors"
+        >
+          JSON으로 가져오기
+        </button>
       </div>
     );
   }
@@ -755,6 +803,30 @@ function ChecklistView({
 
   return (
     <div className="space-y-4">
+      {/* Import panel */}
+      {showImport && (
+        <div className="border border-[var(--border)] rounded-lg p-4 space-y-3 bg-white/[0.02]">
+          <div className="flex items-center justify-between">
+            <p className="text-xs text-[var(--muted)]">플러그인 결과 JSON을 붙여넣으세요</p>
+            <button onClick={() => { setShowImport(false); setImportText(""); setImportError(""); }} className="text-xs text-[var(--muted)] hover:text-white">닫기</button>
+          </div>
+          <textarea
+            value={importText}
+            onChange={(e) => setImportText(e.target.value)}
+            placeholder='[{"f":"프레임명","s":80,"i":[...]}]'
+            className="w-full h-24 px-3 py-2 bg-white/[0.03] border border-[var(--border)] rounded-md text-xs font-mono focus:outline-none focus:border-white/30 resize-none"
+          />
+          {importError && <p className="text-xs text-red-400">{importError}</p>}
+          <button
+            onClick={handleImport}
+            disabled={!importText.trim()}
+            className="px-4 py-1.5 rounded-md text-xs font-medium bg-white text-black hover:bg-white/90 disabled:opacity-30 disabled:cursor-not-allowed"
+          >
+            가져오기
+          </button>
+        </div>
+      )}
+
       {/* Summary bar */}
       <div className="flex items-center justify-between flex-wrap gap-3">
         <div className="flex items-center gap-4 text-xs">
@@ -776,6 +848,12 @@ function ChecklistView({
             <option value="warning">주의만</option>
             <option value="info">참고만</option>
           </select>
+          <button
+            onClick={() => setShowImport(!showImport)}
+            className="text-xs px-3 py-1.5 rounded-md border border-[var(--border)] text-[var(--muted)] hover:text-white hover:border-white/20 transition-colors"
+          >
+            가져오기
+          </button>
           <button
             onClick={() => onExportCSV(sessions)}
             className="text-xs px-3 py-1.5 rounded-md border border-[var(--border)] text-[var(--muted)] hover:text-white hover:border-white/20 transition-colors"

@@ -65,6 +65,7 @@ type PluginMessage =
   | { type: "load-api-key" }
   | { type: "save-simulo-url"; url: string }
   | { type: "load-simulo-url" }
+  | { type: "open-external"; url: string }
   | { type: "close" };
 
 figma.ui.onmessage = async (msg: PluginMessage) => {
@@ -191,6 +192,10 @@ figma.ui.onmessage = async (msg: PluginMessage) => {
   if (msg.type === "load-simulo-url") {
     const url = await figma.clientStorage.getAsync("simulo_url");
     figma.ui.postMessage({ type: "simulo-url-loaded", url: url || "" });
+  }
+
+  if (msg.type === "open-external") {
+    figma.openExternal(msg.url);
   }
 
   if (msg.type === "close") {

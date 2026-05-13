@@ -767,10 +767,21 @@ function exportToSimulo() {
   const json = JSON.stringify(compact);
   const encoded = btoa(unescape(encodeURIComponent(json)));
 
-  // URL hash로 데이터 전달 (hash는 서버로 전송되지 않아 크기 제한 없음)
+  // JSON을 클립보드에도 복사 (수동 import 대안)
+  try { navigator.clipboard.writeText(json); } catch { /* sandbox에서 실패 가능 */ }
+
+  // URL hash로 데이터 전달
   const baseUrl = getSimuloBaseUrl();
   const url = `${baseUrl}/ux-writing?tab=checklist#import=${encoded}`;
-  window.open(url, "_blank");
+
+  // Figma 플러그인 iframe에서는 window.open이 차단됨
+  // plugin sandbox의 figma.openExternal()을 통해 외부 URL 열기
+  parent.postMessage({ pluginMessage: { type: "open-external", url } }, "*");
+
+  // 알림
+  updateLoadingMsg("Simulo 페이지를 여는 중...");
+  $("loading").className = "loading visible";
+  setTimeout(() => { $("loading").className = "loading"; }, 1500);
 }
 
 function getSimuloBaseUrl(): string {
