@@ -70,8 +70,9 @@ function escapeHtml(s: string): string {
 
 // -------- Initialization --------
 window.addEventListener("DOMContentLoaded", () => {
-  // Request saved API key from plugin sandbox (persisted via figma.clientStorage)
+  // Request saved API key and Simulo URL from plugin sandbox
   parent.postMessage({ pluginMessage: { type: "load-api-key" } }, "*");
+  parent.postMessage({ pluginMessage: { type: "load-simulo-url" } }, "*");
 
   // Save API key on change
   $("apiKey").addEventListener("change", (e) => {
@@ -79,6 +80,12 @@ window.addEventListener("DOMContentLoaded", () => {
     if (val) {
       parent.postMessage({ pluginMessage: { type: "save-api-key", key: val } }, "*");
     }
+  });
+
+  // Save Simulo URL on change
+  $("simuloUrl").addEventListener("change", (e) => {
+    const val = (e.target as HTMLInputElement).value.trim();
+    parent.postMessage({ pluginMessage: { type: "save-simulo-url", url: val } }, "*");
   });
 
   $("settingsToggle").addEventListener("click", () => {
@@ -120,6 +127,13 @@ window.onmessage = (event) => {
     const key = msg.key as string;
     if (key) {
       $<HTMLInputElement>("apiKey").value = key;
+    }
+  }
+
+  if (msg.type === "simulo-url-loaded") {
+    const url = msg.url as string;
+    if (url) {
+      $<HTMLInputElement>("simuloUrl").value = url;
     }
   }
 
@@ -736,36 +750,30 @@ function exportWritingCSV() {
 function exportToSimulo() {
   if (lastWritingResults.length === 0) return;
 
-  // localStorage에 직접 저장 (같은 origin이 아니므로 postMessage로 Simulo 웹에 전달)
-  // Figma 플러그인은 iframe이므로 window.open으로 Simulo 페이지를 열고 데이터를 전달
-  const payload = {
-    type: "simulo-writing-import",
-    frames: lastWritingResults,
-    createdAt: new Date().toISOString(),
-  };
+  // 결과를 압축된 JSON으로 변환 (필수 필드만)
+  const compact = lastWritingResults.map((frame) => ({
+    f: frame.frameName,
+    s: frame.score,
+    i: frame.issues.map((issue) => ({
+      l: issue.location,
+      o: issue.original,
+      g: issue.suggestion,
+      r: issue.reason,
+      v: issue.severity,
+      p: issue.principle,
+    })),
+  }));
 
-  // 클립보드에 복사 + 안내
-  const text = lastWritingResults.flatMap((frame) =>
-    frame.issues.map((i) => `[${frame.frameName} / ${i.location}]\nDon't: ${i.original}\nDo: ${i.suggestion}\n원칙: ${i.principle}\n사유: ${i.reason}`)
-  ).join("\n\n");
+  const json = JSON.stringify(compact);
+  const encoded = btoa(unescape(encodeURIComponent(json)));
 
-  navigator.clipboard.writeText(text).then(() => {
-    // Simulo 웹 페이지 열기 (쿼리파라미터로 import 시그널)
-    const simuloUrl = getSimuloBaseUrl() + "/ux-writing?import=clipboard";
-    window.open(simuloUrl, "_blank");
-  }).catch(() => {
-    // 클립보드 실패 시 fallback: JSON을 localStorage에 저장 시도
-    try {
-      const key = "simulo_writing_import_" + Date.now();
-      localStorage.setItem(key, JSON.stringify(payload));
-      window.open(getSimuloBaseUrl() + "/ux-writing?import=" + key, "_blank");
-    } catch {
-      showError("내보내기에 실패했습니다. CSV 내보내기를 사용해주세요.");
-    }
-  });
+  // URL hash로 데이터 전달 (hash는 서버로 전송되지 않아 크기 제한 없음)
+  const baseUrl = getSimuloBaseUrl();
+  const url = `${baseUrl}/ux-writing?tab=checklist#import=${encoded}`;
+  window.open(url, "_blank");
 }
 
 function getSimuloBaseUrl(): string {
-  // 프로덕션 또는 로컬 환경 판별
-  return "https://simulo.vercel.app";
+  const custom = $<HTMLInputElement>("simuloUrl").value.trim();
+  return custom || "https://simulo.vercel.app";
 }

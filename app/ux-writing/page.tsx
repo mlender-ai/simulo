@@ -81,10 +81,50 @@ export default function UxWritingPage() {
   // Checklist state
   const [sessions, setSessions] = useState<WritingCheckSession[]>([]);
 
-  // Load saved data
+  // Load saved data + handle plugin import via hash fragment
   useEffect(() => {
     const saved = localStorage.getItem("simulo_figma_token");
     if (saved) setFigmaToken(saved);
+
+    // URL 쿼리에서 tab 파라미터 처리
+    const params = new URLSearchParams(window.location.search);
+    if (params.get("tab") === "checklist") {
+      setPageTab("checklist");
+    }
+
+    // hash fragment에서 플러그인 데이터 import 처리
+    const hash = window.location.hash;
+    if (hash.startsWith("#import=")) {
+      try {
+        const encoded = hash.slice("#import=".length);
+        const json = decodeURIComponent(escape(atob(encoded)));
+        const compact = JSON.parse(json) as { f: string; s: number; i: { l: string; o: string; g: string; r: string; v: string; p: string }[] }[];
+
+        // 압축 형식을 정규 형식으로 변환
+        const frames: WritingCheckFrame[] = compact.map((c) => ({
+          frameName: c.f,
+          score: c.s,
+          summary: "",
+          issues: c.i.map((i) => ({
+            location: i.l,
+            original: i.o,
+            suggestion: i.g,
+            reason: i.r,
+            severity: i.v as "critical" | "warning" | "info",
+            principle: i.p,
+          })),
+          strengths: [],
+        }));
+
+        writingStorage.save(frames);
+        setPageTab("checklist");
+        // hash 제거 (히스토리 변경 없이)
+        history.replaceState(null, "", window.location.pathname + window.location.search);
+      } catch (e) {
+        console.error("[ux-writing] import 실패:", e);
+      }
+    }
+
     setSessions(writingStorage.getAll());
   }, []);
 

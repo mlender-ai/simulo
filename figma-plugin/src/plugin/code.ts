@@ -63,6 +63,8 @@ type PluginMessage =
   | { type: "get-file-info" }
   | { type: "save-api-key"; key: string }
   | { type: "load-api-key" }
+  | { type: "save-simulo-url"; url: string }
+  | { type: "load-simulo-url" }
   | { type: "close" };
 
 figma.ui.onmessage = async (msg: PluginMessage) => {
@@ -180,6 +182,15 @@ figma.ui.onmessage = async (msg: PluginMessage) => {
   if (msg.type === "load-api-key") {
     const key = await figma.clientStorage.getAsync("simulo_api_key");
     figma.ui.postMessage({ type: "api-key-loaded", key: key || "" });
+  }
+
+  if (msg.type === "save-simulo-url") {
+    await figma.clientStorage.setAsync("simulo_url", msg.url);
+  }
+
+  if (msg.type === "load-simulo-url") {
+    const url = await figma.clientStorage.getAsync("simulo_url");
+    figma.ui.postMessage({ type: "simulo-url-loaded", url: url || "" });
   }
 
   if (msg.type === "close") {
