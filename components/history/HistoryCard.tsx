@@ -43,6 +43,7 @@ interface HistoryCardProps {
   selected: boolean;
   onToggleSelect: (id: string) => void;
   onReanalyze: (analysis: AnalysisResult) => void;
+  onTagClick?: (tag: string) => void;
 }
 
 export function HistoryCard({
@@ -53,6 +54,7 @@ export function HistoryCard({
   selected,
   onToggleSelect,
   onReanalyze,
+  onTagClick,
 }: HistoryCardProps) {
   const verdictKey = analysis.verdict as "Pass" | "Partial" | "Fail";
   const rowMode = analysis.mode ?? "hypothesis";
@@ -163,7 +165,10 @@ export function HistoryCard({
                   </span>
                 )}
                 {analysis.projectTag && !analysis.isImprovement && (
-                  <span className="px-1.5 py-0.5 rounded bg-white/5 border border-[var(--border)] text-[11px]">
+                  <span
+                    className={`px-1.5 py-0.5 rounded bg-white/5 border border-[var(--border)] text-[11px] ${onTagClick ? "cursor-pointer hover:bg-white/10 hover:border-white/20 transition-colors" : ""}`}
+                    onClick={onTagClick ? (e) => { e.preventDefault(); e.stopPropagation(); onTagClick(analysis.projectTag as string); } : undefined}
+                  >
                     {analysis.projectTag}
                   </span>
                 )}

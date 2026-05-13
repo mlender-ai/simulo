@@ -29,7 +29,7 @@ function run(cmd: string): { output: string; exitCode: number } {
 function readFileIfExists(filePath: string): string {
   const full = path.resolve(ROOT, filePath);
   if (fs.existsSync(full)) {
-    return fs.readFileSync(full, "utf-8").slice(0, 3000);
+    return fs.readFileSync(full, "utf-8").slice(0, 10000);
   }
   return "";
 }

@@ -19,6 +19,7 @@ export default function HistoryPage() {
     verdictFilter, setVerdictFilter,
     modeFilter, setModeFilter,
     inputTypeFilter, setInputTypeFilter,
+    projectTagFilter, setProjectTagFilter,
     fromDate, setFromDate,
     toDate, setToDate,
     hasActiveFilter,
@@ -26,6 +27,7 @@ export default function HistoryPage() {
     bulkMode, setBulkMode,
     selectedIds,
     availableInputTypes,
+    availableProjectTags,
     filtered,
     roots,
     parentMap,
@@ -104,6 +106,18 @@ export default function HistoryPage() {
             <option value="Partial">{t("Partial", locale)}</option>
             <option value="Fail">{t("Fail", locale)}</option>
           </select>
+          {availableProjectTags.length > 1 && (
+            <select
+              value={projectTagFilter}
+              onChange={(e) => setProjectTagFilter(e.target.value)}
+              className="flex-1 sm:flex-none px-3 py-2.5 bg-[var(--surface)] border border-[var(--border)] rounded-md text-sm focus:outline-none min-h-[44px]"
+            >
+              <option value="all">전체 태그</option>
+              {availableProjectTags.map((tag) => (
+                <option key={tag} value={tag}>{tag}</option>
+              ))}
+            </select>
+          )}
         </div>
       </div>
 
@@ -194,6 +208,7 @@ export default function HistoryPage() {
                         selected={selectedIds.has(analysis.id)}
                         onToggleSelect={toggleSelect}
                         onReanalyze={handleReanalyze}
+                        onTagClick={(tag) => setProjectTagFilter(projectTagFilter === tag ? "all" : tag)}
                       />
                       {children.map((child) => (
                         <HistoryCard
@@ -205,6 +220,7 @@ export default function HistoryPage() {
                           selected={selectedIds.has(child.id)}
                           onToggleSelect={toggleSelect}
                           onReanalyze={handleReanalyze}
+                          onTagClick={(tag) => setProjectTagFilter(projectTagFilter === tag ? "all" : tag)}
                         />
                       ))}
                     </div>

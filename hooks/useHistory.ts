@@ -58,6 +58,7 @@ export function useHistory(locale: Locale) {
   const [verdictFilter, setVerdictFilter] = useState("all");
   const [modeFilter, setModeFilter] = useState("all");
   const [inputTypeFilter, setInputTypeFilter] = useState("all");
+  const [projectTagFilter, setProjectTagFilter] = useState("all");
   const [fromDate, setFromDate] = useState("");
   const [toDate, setToDate] = useState("");
   const [bulkMode, setBulkMode] = useState(false);
@@ -81,6 +82,10 @@ export function useHistory(locale: Locale) {
     new Set(analyses.map((a) => a.inputType).filter(Boolean))
   );
 
+  const availableProjectTags = Array.from(
+    new Set(analyses.map((a) => a.projectTag).filter(Boolean))
+  ).sort() as string[];
+
   const filtered = analyses.filter((a) => {
     const matchSearch =
       !filter ||
@@ -89,19 +94,21 @@ export function useHistory(locale: Locale) {
     const matchVerdict = verdictFilter === "all" || a.verdict === verdictFilter;
     const matchMode = modeFilter === "all" || (a.mode ?? "hypothesis") === modeFilter;
     const matchInput = inputTypeFilter === "all" || a.inputType === inputTypeFilter;
+    const matchTag = projectTagFilter === "all" || a.projectTag === projectTagFilter;
     const createdDate = a.createdAt.slice(0, 10);
     const matchFrom = !fromDate || createdDate >= fromDate;
     const matchTo = !toDate || createdDate <= toDate;
-    return matchSearch && matchVerdict && matchMode && matchInput && matchFrom && matchTo;
+    return matchSearch && matchVerdict && matchMode && matchInput && matchTag && matchFrom && matchTo;
   });
 
-  const hasActiveFilter = !!filter || verdictFilter !== "all" || modeFilter !== "all" || inputTypeFilter !== "all" || !!fromDate || !!toDate;
+  const hasActiveFilter = !!filter || verdictFilter !== "all" || modeFilter !== "all" || inputTypeFilter !== "all" || projectTagFilter !== "all" || !!fromDate || !!toDate;
 
   const clearFilters = useCallback(() => {
     setFilter("");
     setVerdictFilter("all");
     setModeFilter("all");
     setInputTypeFilter("all");
+    setProjectTagFilter("all");
     setFromDate("");
     setToDate("");
   }, []);
@@ -113,7 +120,7 @@ export function useHistory(locale: Locale) {
   const toggleSelect = useCallback((id: string) => {
     setSelectedIds((prev) => {
       const next = new Set(prev);
-      next.has(id) ? next.delete(id) : next.add(id);
+      if (next.has(id)) { next.delete(id); } else { next.add(id); }
       return next;
     });
   }, []);
@@ -141,6 +148,7 @@ export function useHistory(locale: Locale) {
     verdictFilter, setVerdictFilter,
     modeFilter, setModeFilter,
     inputTypeFilter, setInputTypeFilter,
+    projectTagFilter, setProjectTagFilter,
     fromDate, setFromDate,
     toDate, setToDate,
     hasActiveFilter,
@@ -148,6 +156,7 @@ export function useHistory(locale: Locale) {
     bulkMode, setBulkMode,
     selectedIds,
     availableInputTypes,
+    availableProjectTags,
     filtered,
     roots,
     parentMap,
