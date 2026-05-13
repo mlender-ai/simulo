@@ -52,6 +52,7 @@ interface WritingCheckResult {
 
 let selectedImages: ImageItem[] = [];
 let currentMode: "analysis" | "writing" = "analysis";
+let lastWritingResults: WritingCheckResult[] = [];
 
 // -------- DOM helpers --------
 function $<T extends HTMLElement = HTMLElement>(id: string): T {
@@ -88,6 +89,8 @@ window.addEventListener("DOMContentLoaded", () => {
   $("runWritingBtn").addEventListener("click", runWritingCheck);
   $("resetBtn").addEventListener("click", resetToInput);
   $("writingResetBtn").addEventListener("click", resetToInput);
+  $("exportCsvBtn").addEventListener("click", exportWritingCSV);
+  $("exportSimuloBtn").addEventListener("click", exportToSimulo);
 
   // Mode toggle
   document.querySelectorAll(".mode-tab").forEach((tab) => {
@@ -352,8 +355,9 @@ function switchTab(tab: string) {
 function resetToInput() {
   $("report").className = "report";
   $("writingReport").className = "writing-report";
-  $("writingResetBtn").style.display = "none";
+  $("writingActions").style.display = "none";
   selectedImages = [];
+  lastWritingResults = [];
 
   if (currentMode === "analysis") {
     $("inputForm").style.display = "flex";
@@ -651,8 +655,11 @@ function showWritingReport(results: WritingCheckResult[]) {
   container.innerHTML = html;
   container.className = "writing-report visible";
 
-  // Show reset button
-  $("writingResetBtn").style.display = "block";
+  // Store results for export
+  lastWritingResults = results;
+
+  // Show action buttons
+  $("writingActions").style.display = "block";
 }
 
 // -------- Loading / error helpers --------
@@ -679,4 +686,86 @@ function showError(msg: string) {
 }
 function hideError() {
   $("errorMsg").className = "error-msg";
+}
+
+// -------- Export functions --------
+
+function writingResultsToCSV(results: WritingCheckResult[]): string {
+  const BOM = "\uFEFF";
+  const header = ["프레임", "위치", "심각도", "원칙", "현재 문구 (Don't)", "제안 문구 (Do)", "사유"].join(",");
+  const rows: string[] = [];
+
+  for (const frame of results) {
+    if (frame.issues.length === 0) {
+      rows.push([csvEsc(frame.frameName), "", "", "", "", "", "이슈 없음"].join(","));
+      continue;
+    }
+    for (const issue of frame.issues) {
+      rows.push([
+        csvEsc(frame.frameName),
+        csvEsc(issue.location),
+        issue.severity === "critical" ? "심각" : issue.severity === "warning" ? "주의" : "참고",
+        csvEsc(issue.principle),
+        csvEsc(issue.original),
+        csvEsc(issue.suggestion),
+        csvEsc(issue.reason),
+      ].join(","));
+    }
+  }
+
+  return BOM + header + "\n" + rows.join("\n");
+}
+
+function csvEsc(value: string): string {
+  if (!value) return "";
+  return `"${value.replace(/"/g, '""')}"`;
+}
+
+function exportWritingCSV() {
+  if (lastWritingResults.length === 0) return;
+  const csv = writingResultsToCSV(lastWritingResults);
+  const blob = new Blob([csv], { type: "text/csv;charset=utf-8;" });
+  const url = URL.createObjectURL(blob);
+  const a = document.createElement("a");
+  a.href = url;
+  a.download = `ux-writing-${new Date().toISOString().slice(0, 10)}.csv`;
+  a.click();
+  URL.revokeObjectURL(url);
+}
+
+function exportToSimulo() {
+  if (lastWritingResults.length === 0) return;
+
+  // localStorage에 직접 저장 (같은 origin이 아니므로 postMessage로 Simulo 웹에 전달)
+  // Figma 플러그인은 iframe이므로 window.open으로 Simulo 페이지를 열고 데이터를 전달
+  const payload = {
+    type: "simulo-writing-import",
+    frames: lastWritingResults,
+    createdAt: new Date().toISOString(),
+  };
+
+  // 클립보드에 복사 + 안내
+  const text = lastWritingResults.flatMap((frame) =>
+    frame.issues.map((i) => `[${frame.frameName} / ${i.location}]\nDon't: ${i.original}\nDo: ${i.suggestion}\n원칙: ${i.principle}\n사유: ${i.reason}`)
+  ).join("\n\n");
+
+  navigator.clipboard.writeText(text).then(() => {
+    // Simulo 웹 페이지 열기 (쿼리파라미터로 import 시그널)
+    const simuloUrl = getSimuloBaseUrl() + "/ux-writing?import=clipboard";
+    window.open(simuloUrl, "_blank");
+  }).catch(() => {
+    // 클립보드 실패 시 fallback: JSON을 localStorage에 저장 시도
+    try {
+      const key = "simulo_writing_import_" + Date.now();
+      localStorage.setItem(key, JSON.stringify(payload));
+      window.open(getSimuloBaseUrl() + "/ux-writing?import=" + key, "_blank");
+    } catch {
+      showError("내보내기에 실패했습니다. CSV 내보내기를 사용해주세요.");
+    }
+  });
+}
+
+function getSimuloBaseUrl(): string {
+  // 프로덕션 또는 로컬 환경 판별
+  return "https://simulo.vercel.app";
 }

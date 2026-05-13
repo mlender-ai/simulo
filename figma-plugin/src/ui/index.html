@@ -434,6 +434,12 @@
   </div>
 
   <div class="writing-report" id="writingReport"></div>
-  <button class="btn-secondary" id="writingResetBtn" style="display:none;margin:0 16px 16px">← 다시 체크</button>
+  <div id="writingActions" style="display:none;padding:0 16px 16px;display:none;">
+    <div style="display:flex;gap:8px;margin-bottom:8px;">
+      <button class="btn-secondary" id="exportCsvBtn" style="margin:0;flex:1;">CSV 내보내기</button>
+      <button class="btn-secondary" id="exportSimuloBtn" style="margin:0;flex:1;">Simulo에 저장</button>
+    </div>
+    <button class="btn-secondary" id="writingResetBtn" style="margin:0;">← 다시 체크</button>
+  </div>
 </body>
 </html>
