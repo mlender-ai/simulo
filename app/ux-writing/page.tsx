@@ -730,9 +730,7 @@ function ChecklistView({
   onExportCSV: (sessions: WritingCheckSession[]) => void;
   onRefresh: () => void;
 }) {
-  const [expandedSession, setExpandedSession] = useState<string | null>(
-    sessions[0]?.id ?? null
-  );
+  const [collapsedSessions, setCollapsedSessions] = useState<Set<string>>(new Set());
   const [severityFilter, setSeverityFilter] = useState<"all" | "critical" | "warning" | "info">("all");
   const [showImport, setShowImport] = useState(false);
   const [importText, setImportText] = useState("");
@@ -865,7 +863,7 @@ function ChecklistView({
 
       {/* Sessions */}
       {sessions.map((session) => {
-        const isExpanded = expandedSession === session.id;
+        const isExpanded = !collapsedSessions.has(session.id);
         const sessionIssues = session.frames.flatMap((f) =>
           f.issues
             .filter((i) => severityFilter === "all" || i.severity === severityFilter)
@@ -882,7 +880,12 @@ function ChecklistView({
           >
             {/* Session header */}
             <button
-              onClick={() => setExpandedSession(isExpanded ? null : session.id)}
+              onClick={() => setCollapsedSessions((prev) => {
+                const next = new Set(prev);
+                if (isExpanded) next.add(session.id);
+                else next.delete(session.id);
+                return next;
+              })}
               className="w-full flex items-center justify-between px-4 py-3 bg-white/[0.02] hover:bg-white/[0.04] transition-colors text-left"
             >
               <div className="flex items-center gap-3 min-w-0">
