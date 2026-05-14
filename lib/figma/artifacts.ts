@@ -343,7 +343,7 @@ export function generateFlowSVG(userFlow: UserFlow[], screens: Screen[]): string
     allNodes.add(from);
     allNodes.add(to);
     if (!outEdges.has(from)) outEdges.set(from, []);
-    outEdges.get(from)!.push({ to, trigger });
+    outEdges.get(from)?.push({ to, trigger });
     inDegree.set(to, (inDegree.get(to) ?? 0) + 1);
   });
 
