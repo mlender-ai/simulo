@@ -25,6 +25,7 @@ export default function SettingsPage() {
   const [saved, setSaved] = useState(false);
   const [storageUsage, setStorageUsage] = useState<StorageUsage | null>(null);
   const [clearMsg, setClearMsg] = useState("");
+  const [googleConnected, setGoogleConnected] = useState(false);
 
   const refreshStorageUsage = useCallback(async () => {
     const usage = await storage.getStorageUsageAsync();
@@ -37,7 +38,17 @@ export default function SettingsPage() {
     setFigmaToken(localStorage.getItem("simulo_figma_token") ?? "");
     setModel((localStorage.getItem("simulo_model") as "haiku" | "sonnet") || "haiku");
     setOcrReviewMode(localStorage.getItem("simulo_ocr_review") === "true");
+    setGoogleConnected(!!localStorage.getItem("simulo_google_tokens"));
     refreshStorageUsage();
+
+    // Google OAuth 콜백 메시지 수신
+    const handleMessage = (e: MessageEvent) => {
+      if (e.data?.type === "google-auth-success") {
+        setGoogleConnected(true);
+      }
+    };
+    window.addEventListener("message", handleMessage);
+    return () => window.removeEventListener("message", handleMessage);
   }, [refreshStorageUsage]);
 
   const handleLocaleChange = (newLocale: Locale) => {
@@ -286,11 +297,46 @@ export default function SettingsPage() {
           )}
         </div>
 
-        {/* Coming Soon */}
+        {/* Integrations */}
         <div className="pt-6 border-t border-[var(--border)] space-y-4">
           <h2 className="text-xs text-[var(--muted)] uppercase tracking-wider">
             {t("integrations", locale)}
           </h2>
+
+          {/* Google Sheets */}
+          <div className="flex items-center justify-between p-3 rounded-lg border border-[var(--border)] bg-[var(--surface)]">
+            <div>
+              <span className="text-sm">Google Sheets</span>
+              <p className="text-xs text-[var(--muted)] mt-0.5">
+                UX 라이팅 체크리스트를 구글 시트로 내보내기
+              </p>
+            </div>
+            {googleConnected ? (
+              <div className="flex items-center gap-2">
+                <span className="text-xs text-emerald-400">연동됨</span>
+                <button
+                  onClick={() => {
+                    localStorage.removeItem("simulo_google_tokens");
+                    setGoogleConnected(false);
+                  }}
+                  className="text-xs px-2 py-1 rounded border border-[var(--border)] text-[var(--muted)] hover:text-white hover:border-white/20 transition-colors"
+                >
+                  연결 해제
+                </button>
+              </div>
+            ) : (
+              <button
+                onClick={() => {
+                  window.open("/api/google/auth", "google-auth", "width=500,height=600");
+                }}
+                className="text-xs px-3 py-1.5 rounded-md bg-white text-black hover:bg-white/90 font-medium transition-colors"
+              >
+                Google 계정 연동
+              </button>
+            )}
+          </div>
+
+          {/* Coming Soon */}
           {["Slack Webhook", "Google Analytics", "Figma Plugin"].map(
             (name) => (
               <div

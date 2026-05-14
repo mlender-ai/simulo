@@ -809,6 +809,54 @@ function ChecklistView({
   const [showImport, setShowImport] = useState(false);
   const [importText, setImportText] = useState("");
   const [importError, setImportError] = useState("");
+  const [sheetsExporting, setSheetsExporting] = useState(false);
+  const [sheetsMsg, setSheetsMsg] = useState<{ type: "success" | "error"; text: string; url?: string } | null>(null);
+
+  const exportToGoogleSheets = async (targetSessions: WritingCheckSession[]) => {
+    const raw = localStorage.getItem("simulo_google_tokens");
+    if (!raw) {
+      setSheetsMsg({ type: "error", text: "Google 계정이 연동되지 않았습니다. 설정에서 연동해주세요." });
+      setTimeout(() => setSheetsMsg(null), 4000);
+      return;
+    }
+
+    setSheetsExporting(true);
+    setSheetsMsg(null);
+
+    try {
+      const tokens = JSON.parse(raw);
+      const res = await fetch("/api/google/sheets", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({
+          accessToken: tokens.access_token,
+          refreshToken: tokens.refresh_token,
+          sessions: targetSessions,
+        }),
+      });
+
+      const data = await res.json();
+
+      if (!res.ok) {
+        if (data.error === "google_token_expired") {
+          localStorage.removeItem("simulo_google_tokens");
+          setSheetsMsg({ type: "error", text: "Google 인증이 만료되었습니다. 설정에서 다시 연동해주세요." });
+        } else {
+          setSheetsMsg({ type: "error", text: data.error || "내보내기 실패" });
+        }
+        setTimeout(() => setSheetsMsg(null), 5000);
+        return;
+      }
+
+      setSheetsMsg({ type: "success", text: "구글 시트가 생성되었습니다!", url: data.url });
+      window.open(data.url, "_blank");
+    } catch {
+      setSheetsMsg({ type: "error", text: "네트워크 오류" });
+      setTimeout(() => setSheetsMsg(null), 4000);
+    } finally {
+      setSheetsExporting(false);
+    }
+  };
 
   const handleImport = () => {
     setImportError("");
@@ -942,8 +990,39 @@ function ChecklistView({
           >
             전체 CSV 내보내기
           </button>
+          <button
+            onClick={() => exportToGoogleSheets(sessions)}
+            disabled={sheetsExporting}
+            className="text-xs px-3 py-1.5 rounded-md bg-emerald-600/80 text-white hover:bg-emerald-600 disabled:opacity-50 disabled:cursor-not-allowed transition-colors font-medium"
+          >
+            {sheetsExporting ? "내보내는 중..." : "구글 시트로 내보내기"}
+          </button>
         </div>
       </div>
+
+      {/* Google Sheets message */}
+      {sheetsMsg && (
+        <div className={`flex items-center gap-2 px-3 py-2 rounded-md text-xs ${
+          sheetsMsg.type === "success"
+            ? "bg-emerald-500/10 border border-emerald-500/20 text-emerald-400"
+            : "bg-red-500/10 border border-red-500/20 text-red-400"
+        }`}>
+          <span>{sheetsMsg.text}</span>
+          {sheetsMsg.url && (
+            <a
+              href={sheetsMsg.url}
+              target="_blank"
+              rel="noopener noreferrer"
+              className="underline hover:text-white transition-colors"
+            >
+              시트 열기
+            </a>
+          )}
+          <button onClick={() => setSheetsMsg(null)} className="ml-auto text-white/30 hover:text-white/60">
+            x
+          </button>
+        </div>
+      )}
 
       {/* Sessions */}
       {sessions.map((session) => {
@@ -1084,6 +1163,13 @@ function ChecklistView({
                     className="text-[11px] px-2.5 py-1 rounded border border-[var(--border)] text-[var(--muted)] hover:text-white hover:border-white/20 transition-colors"
                   >
                     CSV 내보내기
+                  </button>
+                  <button
+                    onClick={() => exportToGoogleSheets([session])}
+                    disabled={sheetsExporting}
+                    className="text-[11px] px-2.5 py-1 rounded bg-emerald-600/60 text-white hover:bg-emerald-600/80 disabled:opacity-50 transition-colors"
+                  >
+                    구글 시트
                   </button>
                   <button
                     onClick={() => {
