@@ -1,12 +1,13 @@
 /* eslint-disable @next/next/no-img-element */
 "use client";
 
-import { useState, useEffect, useRef } from "react";
+import { useState, useEffect, useRef, useMemo } from "react";
 import { t, tMode, type Locale } from "@/lib/i18n";
 import type { ProductMode } from "@/lib/productMode";
 import { getDomainFocuses } from "@/lib/domainFocuses";
 import { HYPOTHESIS_TEMPLATES } from "@/lib/hypothesisTemplates";
 import { Tooltip } from "@/components/Tooltip";
+import { storage } from "@/lib/storage";
 import { ImageUploadTab } from "./input/ImageUploadTab";
 import { FigmaTab } from "./input/FigmaTab";
 import { FlowInputTab } from "./input/FlowInputTab";
@@ -200,6 +201,19 @@ export function InputSection({
       }
     }
     // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, []);
+
+  const recentTags = useMemo(() => {
+    try {
+      const all = storage.getAll();
+      const tags = new Set<string>();
+      for (const a of all) {
+        if (a.projectTag) tags.add(a.projectTag);
+      }
+      return Array.from(tags).slice(0, 20);
+    } catch {
+      return [];
+    }
   }, []);
 
   const tabs: {
@@ -685,8 +699,16 @@ export function InputSection({
                 value={projectTag}
                 onChange={(e) => onProjectTagChange(e.target.value)}
                 placeholder={tMode("projectTagPlaceholder", locale, productMode)}
+                list="project-tag-list"
                 className="w-full px-4 py-2.5 bg-white/[0.03] border border-[var(--border)] rounded-md text-sm focus:outline-none focus:border-white/30"
               />
+              {recentTags.length > 0 && (
+                <datalist id="project-tag-list">
+                  {recentTags.map((tag) => (
+                    <option key={tag} value={tag} />
+                  ))}
+                </datalist>
+              )}
             </div>
           </div>
         )}
