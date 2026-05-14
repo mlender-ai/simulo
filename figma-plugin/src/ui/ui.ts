@@ -10,6 +10,7 @@ interface ExtractedText {
 
 interface ImageItem {
   name: string;
+  nodeId?: string;
   base64: string;
   texts?: ExtractedText[];
 }
@@ -47,12 +48,14 @@ interface WritingCheckResult {
   issues: WritingIssue[];
   strengths: string[];
   frameName: string;
+  figmaNodeId?: string;
   screenLevel?: ScreenLevel;
 }
 
 let selectedImages: ImageItem[] = [];
 let currentMode: "analysis" | "writing" = "analysis";
 let lastWritingResults: WritingCheckResult[] = [];
+let lastFileKey = "";
 
 // -------- DOM helpers --------
 function $<T extends HTMLElement = HTMLElement>(id: string): T {
@@ -152,6 +155,7 @@ window.onmessage = (event) => {
 
   if (msg.type === "writing-selection-ready") {
     const frames = msg.frames as ImageItem[];
+    lastFileKey = (msg.fileKey as string) || "";
     startWritingCheck(frames);
   }
 
@@ -581,7 +585,7 @@ CTA는 누른 뒤 무엇이 일어날지 직접 말한다.
       const raw: string = data.content?.[0]?.text ?? "";
       const cleaned = raw.replace(/```json\n?/g, "").replace(/```\n?/g, "").trim();
       const result = JSON.parse(cleaned);
-      allResults.push({ ...result, frameName: frames[i].name });
+      allResults.push({ ...result, frameName: frames[i].name, figmaNodeId: frames[i].nodeId });
     }
 
     showWritingReport(allResults);
@@ -751,18 +755,22 @@ function exportToSimulo() {
   if (lastWritingResults.length === 0) return;
 
   // 결과를 압축된 JSON으로 변환 (필수 필드만)
-  const compact = lastWritingResults.map((frame) => ({
-    f: frame.frameName,
-    s: frame.score,
-    i: frame.issues.map((issue) => ({
-      l: issue.location,
-      o: issue.original,
-      g: issue.suggestion,
-      r: issue.reason,
-      v: issue.severity,
-      p: issue.principle,
+  const compact = {
+    fk: lastFileKey,
+    frames: lastWritingResults.map((frame) => ({
+      f: frame.frameName,
+      n: frame.figmaNodeId || "",
+      s: frame.score,
+      i: frame.issues.map((issue) => ({
+        l: issue.location,
+        o: issue.original,
+        g: issue.suggestion,
+        r: issue.reason,
+        v: issue.severity,
+        p: issue.principle,
+      })),
     })),
-  }));
+  };
 
   const json = JSON.stringify(compact);
   const encoded = btoa(unescape(encodeURIComponent(json)));

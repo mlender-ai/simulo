@@ -81,6 +81,15 @@ export default function UxWritingPage() {
   // Checklist state
   const [sessions, setSessions] = useState<WritingCheckSession[]>([]);
 
+  // Toast state
+  const [toast, setToast] = useState<string | null>(null);
+  const toastTimer = useRef<ReturnType<typeof setTimeout> | null>(null);
+  const showToast = useCallback((msg: string) => {
+    setToast(msg);
+    if (toastTimer.current) clearTimeout(toastTimer.current);
+    toastTimer.current = setTimeout(() => setToast(null), 3000);
+  }, []);
+
   // Load saved data + handle plugin import via hash fragment
   useEffect(() => {
     const saved = localStorage.getItem("simulo_figma_token");
@@ -98,10 +107,21 @@ export default function UxWritingPage() {
       try {
         const encoded = hash.slice("#import=".length);
         const json = decodeURIComponent(escape(atob(encoded)));
-        const compact = JSON.parse(json) as { f: string; s: number; i: { l: string; o: string; g: string; r: string; v: string; p: string }[] }[];
+        const parsed = JSON.parse(json);
 
-        // 압축 형식을 정규 형식으로 변환
-        const frames: WritingCheckFrame[] = compact.map((c) => ({
+        let fileKey = "";
+        type CompactFrame = { f: string; n?: string; s: number; i: { l: string; o: string; g: string; r: string; v: string; p: string }[] };
+        let compactFrames: CompactFrame[];
+
+        // 새 형식 (object with fk + frames) vs 구 형식 (array)
+        if (Array.isArray(parsed)) {
+          compactFrames = parsed;
+        } else {
+          fileKey = parsed.fk || "";
+          compactFrames = parsed.frames || [];
+        }
+
+        const frames: WritingCheckFrame[] = compactFrames.map((c) => ({
           frameName: c.f,
           score: c.s,
           summary: "",
@@ -114,11 +134,11 @@ export default function UxWritingPage() {
             principle: i.p,
           })),
           strengths: [],
+          ...(c.n ? { figmaNodeId: c.n } : {}),
         }));
 
-        writingStorage.save(frames);
+        writingStorage.save(frames, fileKey || undefined);
         setPageTab("checklist");
-        // hash 제거 (히스토리 변경 없이)
         history.replaceState(null, "", window.location.pathname + window.location.search);
       } catch (e) {
         console.error("[ux-writing] import 실패:", e);
@@ -220,10 +240,19 @@ export default function UxWritingPage() {
 
       const data = await res.json();
       const checkResults: WritingCheckResult[] = data.results;
+
+      // Figma 모드인 경우 frame에 nodeId 매핑
+      if (inputMode === "figma" && selectedFrameIds.length === checkResults.length) {
+        checkResults.forEach((r, i) => {
+          (r as WritingCheckResult & { figmaNodeId?: string }).figmaNodeId = selectedFrameIds[i];
+        });
+      }
+
       setResults(checkResults);
 
       // 자동 저장
-      const saved = writingStorage.save(checkResults as WritingCheckFrame[]);
+      const fk = inputMode === "figma" ? figmaFileKey : undefined;
+      const saved = writingStorage.save(checkResults as WritingCheckFrame[], fk || undefined);
       setSessions(writingStorage.getAll());
       // eslint-disable-next-line no-console
       console.log("[ux-writing] 체크 결과 저장:", saved.id);
@@ -255,6 +284,41 @@ export default function UxWritingPage() {
     writingStorage.deleteById(id);
     setSessions(writingStorage.getAll());
   }, []);
+
+  // ── Figma link handler ───────────────────────────────────────────────────────
+
+  const openFigmaFrame = useCallback(async (fileKey: string, nodeId: string) => {
+    const token = localStorage.getItem("simulo_figma_token");
+    if (!token) {
+      showToast("Figma 토큰이 설정되어 있지 않습니다. 설정에서 입력해주세요.");
+      return;
+    }
+
+    try {
+      const res = await fetch(
+        `https://api.figma.com/v1/files/${fileKey}/nodes?ids=${encodeURIComponent(nodeId)}`,
+        { headers: { "X-Figma-Token": token } },
+      );
+
+      if (!res.ok || res.status === 404) {
+        showToast("프레임이 존재하지 않습니다. 삭제되었거나 이동되었을 수 있습니다.");
+        return;
+      }
+
+      const data = await res.json();
+      const nodeData = data.nodes?.[nodeId];
+      if (!nodeData?.document) {
+        showToast("프레임이 존재하지 않습니다. 삭제되었거나 이동되었을 수 있습니다.");
+        return;
+      }
+
+      // Figma URL: node-id uses - instead of :
+      const figmaNodeId = nodeId.replace(":", "-");
+      window.open(`https://www.figma.com/design/${fileKey}?node-id=${figmaNodeId}`, "_blank");
+    } catch {
+      showToast("Figma 연결에 실패했습니다. 네트워크를 확인해주세요.");
+    }
+  }, [showToast]);
 
   // ── Render ───────────────────────────────────────────────────────────────────
 
@@ -518,7 +582,15 @@ export default function UxWritingPage() {
           onDelete={deleteSession}
           onExportCSV={downloadCSV}
           onRefresh={() => setSessions(writingStorage.getAll())}
+          onOpenFigma={openFigmaFrame}
         />
+      )}
+
+      {/* Toast */}
+      {toast && (
+        <div className="fixed bottom-6 left-1/2 -translate-x-1/2 z-50 px-4 py-2.5 bg-white/10 backdrop-blur-md border border-[var(--border)] rounded-lg text-sm text-white/90 shadow-lg animate-fade-in">
+          {toast}
+        </div>
       )}
     </div>
   );
@@ -724,11 +796,13 @@ function ChecklistView({
   onDelete,
   onExportCSV,
   onRefresh,
+  onOpenFigma,
 }: {
   sessions: WritingCheckSession[];
   onDelete: (id: string) => void;
   onExportCSV: (sessions: WritingCheckSession[]) => void;
   onRefresh: () => void;
+  onOpenFigma: (fileKey: string, nodeId: string) => void;
 }) {
   const [collapsedSessions, setCollapsedSessions] = useState<Set<string>>(new Set());
   const [severityFilter, setSeverityFilter] = useState<"all" | "critical" | "warning" | "info">("all");
@@ -739,34 +813,44 @@ function ChecklistView({
   const handleImport = () => {
     setImportError("");
     try {
-      // compact JSON 형식 또는 정규 형식 모두 지원
       const parsed = JSON.parse(importText.trim());
       let frames: WritingCheckFrame[];
+      let fileKey = "";
 
       if (Array.isArray(parsed) && parsed[0]?.f !== undefined) {
-        // compact format (from plugin)
-        frames = parsed.map((c: { f: string; s: number; i: { l: string; o: string; g: string; r: string; v: string; p: string }[] }) => ({
+        // old compact array format
+        frames = parsed.map((c: { f: string; n?: string; s: number; i: { l: string; o: string; g: string; r: string; v: string; p: string }[] }) => ({
           frameName: c.f,
           score: c.s,
           summary: "",
           issues: c.i.map((i) => ({
-            location: i.l,
-            original: i.o,
-            suggestion: i.g,
-            reason: i.r,
-            severity: i.v as "critical" | "warning" | "info",
-            principle: i.p,
+            location: i.l, original: i.o, suggestion: i.g, reason: i.r,
+            severity: i.v as "critical" | "warning" | "info", principle: i.p,
           })),
           strengths: [],
+          ...(c.n ? { figmaNodeId: c.n } : {}),
+        }));
+      } else if (!Array.isArray(parsed) && parsed.frames) {
+        // new compact object format with fileKey
+        fileKey = parsed.fk || "";
+        frames = parsed.frames.map((c: { f: string; n?: string; s: number; i: { l: string; o: string; g: string; r: string; v: string; p: string }[] }) => ({
+          frameName: c.f,
+          score: c.s,
+          summary: "",
+          issues: c.i.map((i) => ({
+            location: i.l, original: i.o, suggestion: i.g, reason: i.r,
+            severity: i.v as "critical" | "warning" | "info", principle: i.p,
+          })),
+          strengths: [],
+          ...(c.n ? { figmaNodeId: c.n } : {}),
         }));
       } else if (Array.isArray(parsed) && parsed[0]?.frameName !== undefined) {
-        // full format
         frames = parsed;
       } else {
         throw new Error("올바른 형식이 아닙니다");
       }
 
-      writingStorage.save(frames);
+      writingStorage.save(frames, fileKey || undefined);
       onRefresh();
       setShowImport(false);
       setImportText("");
@@ -867,8 +951,9 @@ function ChecklistView({
         const sessionIssues = session.frames.flatMap((f) =>
           f.issues
             .filter((i) => severityFilter === "all" || i.severity === severityFilter)
-            .map((issue) => ({ ...issue, frameName: f.frameName, score: f.score }))
+            .map((issue) => ({ ...issue, frameName: f.frameName, score: f.score, figmaNodeId: f.figmaNodeId }))
         );
+        const hasFigmaLink = !!session.figmaFileKey;
         const avgScore = session.frames.length > 0
           ? Math.round(session.frames.reduce((s, f) => s + f.score, 0) / session.frames.length)
           : 0;
@@ -893,7 +978,22 @@ function ChecklistView({
                   {isExpanded ? "▾" : "▸"}
                 </span>
                 <span className="text-sm text-white/80 truncate">
-                  {session.frames.map((f) => f.frameName).join(", ")}
+                  {session.frames.map((f, fi) => (
+                    <span key={fi}>
+                      {fi > 0 && ", "}
+                      {hasFigmaLink && f.figmaNodeId ? (
+                        <span
+                          role="link"
+                          tabIndex={0}
+                          onClick={(e) => { e.stopPropagation(); onOpenFigma(session.figmaFileKey ?? "", f.figmaNodeId ?? ""); }}
+                          onKeyDown={(e) => { if (e.key === "Enter") { e.stopPropagation(); onOpenFigma(session.figmaFileKey ?? "", f.figmaNodeId ?? ""); } }}
+                          className="underline decoration-white/20 hover:decoration-white/60 hover:text-white cursor-pointer transition-colors"
+                        >
+                          {f.frameName}
+                        </span>
+                      ) : f.frameName}
+                    </span>
+                  ))}
                 </span>
               </div>
               <div className="flex items-center gap-3 shrink-0 ml-3">
@@ -939,7 +1039,15 @@ function ChecklistView({
                               className="border-t border-[var(--border)] hover:bg-white/[0.02] transition-colors"
                             >
                               <td className="px-4 py-2.5 text-white/70 whitespace-nowrap max-w-[120px] truncate">
-                                {issue.frameName}
+                                {hasFigmaLink && issue.figmaNodeId ? (
+                                  <button
+                                    onClick={() => onOpenFigma(session.figmaFileKey ?? "", issue.figmaNodeId ?? "")}
+                                    className="underline decoration-white/20 hover:decoration-white/60 hover:text-white transition-colors text-left"
+                                    title="Figma에서 열기"
+                                  >
+                                    {issue.frameName}
+                                  </button>
+                                ) : issue.frameName}
                               </td>
                               <td className="px-4 py-2.5 text-white/50 max-w-[100px] truncate">
                                 {issue.location}

@@ -26,12 +26,14 @@ export interface WritingCheckFrame {
   issues: WritingIssue[];
   strengths: string[];
   screenLevel?: ScreenLevel;
+  figmaNodeId?: string;
 }
 
 export interface WritingCheckSession {
   id: string;
   createdAt: string;
   frames: WritingCheckFrame[];
+  figmaFileKey?: string;
 }
 
 const STORAGE_KEY = "simulo_writing_checks";
@@ -51,12 +53,13 @@ export const writingStorage = {
     }
   },
 
-  save(frames: WritingCheckFrame[]): WritingCheckSession {
+  save(frames: WritingCheckFrame[], figmaFileKey?: string): WritingCheckSession {
     const sessions = writingStorage.getAll();
     const session: WritingCheckSession = {
       id: generateId(),
       createdAt: new Date().toISOString(),
       frames,
+      ...(figmaFileKey ? { figmaFileKey } : {}),
     };
     sessions.unshift(session);
     // 최대 50개 세션 유지

@@ -130,7 +130,7 @@ figma.ui.onmessage = async (msg: PluginMessage) => {
     }
 
     const nodes = selection.slice(0, 8);
-    const frames: { name: string; base64: string; texts: ExtractedText[] }[] = [];
+    const frames: { name: string; nodeId: string; base64: string; texts: ExtractedText[] }[] = [];
 
     for (const node of nodes) {
       try {
@@ -142,6 +142,7 @@ figma.ui.onmessage = async (msg: PluginMessage) => {
           const texts = extractTextNodes(node);
           frames.push({
             name: node.name,
+            nodeId: node.id,
             base64: uint8ToBase64(bytes),
             texts,
           });
@@ -163,6 +164,7 @@ figma.ui.onmessage = async (msg: PluginMessage) => {
       type: "writing-selection-ready",
       frames,
       count: frames.length,
+      fileKey: figma.fileKey,
     });
   }
 
