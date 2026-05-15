@@ -346,6 +346,69 @@
       color: #555;
       line-height: 1.5;
     }
+
+    /* Fix buttons */
+    .fix-all-btn {
+      width: 100%;
+      padding: 9px;
+      background: #14532d;
+      color: #86efac;
+      border: 1px solid #166534;
+      border-radius: 6px;
+      font-size: 12px;
+      font-weight: 600;
+      cursor: pointer;
+      margin-bottom: 12px;
+      font-family: inherit;
+      transition: opacity 0.15s;
+    }
+    .fix-all-btn:hover { opacity: 0.85; }
+    .fix-all-btn:disabled { opacity: 0.4; cursor: not-allowed; }
+    .fix-all-btn.fix-applied {
+      background: #1a1a1a;
+      color: #555;
+      border-color: #222;
+    }
+
+    .fix-badge {
+      font-size: 9px;
+      padding: 2px 6px;
+      border-radius: 3px;
+      background: #1a1a1a;
+      color: #555;
+      margin-left: auto;
+      flex-shrink: 0;
+    }
+    .fix-badge.fix-applied {
+      background: #14532d;
+      color: #86efac;
+    }
+
+    /* Fix toast */
+    .fix-toast {
+      position: fixed;
+      bottom: 16px;
+      left: 16px;
+      right: 16px;
+      padding: 10px 14px;
+      border-radius: 6px;
+      font-size: 12px;
+      font-weight: 500;
+      z-index: 100;
+      animation: toast-in 0.2s ease;
+    }
+    .fix-toast-success {
+      background: #14532d;
+      color: #86efac;
+      border: 1px solid #166534;
+    }
+    .fix-toast-error {
+      background: #450a0a;
+      color: #fca5a5;
+      border: 1px solid #7f1d1d;
+    }
+    .fix-toast-hide { opacity: 0; transition: opacity 0.3s; }
+    @keyframes toast-in { from { opacity: 0; transform: translateY(8px); } to { opacity: 1; transform: translateY(0); } }
   </style>
 </head>
 <body>

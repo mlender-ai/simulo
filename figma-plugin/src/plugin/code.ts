@@ -25,6 +25,19 @@ interface ExtractedText {
   fontWeight: string | null;
 }
 
+function findAllTextNodes(node: SceneNode): TextNode[] {
+  const results: TextNode[] = [];
+  if (node.type === "TEXT") {
+    results.push(node);
+  }
+  if ("children" in node) {
+    for (const child of (node as ChildrenMixin).children) {
+      results.push(...findAllTextNodes(child as SceneNode));
+    }
+  }
+  return results;
+}
+
 function extractTextNodes(node: SceneNode): ExtractedText[] {
   const results: ExtractedText[] = [];
 
@@ -57,6 +70,11 @@ function extractTextNodes(node: SceneNode): ExtractedText[] {
   return results;
 }
 
+type WritingFix = {
+  original: string;
+  suggestion: string;
+};
+
 type PluginMessage =
   | { type: "get-selection" }
   | { type: "get-selection-for-writing" }
@@ -66,6 +84,7 @@ type PluginMessage =
   | { type: "save-simulo-url"; url: string }
   | { type: "load-simulo-url" }
   | { type: "open-external"; url: string }
+  | { type: "apply-writing-fixes"; nodeId: string; fixes: WritingFix[] }
   | { type: "close" };
 
 figma.ui.onmessage = async (msg: PluginMessage) => {
@@ -198,6 +217,66 @@ figma.ui.onmessage = async (msg: PluginMessage) => {
 
   if (msg.type === "open-external") {
     figma.openExternal(msg.url);
+  }
+
+  if (msg.type === "apply-writing-fixes") {
+    try {
+      const original = figma.getNodeById(msg.nodeId) as SceneNode | null;
+      if (!original || !("clone" in original)) {
+        figma.ui.postMessage({ type: "fix-result", success: false, error: "프레임을 찾을 수 없습니다." });
+        return;
+      }
+
+      // 프레임 복제
+      const clone = (original as FrameNode).clone();
+
+      // 복제본 이름 설정
+      clone.name = `${original.name} — Fixed`;
+
+      // 복제본을 원본 오른쪽에 배치 (간격 100px)
+      if ("x" in original && "width" in original && "x" in clone) {
+        (clone as SceneNode & { x: number }).x = (original as SceneNode & { x: number; width: number }).x + (original as SceneNode & { width: number }).width + 100;
+      }
+
+      // 텍스트 노드 수정 적용
+      let appliedCount = 0;
+      const textNodes = findAllTextNodes(clone as SceneNode);
+
+      for (const fix of msg.fixes) {
+        for (const textNode of textNodes) {
+          if (textNode.characters.includes(fix.original)) {
+            // 폰트 로드 후 텍스트 교체
+            await Promise.all(
+              textNode.getRangeAllFontNames(0, textNode.characters.length).map((font) =>
+                figma.loadFontAsync(font)
+              )
+            );
+            const newText = textNode.characters.replace(fix.original, fix.suggestion);
+            textNode.characters = newText;
+            appliedCount++;
+            break; // 같은 fix는 첫 매칭에만 적용
+          }
+        }
+      }
+
+      // 복제본 선택 + 뷰포트 이동
+      figma.currentPage.selection = [clone as SceneNode];
+      figma.viewport.scrollAndZoomIntoView([original as SceneNode, clone as SceneNode]);
+
+      figma.ui.postMessage({
+        type: "fix-result",
+        success: true,
+        appliedCount,
+        totalFixes: msg.fixes.length,
+        cloneNodeId: clone.id,
+      });
+    } catch (e) {
+      figma.ui.postMessage({
+        type: "fix-result",
+        success: false,
+        error: e instanceof Error ? e.message : "수정 적용 실패",
+      });
+    }
   }
 
   if (msg.type === "close") {

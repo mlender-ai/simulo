@@ -56,6 +56,7 @@ let selectedImages: ImageItem[] = [];
 let currentMode: "analysis" | "writing" = "analysis";
 let lastWritingResults: WritingCheckResult[] = [];
 let lastFileKey = "";
+let appliedFixes = new Set<string>(); // "frameIdx-issueIdx" tracking
 
 // -------- DOM helpers --------
 function $<T extends HTMLElement = HTMLElement>(id: string): T {
@@ -157,6 +158,34 @@ window.onmessage = (event) => {
     const frames = msg.frames as ImageItem[];
     lastFileKey = (msg.fileKey as string) || "";
     startWritingCheck(frames);
+  }
+
+  if (msg.type === "fix-result") {
+    const fixLoading = document.querySelector(".fix-loading") as HTMLElement | null;
+    if (fixLoading) fixLoading.remove();
+
+    if (msg.success) {
+      // Mark all fixes for this frame as applied
+      const appliedCount = msg.appliedCount as number;
+      const totalFixes = msg.totalFixes as number;
+
+      // Find the frame index from pending fix context
+      const pendingFrameIdx = (window as unknown as Record<string, number>).__pendingFixFrameIdx;
+      if (pendingFrameIdx !== undefined) {
+        const result = lastWritingResults[pendingFrameIdx];
+        if (result) {
+          for (let i = 0; i < result.issues.length; i++) {
+            appliedFixes.add(`${pendingFrameIdx}-${i}`);
+          }
+          // Update all buttons for this frame
+          updateFixButtons(pendingFrameIdx);
+        }
+      }
+
+      showFixToast(`${appliedCount}/${totalFixes}개 수정이 복제 프레임에 적용되었습니다.`, "success");
+    } else {
+      showFixToast(`수정 실패: ${msg.error || "알 수 없는 오류"}`, "error");
+    }
   }
 
   if (msg.type === "error") {
@@ -601,12 +630,18 @@ function showWritingReport(results: WritingCheckResult[]) {
   $("inputForm").style.display = "none";
   $("writingForm").style.display = "none";
 
+  // Reset applied state
+  appliedFixes = new Set();
+
   const container = $("writingReport");
 
   let html = "";
 
-  for (const result of results) {
+  for (let fi = 0; fi < results.length; fi++) {
+    const result = results[fi];
     const scoreClass = result.score >= 80 ? "score-good" : result.score >= 60 ? "score-ok" : "score-bad";
+    const hasNodeId = !!result.figmaNodeId;
+    const hasIssues = result.issues && result.issues.length > 0;
 
     html += `
       <div class="writing-frame-result">
@@ -616,6 +651,11 @@ function showWritingReport(results: WritingCheckResult[]) {
         </div>
         <div class="summary">${escapeHtml(result.summary)}</div>
     `;
+
+    // "전체 적용" button per frame
+    if (hasNodeId && hasIssues) {
+      html += `<button class="fix-all-btn" data-fix-all="${fi}">전체 수정 적용 (복제 프레임 생성)</button>`;
+    }
 
     // Screen-level checks
     if (result.screenLevel) {
@@ -640,9 +680,10 @@ function showWritingReport(results: WritingCheckResult[]) {
     }
 
     // Issues
-    if (result.issues && result.issues.length > 0) {
+    if (hasIssues) {
       html += `<div class="section-label" style="margin-top:12px">개선 사항 (${result.issues.length})</div>`;
-      for (const issue of result.issues) {
+      for (let ii = 0; ii < result.issues.length; ii++) {
+        const issue = result.issues[ii];
         const sevClass = issue.severity === "critical" ? "sev-critical" : issue.severity === "warning" ? "sev-medium" : "sev-low";
         html += `
           <div class="writing-issue">
@@ -650,6 +691,7 @@ function showWritingReport(results: WritingCheckResult[]) {
               <span class="issue-severity ${sevClass}">${escapeHtml(issue.severity === "critical" ? "심각" : issue.severity === "warning" ? "주의" : "참고")}</span>
               <span class="issue-screen">${escapeHtml(issue.location)}</span>
               <span class="writing-principle">${escapeHtml(issue.principle)}</span>
+              ${hasNodeId ? `<span class="fix-badge" data-fix-badge="${fi}-${ii}">수정 대기</span>` : ""}
             </div>
             <div class="writing-compare">
               <div class="writing-before">
@@ -672,6 +714,14 @@ function showWritingReport(results: WritingCheckResult[]) {
 
   container.innerHTML = html;
   container.className = "writing-report visible";
+
+  // Attach click handlers for "전체 적용" buttons
+  container.querySelectorAll(".fix-all-btn").forEach((btn) => {
+    btn.addEventListener("click", () => {
+      const frameIdx = parseInt((btn as HTMLElement).dataset.fixAll || "0", 10);
+      applyFixesForFrame(frameIdx);
+    });
+  });
 
   // Store results for export
   lastWritingResults = results;
@@ -795,4 +845,74 @@ function exportToSimulo() {
 function getSimuloBaseUrl(): string {
   const custom = $<HTMLInputElement>("simuloUrl").value.trim();
   return custom || "https://simulo.vercel.app";
+}
+
+// -------- Auto-fix helpers --------
+
+function applyFixesForFrame(frameIdx: number) {
+  const result = lastWritingResults[frameIdx];
+  if (!result || !result.figmaNodeId) return;
+
+  const fixes = result.issues.map((issue) => ({
+    original: issue.original,
+    suggestion: issue.suggestion,
+  }));
+
+  if (fixes.length === 0) return;
+
+  // Store pending frame index for fix-result handler
+  (window as unknown as Record<string, number>).__pendingFixFrameIdx = frameIdx;
+
+  // Show loading indicator
+  const btn = document.querySelector(`[data-fix-all="${frameIdx}"]`) as HTMLButtonElement | null;
+  if (btn) {
+    btn.disabled = true;
+    btn.textContent = "적용 중...";
+  }
+
+  parent.postMessage({
+    pluginMessage: {
+      type: "apply-writing-fixes",
+      nodeId: result.figmaNodeId,
+      fixes,
+    },
+  }, "*");
+}
+
+function updateFixButtons(frameIdx: number) {
+  const result = lastWritingResults[frameIdx];
+  if (!result) return;
+
+  // Update "전체 적용" button
+  const allBtn = document.querySelector(`[data-fix-all="${frameIdx}"]`) as HTMLButtonElement | null;
+  if (allBtn) {
+    allBtn.disabled = true;
+    allBtn.textContent = "✓ 적용 완료";
+    allBtn.classList.add("fix-applied");
+  }
+
+  // Update individual issue badges
+  for (let i = 0; i < result.issues.length; i++) {
+    const badge = document.querySelector(`[data-fix-badge="${frameIdx}-${i}"]`);
+    if (badge) {
+      badge.textContent = "적용됨";
+      badge.className = "fix-badge fix-applied";
+    }
+  }
+}
+
+function showFixToast(message: string, type: "success" | "error") {
+  // Remove existing toast
+  const existing = document.querySelector(".fix-toast");
+  if (existing) existing.remove();
+
+  const toast = document.createElement("div");
+  toast.className = `fix-toast fix-toast-${type}`;
+  toast.textContent = message;
+  document.body.appendChild(toast);
+
+  setTimeout(() => {
+    toast.classList.add("fix-toast-hide");
+    setTimeout(() => toast.remove(), 300);
+  }, 3000);
 }
