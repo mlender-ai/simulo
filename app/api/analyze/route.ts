@@ -50,7 +50,16 @@ async function handleStreamingAnalysis(request: NextRequest) {
           await sendEvent("result", body);
         }
       } else {
-        await sendEvent("result", result);
+        // Strip base64 image data from SSE to reduce payload size (200KB+ → ~2KB)
+        const lightResult = { ...result as Record<string, unknown> };
+        delete lightResult.thumbnailUrls;
+        // Also strip thumbnailUrl from individual issues
+        if (Array.isArray(lightResult.issues)) {
+          lightResult.issues = (lightResult.issues as Record<string, unknown>[]).map(
+            ({ thumbnailUrl, ...issue }) => { void thumbnailUrl; return issue; }
+          );
+        }
+        await sendEvent("result", lightResult);
       }
     } catch (error: unknown) {
       const message = error instanceof Error ? error.message : "Analysis failed";
@@ -447,11 +456,13 @@ async function runAnalysisPipeline(request: NextRequest, onProgress: ProgressCal
         : {}),
     };
 
-    // ── Persist to DB ──
+    await onProgress("리포트 생성 완료", `점수: ${topLevel.score}`);
+    console.log("[analyze] Success! Verdict:", topLevel.verdict, "Score:", topLevel.score);
+
+    // ── Persist to DB (non-blocking — don't delay response) ──
     if (process.env.DATABASE_URL) {
-      try {
-        const { prisma } = await import("@/lib/db");
-        await prisma.analysis.create({
+      import("@/lib/db").then(({ prisma }) =>
+        prisma.analysis.create({
           data: {
             id: analysis.id,
             createdAt: new Date(analysis.createdAt),
@@ -483,14 +494,11 @@ async function runAnalysisPipeline(request: NextRequest, onProgress: ProgressCal
             roundNumber: analysis.roundNumber,
             isImprovement: analysis.isImprovement,
           },
-        });
-        console.log("[analyze] Saved to DB:", analysis.id);
-      } catch (dbErr) {
-        console.error("[analyze] DB save failed (non-fatal):", dbErr);
-      }
+        })
+        .then(() => console.log("[analyze] Saved to DB:", analysis.id))
+        .catch((dbErr: unknown) => console.error("[analyze] DB save failed (non-fatal):", dbErr))
+      );
     }
 
-    await onProgress("리포트 생성 완료", `점수: ${topLevel.score}`);
-    console.log("[analyze] Success! Verdict:", topLevel.verdict, "Score:", topLevel.score);
     return analysis;
 }
