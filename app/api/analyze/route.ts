@@ -41,7 +41,17 @@ async function handleStreamingAnalysis(request: NextRequest) {
   (async () => {
     try {
       const result = await runAnalysisPipeline(request, progress);
-      await sendEvent("result", result);
+      // runAnalysisPipeline may return NextResponse (early error) or plain object (success)
+      if (result instanceof Response) {
+        const body = await result.json();
+        if (body.error) {
+          await sendEvent("error", { error: body.error });
+        } else {
+          await sendEvent("result", body);
+        }
+      } else {
+        await sendEvent("result", result);
+      }
     } catch (error: unknown) {
       const message = error instanceof Error ? error.message : "Analysis failed";
       await sendEvent("error", { error: message });
@@ -62,6 +72,8 @@ async function handleStreamingAnalysis(request: NextRequest) {
 async function handleAnalysis(request: NextRequest) {
   try {
     const result = await runAnalysisPipeline(request);
+    // runAnalysisPipeline may return NextResponse (early error) or plain object (success)
+    if (result instanceof Response) return result;
     return NextResponse.json(result);
   } catch (error: unknown) {
     console.error("[analyze] ===== ERROR =====");
