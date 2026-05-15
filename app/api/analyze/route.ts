@@ -170,7 +170,9 @@ async function runAnalysisPipeline(request: NextRequest, onProgress: ProgressCal
     await onProgress("입력 검증 완료", `${inputType || "image"} 모드`);
 
     let ocrContext: string | undefined;
-    const shouldRunOCR = inputType !== "comparison" && inputType !== "figma" && inputType !== "url" && images.length > 0;
+    // 서버 키만 사용하는 경우 (무료 모드) OCR 스킵 — Vercel Hobby 10초 제한 대응
+    const usingServerKey = !apiKey && !!process.env.ANTHROPIC_API_KEY;
+    const shouldRunOCR = !usingServerKey && inputType !== "comparison" && inputType !== "figma" && inputType !== "url" && images.length > 0;
     if (shouldRunOCR) {
       try {
         let finalOCR;
