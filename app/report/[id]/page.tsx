@@ -20,6 +20,8 @@ export default function ReportPage() {
   const [notFound, setNotFound] = useState(false);
   const [isPanelOpen, setIsPanelOpen] = useState(false);
   const [roundNumber, setRoundNumber] = useState(1);
+  const [prevId, setPrevId] = useState<string | null>(null);
+  const [nextId, setNextId] = useState<string | null>(null);
 
   const handleReanalyze = useCallback((analysis: AnalysisResult) => {
     const reanalyzeParams = {
@@ -62,6 +64,31 @@ export default function ReportPage() {
       });
   }, [params.id]);
 
+  useEffect(() => {
+    const id = params.id as string;
+
+    const computeNav = (allAnalyses: { id: string; createdAt: string }[]) => {
+      const sorted = [...allAnalyses].sort(
+        (a, b) => new Date(b.createdAt).getTime() - new Date(a.createdAt).getTime()
+      );
+      const allIds = sorted.map((r) => r.id);
+      const idx = allIds.indexOf(id);
+      setPrevId(idx > 0 ? allIds[idx - 1] : null);
+      setNextId(idx < allIds.length - 1 ? allIds[idx + 1] : null);
+    };
+
+    fetch("/api/history")
+      .then((r) => r.json())
+      .then((data) => {
+        if (data.analyses && data.analyses.length > 0) {
+          computeNav(data.analyses);
+        } else {
+          computeNav(storage.getAll());
+        }
+      })
+      .catch(() => computeNav(storage.getAll()));
+  }, [params.id]);
+
   if (notFound) {
     return (
       <div className="p-8">
@@ -99,6 +126,32 @@ export default function ReportPage() {
             >
               ← {t("backToHistory", locale)}
             </Link>
+            <button
+              onClick={() => prevId && router.push(`/report/${prevId}`)}
+              disabled={!prevId}
+              className={[
+                "text-sm transition-colors",
+                !prevId
+                  ? "opacity-40 cursor-not-allowed text-[var(--muted)]"
+                  : "text-[var(--muted)] hover:text-white",
+              ].join(" ")}
+            >
+              <span className="md:hidden">←</span>
+              <span className="hidden md:inline">← 이전</span>
+            </button>
+            <button
+              onClick={() => nextId && router.push(`/report/${nextId}`)}
+              disabled={!nextId}
+              className={[
+                "text-sm transition-colors",
+                !nextId
+                  ? "opacity-40 cursor-not-allowed text-[var(--muted)]"
+                  : "text-[var(--muted)] hover:text-white",
+              ].join(" ")}
+            >
+              <span className="md:hidden">→</span>
+              <span className="hidden md:inline">다음 →</span>
+            </button>
             <Link
               href="/"
               className="text-sm text-[var(--muted)] hover:text-white transition-colors"
