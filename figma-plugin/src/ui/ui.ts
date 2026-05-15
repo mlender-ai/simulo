@@ -385,6 +385,13 @@ function showReport(result: AnalysisResult) {
 
   $("inputForm").style.display = "none";
   $("report").className = "report visible";
+
+  // 피드백 바 추가
+  renderFeedbackBar($("report"), "analysis", {
+    frameName: selectedImages.map((img) => img.name).join(", "),
+    score: result.score,
+    issueCount: (result.issues || []).length,
+  });
 }
 
 function switchTab(tab: string) {
@@ -749,6 +756,17 @@ function showWritingReport(results: WritingCheckResult[]) {
 
   // Show action buttons
   $("writingActions").style.display = "block";
+
+  // 피드백 바 추가
+  const totalIssues = results.reduce((sum, r) => sum + (r.issues?.length || 0), 0);
+  const avgScore = results.length > 0
+    ? Math.round(results.reduce((sum, r) => sum + r.score, 0) / results.length)
+    : 0;
+  renderFeedbackBar(container, "writing", {
+    frameName: results.map((r) => r.frameName).join(", "),
+    score: avgScore,
+    issueCount: totalIssues,
+  });
 }
 
 // -------- Loading / error helpers --------
@@ -919,6 +937,97 @@ function updateFixButtons(frameIdx: number) {
       badge.textContent = "적용됨";
       badge.className = "fix-badge fix-applied";
     }
+  }
+}
+
+// -------- Feedback system --------
+
+function renderFeedbackBar(
+  container: HTMLElement,
+  mode: "analysis" | "writing",
+  context: { frameName?: string; score?: number; issueCount?: number },
+) {
+  // 기존 피드백 바 제거
+  const existing = container.querySelector(".feedback-bar");
+  if (existing) existing.remove();
+
+  const bar = document.createElement("div");
+  bar.className = "feedback-bar";
+  bar.innerHTML = `
+    <div class="feedback-prompt">분석 결과가 도움이 되었나요?</div>
+    <div class="feedback-btns">
+      <button class="feedback-btn" data-rating="good">👍 좋아요</button>
+      <button class="feedback-btn" data-rating="bad">👎 아쉬워요</button>
+    </div>
+    <div class="feedback-comment" id="feedbackComment-${mode}">
+      <textarea placeholder="어떤 점이 아쉬웠나요? (예: 기획 의도와 맞지 않는 제안, 불필요한 수정 등)"></textarea>
+      <button class="feedback-submit">피드백 보내기</button>
+    </div>
+    <div class="feedback-done" style="display:none">피드백이 전송되었습니다. 감사합니다!</div>
+  `;
+  container.appendChild(bar);
+
+  let selectedRating: "good" | "bad" | null = null;
+  const btns = bar.querySelectorAll(".feedback-btn");
+  const commentBox = bar.querySelector(".feedback-comment") as HTMLElement;
+  const doneMsg = bar.querySelector(".feedback-done") as HTMLElement;
+
+  btns.forEach((btn) => {
+    btn.addEventListener("click", () => {
+      const rating = (btn as HTMLElement).dataset.rating as "good" | "bad";
+      selectedRating = rating;
+
+      // 버튼 상태 업데이트
+      btns.forEach((b) => b.className = "feedback-btn");
+      btn.className = `feedback-btn selected-${rating}`;
+
+      if (rating === "good") {
+        // 좋아요는 바로 전송
+        commentBox.classList.remove("visible");
+        submitFeedback(mode, "good", undefined, context);
+        bar.querySelector(".feedback-btns")?.remove();
+        bar.querySelector(".feedback-prompt")?.remove();
+        commentBox.style.display = "none";
+        doneMsg.style.display = "block";
+      } else {
+        // 아쉬워요는 코멘트 입력 표시
+        commentBox.classList.add("visible");
+      }
+    });
+  });
+
+  // 코멘트 전송
+  const submitBtn = bar.querySelector(".feedback-submit") as HTMLButtonElement;
+  const textarea = bar.querySelector("textarea") as HTMLTextAreaElement;
+  submitBtn.addEventListener("click", () => {
+    if (!selectedRating) return;
+    submitBtn.disabled = true;
+    submitBtn.textContent = "전송 중...";
+    submitFeedback(mode, selectedRating, textarea.value.trim(), context);
+    setTimeout(() => {
+      bar.querySelector(".feedback-btns")?.remove();
+      bar.querySelector(".feedback-prompt")?.remove();
+      commentBox.style.display = "none";
+      doneMsg.style.display = "block";
+    }, 300);
+  });
+}
+
+async function submitFeedback(
+  type: "analysis" | "writing",
+  rating: "good" | "bad",
+  comment: string | undefined,
+  context: { frameName?: string; score?: number; issueCount?: number },
+) {
+  const baseUrl = getSimuloBaseUrl();
+  try {
+    await fetch(`${baseUrl}/api/feedback`, {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ type, rating, comment, context }),
+    });
+  } catch {
+    // 피드백 전송 실패는 무시 (UX 차단하지 않음)
   }
 }
 
