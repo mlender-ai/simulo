@@ -85,6 +85,8 @@ type PluginMessage =
   | { type: "load-simulo-url" }
   | { type: "open-external"; url: string }
   | { type: "apply-writing-fixes"; nodeId: string; fixes: WritingFix[] }
+  | { type: "save-model"; model: string }
+  | { type: "load-model" }
   | { type: "close" };
 
 figma.ui.onmessage = async (msg: PluginMessage) => {
@@ -213,6 +215,15 @@ figma.ui.onmessage = async (msg: PluginMessage) => {
   if (msg.type === "load-simulo-url") {
     const url = await figma.clientStorage.getAsync("simulo_url");
     figma.ui.postMessage({ type: "simulo-url-loaded", url: url || "" });
+  }
+
+  if (msg.type === "save-model") {
+    await figma.clientStorage.setAsync("simulo_model", msg.model);
+  }
+
+  if (msg.type === "load-model") {
+    const model = await figma.clientStorage.getAsync("simulo_model");
+    figma.ui.postMessage({ type: "model-loaded", model: model || "haiku" });
   }
 
   if (msg.type === "open-external") {

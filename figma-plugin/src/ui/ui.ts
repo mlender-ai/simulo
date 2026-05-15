@@ -57,6 +57,23 @@ let currentMode: "analysis" | "writing" = "analysis";
 let lastWritingResults: WritingCheckResult[] = [];
 let lastFileKey = "";
 let appliedFixes = new Set<string>(); // "frameIdx-issueIdx" tracking
+let freeMode = false; // API 키 없거나 초과 시 true
+
+const MODEL_MAP = {
+  haiku: "claude-haiku-4-5-20251001",
+  sonnet: "claude-sonnet-4-20250514",
+} as const;
+
+function getSelectedModel(): string {
+  const sel = $<HTMLSelectElement>("modelSelect");
+  return MODEL_MAP[(sel?.value as keyof typeof MODEL_MAP) || "haiku"];
+}
+
+function checkFreeMode() {
+  const apiKey = getApiKey();
+  freeMode = !apiKey;
+  $("freeModeBanner").className = freeMode ? "free-mode-banner visible" : "free-mode-banner";
+}
 
 // -------- DOM helpers --------
 function $<T extends HTMLElement = HTMLElement>(id: string): T {
@@ -78,12 +95,19 @@ window.addEventListener("DOMContentLoaded", () => {
   parent.postMessage({ pluginMessage: { type: "load-api-key" } }, "*");
   parent.postMessage({ pluginMessage: { type: "load-simulo-url" } }, "*");
 
-  // Save API key on change
+  // Save API key on change + recheck free mode
   $("apiKey").addEventListener("change", (e) => {
     const val = (e.target as HTMLInputElement).value.trim();
     if (val) {
       parent.postMessage({ pluginMessage: { type: "save-api-key", key: val } }, "*");
     }
+    checkFreeMode();
+  });
+
+  // Save model selection
+  $("modelSelect").addEventListener("change", (e) => {
+    const val = (e.target as HTMLSelectElement).value;
+    parent.postMessage({ pluginMessage: { type: "save-model", model: val } }, "*");
   });
 
   // Save Simulo URL on change
@@ -118,8 +142,12 @@ window.addEventListener("DOMContentLoaded", () => {
     });
   });
 
-  // Request initial file info
+  // Request initial file info + model
   parent.postMessage({ pluginMessage: { type: "get-file-info" } }, "*");
+  parent.postMessage({ pluginMessage: { type: "load-model" } }, "*");
+
+  // Initial free mode check (after API key loads)
+  setTimeout(checkFreeMode, 500);
 });
 
 // -------- Messages from plugin sandbox --------
@@ -132,12 +160,20 @@ window.onmessage = (event) => {
     if (key) {
       $<HTMLInputElement>("apiKey").value = key;
     }
+    checkFreeMode();
   }
 
   if (msg.type === "simulo-url-loaded") {
     const url = msg.url as string;
     if (url) {
       $<HTMLInputElement>("simuloUrl").value = url;
+    }
+  }
+
+  if (msg.type === "model-loaded") {
+    const model = msg.model as string;
+    if (model) {
+      $<HTMLSelectElement>("modelSelect").value = model;
     }
   }
 
@@ -297,31 +333,46 @@ async function startAnalysisWithImages() {
   try {
     updateLoadingMsg("AI가 화면을 분석 중...");
 
-    const response = await fetch("https://api.anthropic.com/v1/messages", {
-      method: "POST",
-      headers: {
-        "Content-Type": "application/json",
-        "x-api-key": apiKey,
-        "anthropic-version": "2023-06-01",
-        "anthropic-dangerous-direct-browser-access": "true",
-      },
-      body: JSON.stringify({
-        model: "claude-sonnet-4-20250514",
-        max_tokens: 4096,
-        system: systemPrompt,
-        messages: [{ role: "user", content }],
-      }),
-    });
+    let result: AnalysisResult;
 
-    if (!response.ok) {
-      const err = await response.json().catch(() => ({}));
-      throw new Error(err?.error?.message || `API 오류 ${response.status}`);
+    if (freeMode) {
+      // 무료 모드: Simulo 백엔드 프록시를 통한 분석
+      result = await callFreeMode("analysis", { systemPrompt, content }) as AnalysisResult;
+    } else {
+      const response = await fetch("https://api.anthropic.com/v1/messages", {
+        method: "POST",
+        headers: {
+          "Content-Type": "application/json",
+          "x-api-key": apiKey,
+          "anthropic-version": "2023-06-01",
+          "anthropic-dangerous-direct-browser-access": "true",
+        },
+        body: JSON.stringify({
+          model: getSelectedModel(),
+          max_tokens: 4096,
+          system: [{ type: "text", text: systemPrompt, cache_control: { type: "ephemeral" } }],
+          messages: [{ role: "user", content }],
+        }),
+      });
+
+      if (!response.ok) {
+        const err = await response.json().catch(() => ({}));
+        const status = response.status;
+        // 429(rate limit) 또는 401(invalid key) → 무료 모드 전환
+        if (status === 429 || status === 401) {
+          freeMode = true;
+          $("freeModeBanner").className = "free-mode-banner visible";
+          result = await callFreeMode("analysis", { systemPrompt, content }) as AnalysisResult;
+        } else {
+          throw new Error(err?.error?.message || `API 오류 ${status}`);
+        }
+      } else {
+        const data = await response.json();
+        const raw: string = data.content?.[0]?.text ?? "";
+        const cleaned = raw.replace(/```json\n?/g, "").replace(/```\n?/g, "").trim();
+        result = JSON.parse(cleaned);
+      }
     }
-
-    const data = await response.json();
-    const raw: string = data.content?.[0]?.text ?? "";
-    const cleaned = raw.replace(/```json\n?/g, "").replace(/```\n?/g, "").trim();
-    const result: AnalysisResult = JSON.parse(cleaned);
 
     showReport(result);
   } catch (error) {
@@ -602,46 +653,67 @@ CTA는 누른 뒤 무엇이 일어날지 직접 말한다.
     const allResults: WritingCheckResult[] = [];
 
     for (let i = 0; i < frames.length; i++) {
-      updateLoadingMsg(`프레임 ${i + 1}/${frames.length} 분석 중...`);
+      updateLoadingMsg(`프레임 ${i + 1}/${frames.length} 분석 중${freeMode ? " (무료 모드)" : ""}...`);
 
-      const response = await fetch("https://api.anthropic.com/v1/messages", {
-        method: "POST",
-        headers: {
-          "Content-Type": "application/json",
-          "x-api-key": apiKey,
-          "anthropic-version": "2023-06-01",
-          "anthropic-dangerous-direct-browser-access": "true",
+      const userContent = [
+        {
+          type: "image" as const,
+          source: { type: "base64" as const, media_type: "image/png", data: frames[i].base64 },
         },
-        body: JSON.stringify({
-          model: "claude-sonnet-4-20250514",
-          max_tokens: 4096,
-          temperature: 0.2,
-          system: systemPrompt,
-          messages: [{
-            role: "user",
-            content: [
-              {
-                type: "image",
-                source: { type: "base64", media_type: "image/png", data: frames[i].base64 },
-              },
-              {
-                type: "text",
-                text: buildWritingUserPrompt(frames[i]),
-              },
-            ],
-          }],
-        }),
-      });
+        {
+          type: "text" as const,
+          text: buildWritingUserPrompt(frames[i]),
+        },
+      ];
 
-      if (!response.ok) {
-        const err = await response.json().catch(() => ({}));
-        throw new Error(err?.error?.message || `API 오류 ${response.status}`);
+      let result;
+
+      if (freeMode) {
+        result = await callFreeMode("writing", {
+          systemPrompt,
+          content: [{ role: "user", content: userContent }],
+          frameName: frames[i].name,
+        });
+      } else {
+        const response = await fetch("https://api.anthropic.com/v1/messages", {
+          method: "POST",
+          headers: {
+            "Content-Type": "application/json",
+            "x-api-key": apiKey,
+            "anthropic-version": "2023-06-01",
+            "anthropic-dangerous-direct-browser-access": "true",
+          },
+          body: JSON.stringify({
+            model: getSelectedModel(),
+            max_tokens: 4096,
+            temperature: 0.2,
+            system: [{ type: "text", text: systemPrompt, cache_control: { type: "ephemeral" } }],
+            messages: [{ role: "user", content: userContent }],
+          }),
+        });
+
+        if (!response.ok) {
+          const status = response.status;
+          if (status === 429 || status === 401) {
+            freeMode = true;
+            $("freeModeBanner").className = "free-mode-banner visible";
+            result = await callFreeMode("writing", {
+              systemPrompt,
+              content: [{ role: "user", content: userContent }],
+              frameName: frames[i].name,
+            });
+          } else {
+            const err = await response.json().catch(() => ({}));
+            throw new Error(err?.error?.message || `API 오류 ${status}`);
+          }
+        } else {
+          const data = await response.json();
+          const raw: string = data.content?.[0]?.text ?? "";
+          const cleaned = raw.replace(/```json\n?/g, "").replace(/```\n?/g, "").trim();
+          result = JSON.parse(cleaned);
+        }
       }
 
-      const data = await response.json();
-      const raw: string = data.content?.[0]?.text ?? "";
-      const cleaned = raw.replace(/```json\n?/g, "").replace(/```\n?/g, "").trim();
-      const result = JSON.parse(cleaned);
       allResults.push({ ...result, frameName: frames[i].name, figmaNodeId: frames[i].nodeId });
     }
 
@@ -1029,6 +1101,32 @@ async function submitFeedback(
   } catch {
     // 피드백 전송 실패는 무시 (UX 차단하지 않음)
   }
+}
+
+// -------- Free mode (Simulo backend proxy) --------
+async function callFreeMode(
+  mode: "analysis" | "writing",
+  payload: { systemPrompt: string; content: unknown; frameName?: string },
+): Promise<AnalysisResult | WritingCheckResult> {
+  const baseUrl = getSimuloBaseUrl();
+  const response = await fetch(`${baseUrl}/api/analyze-free`, {
+    method: "POST",
+    headers: { "Content-Type": "application/json" },
+    body: JSON.stringify({
+      mode,
+      systemPrompt: payload.systemPrompt,
+      content: payload.content,
+      frameName: payload.frameName,
+    }),
+  });
+
+  if (!response.ok) {
+    const err = await response.json().catch(() => ({}));
+    throw new Error(err?.error || `무료 분석 실패 (${response.status})`);
+  }
+
+  const data = await response.json();
+  return data.result;
 }
 
 function showFixToast(message: string, type: "success" | "error") {

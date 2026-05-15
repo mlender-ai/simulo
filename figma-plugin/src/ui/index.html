@@ -411,6 +411,20 @@
     @keyframes toast-in { from { opacity: 0; transform: translateY(8px); } to { opacity: 1; transform: translateY(0); } }
 
     /* Feedback bar */
+    /* Free mode banner */
+    .free-mode-banner {
+      display: none;
+      padding: 8px 12px;
+      background: #431407;
+      border: 1px solid #7c2d12;
+      color: #fdba74;
+      font-size: 11px;
+      line-height: 1.5;
+      margin: 0 16px 8px;
+      border-radius: 6px;
+    }
+    .free-mode-banner.visible { display: block; }
+
     .feedback-bar {
       padding: 12px 16px;
       border-top: 1px solid #1a1a1a;
@@ -498,6 +512,7 @@
   </div>
 
   <div class="error-msg" id="errorMsg"></div>
+  <div class="free-mode-banner" id="freeModeBanner">⚠ 무료 모드로 분석합니다. API 키가 없거나 사용량을 초과했습니다. 품질이 저하될 수 있습니다.</div>
 
   <div class="settings-section">
     <div class="settings-toggle" id="settingsToggle">
@@ -506,7 +521,13 @@
     <div class="settings-body" id="settingsPanel">
       <label>Anthropic API Key</label>
       <input type="password" id="apiKey" placeholder="sk-ant-api03-..." />
-      <div class="settings-hint">입력한 키는 이 기기에만 저장됩니다</div>
+      <div class="settings-hint">입력한 키는 이 기기에만 저장됩니다. 없으면 무료 모드로 작동합니다.</div>
+      <label style="margin-top:12px">분석 모델</label>
+      <select id="modelSelect" style="width:100%;background:#111;border:1px solid #222;border-radius:6px;color:#e5e5e5;font-size:13px;padding:8px 10px;font-family:inherit;outline:none;">
+        <option value="haiku">Haiku (빠르고 저렴 — 기본)</option>
+        <option value="sonnet">Sonnet (정밀 분석)</option>
+      </select>
+      <div class="settings-hint">Haiku: 90% 비용 절감. Sonnet: 복잡한 화면 정밀 분석 시 추천</div>
       <label style="margin-top:12px">Simulo URL (선택)</label>
       <input type="url" id="simuloUrl" placeholder="https://simulo.vercel.app" />
       <div class="settings-hint">로컬 테스트 시 http://localhost:3000 입력</div>
