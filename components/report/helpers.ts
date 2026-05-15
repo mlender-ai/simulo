@@ -9,7 +9,8 @@ export function groupIssuesByScreen(
   (issues ?? []).forEach((issue, i) => {
     const screenIdx = typeof issue.screenIndex === "number" ? issue.screenIndex : 0;
     if (!map.has(screenIdx)) map.set(screenIdx, []);
-    map.get(screenIdx)!.push({
+    const screenBucket = map.get(screenIdx);
+    screenBucket?.push({
       index: i,
       severity: issue.severity,
       desireType: issue.desireType,
@@ -31,7 +32,8 @@ export function countIssuesPerScreen(issues: AnalysisResult["issues"] | undefine
   (issues ?? []).forEach((issue) => {
     const idx = typeof issue.screenIndex === "number" ? issue.screenIndex : 0;
     if (!map.has(idx)) map.set(idx, { total: 0, critical: 0 });
-    const entry = map.get(idx)!;
+    const entry = map.get(idx);
+    if (!entry) return;
     entry.total++;
     if (issue.severity === "Critical" || (issue.severity as string) === "심각") entry.critical++;
   });
