@@ -3,6 +3,7 @@
 //    generate-improvement/route.ts의 import 경로만 변경하면 된다.
 
 import Anthropic from "@anthropic-ai/sdk";
+import { detectMediaType } from "../claude";
 
 export interface GenerateImproveParams {
   originalImage: string | null;
@@ -54,7 +55,7 @@ export async function generateImprovement(input: GenerateImproveParams): Promise
       type: "image",
       source: {
         type: "base64",
-        media_type: "image/png",
+        media_type: detectMediaType(originalImage.replace(/^data:image\/\w+;base64,/, "")),
         data: originalImage.replace(/^data:image\/\w+;base64,/, ""),
       },
     });

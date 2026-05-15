@@ -1,5 +1,6 @@
 import { NextRequest, NextResponse } from "next/server";
 import Anthropic from "@anthropic-ai/sdk";
+import { detectMediaType } from "@/lib/claude";
 import {
   parseClaudeResponse,
   FlowNodeResultSchema,
@@ -292,7 +293,7 @@ export async function POST(request: NextRequest) {
           type: "image" as const,
           source: {
             type: "base64" as const,
-            media_type: "image/png" as const,
+            media_type: detectMediaType(base64Data),
             data: base64Data,
           },
         });
@@ -338,8 +339,9 @@ export async function POST(request: NextRequest) {
     console.log("[analyze-flow] Phase 2: Analyzing", edgesWithScreens.length, "transitions");
 
     const edgePromises = edgesWithScreens.map(async (edge): Promise<[string, EdgeResult]> => {
-      const srcNode = nodeMap.get(edge.source)!;
-      const tgtNode = nodeMap.get(edge.target)!;
+      const srcNode = nodeMap.get(edge.source);
+      const tgtNode = nodeMap.get(edge.target);
+      if (!srcNode || !tgtNode) return [edge.id, { transitionSmooth: true, dropOffAtTransition: 0, reason: "", recommendation: "" }];
 
       const content: Anthropic.Messages.ContentBlockParam[] = [];
       content.push({
@@ -363,7 +365,7 @@ export async function POST(request: NextRequest) {
             type: "image" as const,
             source: {
               type: "base64" as const,
-              media_type: "image/png" as const,
+              media_type: detectMediaType(base64Data),
               data: base64Data,
             },
           });
@@ -434,7 +436,7 @@ export async function POST(request: NextRequest) {
           type: "image" as const,
           source: {
             type: "base64" as const,
-            media_type: "image/png" as const,
+            media_type: detectMediaType(base64Data),
             data: base64Data,
           },
         });

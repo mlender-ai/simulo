@@ -1,11 +1,12 @@
 {
   "name": "Simulo",
-  "id": "simulo-ux-tester",
+  "id": "1637028681036128763",
   "api": "1.0.0",
   "main": "dist/code.js",
   "ui": "dist/ui.html",
   "editorType": ["figma"],
   "permissions": ["currentuser"],
+  "documentAccess": "dynamic-page",
   "networkAccess": {
     "allowedDomains": [
       "https://api.anthropic.com",

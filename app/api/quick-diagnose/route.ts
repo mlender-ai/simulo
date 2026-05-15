@@ -1,5 +1,6 @@
 import { NextRequest, NextResponse } from "next/server";
 import Anthropic from "@anthropic-ai/sdk";
+import { detectMediaType } from "@/lib/claude";
 
 export const maxDuration = 30;
 
@@ -51,7 +52,7 @@ export async function POST(request: NextRequest) {
         content: [
           {
             type: "image",
-            source: { type: "base64", media_type: "image/png", data: base64 },
+            source: { type: "base64", media_type: detectMediaType(base64), data: base64 },
           },
           { type: "text", text: "이 UI 화면을 즉시 진단해주세요. JSON만 반환." },
         ],

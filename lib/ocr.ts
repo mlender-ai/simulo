@@ -1,4 +1,5 @@
 import Anthropic from "@anthropic-ai/sdk";
+import { detectMediaType } from "./claude";
 
 /** A single text element extracted from a screen with its bounding box (percentages). */
 export interface OCRElement {
@@ -151,7 +152,7 @@ export async function extractTextFromImages(
                 type: "image",
                 source: {
                   type: "base64",
-                  media_type: "image/png",
+                  media_type: detectMediaType(base64Images[i]),
                   data: base64Images[i],
                 },
               },

@@ -1,5 +1,6 @@
 import { NextRequest, NextResponse } from "next/server";
 import Anthropic from "@anthropic-ai/sdk";
+import { detectMediaType } from "@/lib/claude";
 
 export const maxDuration = 120;
 
@@ -239,7 +240,7 @@ export async function POST(request: NextRequest) {
                 type: "image",
                 source: {
                   type: "base64",
-                  media_type: "image/png",
+                  media_type: detectMediaType(base64Images[i]),
                   data: base64Images[i],
                 },
               },

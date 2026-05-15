@@ -17,6 +17,15 @@ import { buildSystemPrompt } from "./prompts";
 
 export type AnalysisMode = "hypothesis" | "usability";
 
+// base64 데이터에서 실제 이미지 타입 감지
+export function detectMediaType(base64: string): "image/png" | "image/jpeg" | "image/gif" | "image/webp" {
+  if (base64.startsWith("/9j/")) return "image/jpeg";
+  if (base64.startsWith("iVBOR")) return "image/png";
+  if (base64.startsWith("R0lGOD")) return "image/gif";
+  if (base64.startsWith("UklGR")) return "image/webp";
+  return "image/png"; // fallback
+}
+
 // Re-export so existing imports from "@/lib/claude" keep working
 export type { AnalysisOptions } from "./prompts";
 
@@ -184,7 +193,7 @@ export async function analyzeWithClaude(params: AnalyzeParams) {
       const data = img.startsWith("data:") ? img.split(",")[1] : img;
       messageContent.push({
         type: "image" as const,
-        source: { type: "base64" as const, media_type: "image/png" as const, data },
+        source: { type: "base64" as const, media_type: detectMediaType(data), data },
       });
     }
     messageContent.push({
@@ -195,7 +204,7 @@ export async function analyzeWithClaude(params: AnalyzeParams) {
   for (const base64 of params.images) {
     messageContent.push({
       type: "image" as const,
-      source: { type: "base64" as const, media_type: "image/png" as const, data: base64 },
+      source: { type: "base64" as const, media_type: detectMediaType(base64), data: base64 },
     });
   }
 
@@ -262,7 +271,7 @@ export async function analyzeFlowWithClaude(params: FlowAnalyzeParams) {
       const data = img.startsWith("data:") ? img.split(",")[1] : img;
       content.push({
         type: "image" as const,
-        source: { type: "base64" as const, media_type: "image/png" as const, data },
+        source: { type: "base64" as const, media_type: detectMediaType(data), data },
       });
     }
     content.push({
@@ -277,7 +286,7 @@ export async function analyzeFlowWithClaude(params: FlowAnalyzeParams) {
     });
     content.push({
       type: "image" as const,
-      source: { type: "base64" as const, media_type: "image/png" as const, data: step.image },
+      source: { type: "base64" as const, media_type: detectMediaType(step.image), data: step.image },
     });
   }
 
@@ -360,7 +369,7 @@ export async function analyzeComparisonWithClaude(params: ComparisonAnalyzeParam
     });
     content.push({
       type: "image" as const,
-      source: { type: "base64" as const, media_type: "image/png" as const, data: base64 },
+      source: { type: "base64" as const, media_type: detectMediaType(base64), data: base64 },
     });
   });
 
@@ -381,7 +390,7 @@ export async function analyzeComparisonWithClaude(params: ComparisonAnalyzeParam
       });
       content.push({
         type: "image" as const,
-        source: { type: "base64" as const, media_type: "image/png" as const, data: base64 },
+        source: { type: "base64" as const, media_type: detectMediaType(base64), data: base64 },
       });
     });
   }
