@@ -252,6 +252,10 @@ figma.ui.onmessage = async (msg: PluginMessage) => {
               )
             );
             const newText = textNode.characters.replace(fix.original, fix.suggestion);
+            // 오토레이아웃 대응: 텍스트가 길어져도 프레임을 벗어나지 않도록 설정
+            if (textNode.textAutoResize !== "WIDTH_AND_HEIGHT") {
+              textNode.textAutoResize = "HEIGHT";
+            }
             textNode.characters = newText;
             appliedCount++;
             break; // 같은 fix는 첫 매칭에만 적용
