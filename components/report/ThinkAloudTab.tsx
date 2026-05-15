@@ -28,7 +28,7 @@ export function ThinkAloudTab({ thinkAloud }: ThinkAloudTabProps) {
       screenOrder.push(entry.screen);
       byScreen.set(entry.screen, []);
     }
-    byScreen.get(entry.screen)!.push(entry);
+    byScreen.get(entry.screen)?.push(entry);
   }
 
   // Check if any entry has persona info
@@ -51,7 +51,7 @@ export function ThinkAloudTab({ thinkAloud }: ThinkAloudTabProps) {
   return (
     <div className="space-y-6">
       {screenOrder.map((screen) => {
-        const entries = byScreen.get(screen)!;
+        const entries = byScreen.get(screen) ?? [];
         return (
           <div key={screen}>
             <div className="text-xs text-[var(--muted)] mono mb-3 flex items-center gap-2">
