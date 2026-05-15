@@ -208,7 +208,7 @@ function SeverityBadge({ severity }: { severity: string }) {
 }
 
 // ─── Custom Tooltip for score chart ──────────────────────
-function ScoreTooltip({ active, payload }: { active?: boolean; payload?: Array<{ payload: ScorePoint; value: number }> }) {
+function ScoreTooltip({ active, payload }: { active?: boolean; payload?: Array<{ payload: ScorePoint & { analysisId?: string }; value: number }> }) {
   if (!active || !payload?.length) return null;
   const p = payload[0].payload;
   return (
@@ -216,6 +216,9 @@ function ScoreTooltip({ active, payload }: { active?: boolean; payload?: Array<{
       <div className="text-[var(--muted)] mb-1">{p.date}</div>
       <div className="text-white font-semibold mb-1">점수 {payload[0].value}</div>
       <div className="text-[var(--muted)] leading-snug line-clamp-3">{p.hypothesis}</div>
+      {p.analysisId && (
+        <div className="text-blue-400/70 mt-1.5 text-[10px]">클릭하여 리포트 보기 →</div>
+      )}
     </div>
   );
 }
@@ -261,7 +264,7 @@ function computeStatsFromLocal(analyses: AnalysisResult[], period: Period): Dash
 
   // Resolved issue rate
   const improvedIds = new Set(
-    filtered.filter((a) => a.isImprovement && a.previousAnalysisId).map((a) => a.previousAnalysisId!)
+    filtered.filter((a) => a.isImprovement && a.previousAnalysisId).map((a) => a.previousAnalysisId as string)
   );
   const nonImprove = filtered.filter((a) => !a.isImprovement);
 
@@ -468,11 +471,13 @@ export default function DashboardPage() {
 
   // ── Score timeline: merge by date across project tags ──
   const timelineByDate: Record<string, Record<string, number>> = {};
+  const timelineIdByDate: Record<string, string> = {}; // date → first analysisId
   const allProjectTags = new Set<string>();
   stats.scoreTimeline.forEach((p) => {
     const tag = p.projectTag ?? "기타";
     allProjectTags.add(tag);
     if (!timelineByDate[p.date]) timelineByDate[p.date] = {};
+    if (!timelineIdByDate[p.date]) timelineIdByDate[p.date] = p.analysisId;
     // Average if multiple on same date+tag
     if (timelineByDate[p.date][tag] !== undefined) {
       timelineByDate[p.date][tag] = Math.round((timelineByDate[p.date][tag] + p.score) / 2);
@@ -506,6 +511,7 @@ export default function DashboardPage() {
     return {
       date,
       score: scoreAvg,
+      analysisId: timelineIdByDate[date] ?? "",
       utility: desire.utility !== undefined ? desire.utility * 10 : undefined,
       healthPride: desire.healthPride !== undefined ? desire.healthPride * 10 : undefined,
       lossAversion: desire.lossAversion !== undefined ? desire.lossAversion * 10 : undefined,
@@ -860,7 +866,21 @@ export default function DashboardPage() {
                             name={tag}
                             stroke={LINE_COLORS[i % LINE_COLORS.length]}
                             strokeWidth={2}
-                            dot={false}
+                            dot={(props: Record<string, unknown>) => {
+                              const { cx, cy, payload } = props as { cx: number; cy: number; payload: { analysisId?: string } };
+                              const aid = payload?.analysisId;
+                              if (!cx || !cy || !aid) return <circle key={String(cx)} cx={0} cy={0} r={0} fill="none" />;
+                              return (
+                                <circle
+                                  key={aid}
+                                  cx={cx} cy={cy} r={4}
+                                  fill={LINE_COLORS[i % LINE_COLORS.length]}
+                                  style={{ cursor: "pointer" }}
+                                  onClick={() => router.push(`/report/${aid}`)}
+                                />
+                              );
+                            }}
+                            activeDot={{ r: 6, style: { cursor: "pointer" } }}
                             connectNulls
                             hide={!activeLines.score}
                           />
@@ -874,7 +894,21 @@ export default function DashboardPage() {
                             name="사용성 점수"
                             stroke="#60a5fa"
                             strokeWidth={2}
-                            dot={false}
+                            dot={(props: Record<string, unknown>) => {
+                              const { cx, cy, payload } = props as { cx: number; cy: number; payload: { analysisId?: string } };
+                              const aid = payload?.analysisId;
+                              if (!cx || !cy || !aid) return <circle key={String(cx)} cx={0} cy={0} r={0} fill="none" />;
+                              return (
+                                <circle
+                                  key={aid}
+                                  cx={cx} cy={cy} r={4}
+                                  fill="#60a5fa"
+                                  style={{ cursor: "pointer" }}
+                                  onClick={() => router.push(`/report/${aid}`)}
+                                />
+                              );
+                            }}
+                            activeDot={{ r: 6, style: { cursor: "pointer" } }}
                             connectNulls
                             hide={!activeLines.score}
                           />
