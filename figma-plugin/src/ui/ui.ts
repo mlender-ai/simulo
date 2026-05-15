@@ -261,12 +261,7 @@ function updateSelectionBar(count: number, names: string[]) {
 
 // -------- Run analysis --------
 function runAnalysis() {
-  const apiKey = getApiKey();
-  if (!apiKey) {
-    showError("API 키를 입력해주세요. 상단 API 설정에서 입력할 수 있습니다.");
-    $("settingsPanel").classList.add("visible");
-    return;
-  }
+  checkFreeMode();
 
   const hypothesis = $<HTMLTextAreaElement>("hypothesis").value.trim();
   if (!hypothesis) {
@@ -496,12 +491,7 @@ function switchMode(mode: "analysis" | "writing") {
 
 // -------- UX Writing Check --------
 function runWritingCheck() {
-  const apiKey = getApiKey();
-  if (!apiKey) {
-    showError("API 키를 입력해주세요. 상단 API 설정에서 입력할 수 있습니다.");
-    $("settingsPanel").classList.add("visible");
-    return;
-  }
+  checkFreeMode();
 
   hideError();
   showLoading();
