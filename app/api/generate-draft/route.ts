@@ -11,6 +11,8 @@ import Anthropic from "@anthropic-ai/sdk";
 import { resolveApiKey } from "@/lib/env";
 import { extractApiError } from "@/lib/api-errors";
 
+export const maxDuration = 120;
+
 export async function POST(req: NextRequest) {
   const body = await req.json();
   const image: string | undefined = body.image;

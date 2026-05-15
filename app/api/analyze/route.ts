@@ -10,6 +10,8 @@ import { validateImages, validateFigmaInputs, validateFlowSteps, logPreflightWar
 
 // Note: ANTHROPIC_API_KEY presence is validated at request time via resolveApiKey()
 
+export const maxDuration = 120;
+
 type ProgressCallback = (step: string, detail?: string) => void;
 
 export async function POST(request: NextRequest) {

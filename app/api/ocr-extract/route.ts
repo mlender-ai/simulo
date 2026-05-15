@@ -2,6 +2,8 @@ import { NextRequest, NextResponse } from "next/server";
 import { preprocessImages } from "@/lib/imagePreprocess";
 import { extractTextFromImages, validateOCRResults } from "@/lib/ocr";
 
+export const maxDuration = 60;
+
 export async function POST(request: NextRequest) {
   try {
     const body = await request.json();

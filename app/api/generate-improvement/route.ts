@@ -25,6 +25,8 @@ interface AnalysisData {
   analysisOptions: unknown;
 }
 
+export const maxDuration = 120;
+
 export async function POST(req: NextRequest) {
   const body = await req.json();
   const analysisId: string | undefined = typeof body.analysisId === "string" ? body.analysisId : undefined;

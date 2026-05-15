@@ -1,6 +1,8 @@
 import { NextRequest, NextResponse } from "next/server";
 import Anthropic from "@anthropic-ai/sdk";
 
+export const maxDuration = 120;
+
 // ─── Types ────────────────────────────────────────────────────────────────────
 
 interface FileContent {
@@ -54,7 +56,7 @@ async function fetchGitHubFiles(
   let fetched = 0;
 
   while (queue.length > 0 && fetched < MAX_FILES) {
-    const current = queue.shift()!;
+    const current = queue.shift() as string;
     const apiUrl = `https://api.github.com/repos/${owner}/${repo}/contents/${encodeURIComponent(current)}`;
 
     const res = await fetch(apiUrl, { headers });
@@ -269,7 +271,7 @@ async function createFigmaVariables(
   payload.variables = colorVars.map(({ id, name }) => ({
     action: "CREATE" as const,
     name,
-    variableCollectionId: collectionId!,
+    variableCollectionId: collectionId as string,
     resolvedType: "COLOR" as const,
     id,
   }));

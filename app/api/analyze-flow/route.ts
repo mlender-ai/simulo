@@ -1,6 +1,8 @@
 import { NextRequest, NextResponse } from "next/server";
 import Anthropic from "@anthropic-ai/sdk";
 import { detectMediaType } from "@/lib/claude";
+
+export const maxDuration = 120;
 import {
   parseClaudeResponse,
   FlowNodeResultSchema,
