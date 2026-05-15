@@ -272,6 +272,11 @@ const HYPOTHESIS_LAYER_EN = `## Analysis Mode: Hypothesis Validation
 
 You are validating a specific hypothesis against the provided screens.
 
+IMPORTANT — Read the screen first:
+Carefully read all visible text, buttons, labels, numbers, and icons in the image before forming any judgment.
+Every issue must cite a specific UI element you actually observed on screen.
+No speculation — only use what is visibly rendered as evidence.
+
 For each screen, evaluate:
 1. Does the screen support or contradict the hypothesis?
 2. Expectation-Fulfillment Gap — what does the user expect entering this screen? Where does that expectation break?
@@ -279,10 +284,17 @@ For each screen, evaluate:
 4. Demerit Point — the moment where expectation turns into disappointment (not just inconvenience).
 
 Return a Pass/Partial/Fail verdict, a 0-100 score, and a verdictReason naming the exact screen element that drives the judgment.
+The score must equal the sum of the four scoreBreakdown items (each 0-25).
+
+Issue quality requirements:
+- Each issue's "issue" field must clearly state the specific cause and impact in 1-2 sentences.
+- Each issue's "recommendation" must propose a concrete, actionable improvement — no vague language.
+- heatZone must tightly wrap the problem element — no large vague areas.
 
 Think Aloud — Multi-Persona:
 For thinkAloud, simulate 2–3 distinct user personas per screen. Each persona should represent a meaningfully different user type based on engagement level or goal (e.g., a user checking their daily status, a user trying to redeem rewards, a user who hasn't opened the app in a few days). Give each persona a short descriptive label.
 IMPORTANT: All personas have already completed onboarding and already know what the app's core features do (mileage, rewards, streaks, etc.). Their thoughts must focus on the current screen's UX — not on learning what a feature is. "What is mileage?" is not a valid thought. "Did today's mileage already get added?" or "I want to redeem this but the button feels buried" are valid. Thoughts should reflect genuinely different reactions — not minor paraphrases of each other.
+Keep thinkAloud concise — 1-2 sentences per persona is sufficient.
 
 JSON output schema:
 {
@@ -327,6 +339,11 @@ const HYPOTHESIS_LAYER_KO = `## 분석 모드: 가설 검증
 
 제공된 화면을 바탕으로 특정 가설을 검증합니다.
 
+중요 — 화면 판독 우선:
+이미지에 보이는 텍스트, 버튼, 레이블, 숫자, 아이콘을 먼저 꼼꼼히 읽으세요.
+각 이슈는 반드시 화면에서 실제 확인한 구체적 UI 요소를 근거로 제시해야 합니다.
+"~일 수 있다", "~로 보인다" 같은 추측 금지 — 화면에 보이는 것만 판단 근거로 사용하세요.
+
 각 화면에 대해 평가:
 1. 이 화면이 가설을 지지하는가, 반박하는가?
 2. 기대-충족 갭 — 유저가 이 화면에 진입할 때 어떤 기대를 갖는가? 그 기대가 어디서 꺾이는가?
@@ -334,10 +351,17 @@ const HYPOTHESIS_LAYER_KO = `## 분석 모드: 가설 검증
 4. 디메릿 포인트 — 단순 불편이 아니라 기대가 실망으로 전환되는 순간.
 
 Pass/Partial/Fail 판정, 0-100 점수, 그리고 판단의 근거가 된 정확한 화면 요소를 명시한 verdictReason을 반환하세요.
+점수는 scoreBreakdown 4항목 합(각 0-25)과 반드시 일치해야 합니다.
+
+이슈 작성 품질 기준:
+- 각 이슈의 "issue"는 문제의 구체적 원인과 영향을 1-2문장으로 명확히 서술.
+- 각 이슈의 "recommendation"은 실행 가능한 구체적 개선안 제시 — 모호한 표현 금지.
+- heatZone은 문제 요소를 정확히 감싸야 함 — 넓고 막연한 영역 금지.
 
 Think Aloud — 멀티 페르소나:
 thinkAloud에서는 화면별로 2–3명의 서로 다른 유저 페르소나를 시뮬레이션하세요. 각 페르소나는 참여 패턴이나 목표가 다른 유저 유형을 대표해야 합니다(예: 매일 확인하는 적극적 유저, 오늘 리워드를 교환하려는 유저, 며칠 만에 다시 접속한 유저). 각 페르소나에 짧은 설명 레이블을 붙이세요.
 중요: 모든 페르소나는 이미 온보딩을 완료한 상태이며, 마일리지·리워드·연속 기록 등 앱의 핵심 개념을 이미 알고 있습니다. 발화는 기능의 개념을 이해하려는 내용이 아니라 현재 화면의 UX에 집중해야 합니다. "마일리지가 뭐지?"는 유효하지 않은 발화입니다. "오늘 마일리지가 적립됐나?" 또는 "교환 버튼이 어디 있지?"는 유효합니다. 각자의 발화는 같은 화면에 대해 진짜로 다른 반응을 반영해야 합니다 — 서로의 단순 바꿔쓰기가 되면 안 됩니다.
+thinkAloud는 간결하게 — 페르소나당 1-2문장이면 충분합니다.
 
 JSON 키는 영문, 값은 한국어. 반드시 순수 JSON만 반환:
 {

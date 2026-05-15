@@ -355,6 +355,31 @@ export default function Home() {
         }
 
         if (finalResult) {
+          // SSE strips thumbnailUrls to reduce payload — restore from original uploaded images
+          if (!finalResult.thumbnailUrls || finalResult.thumbnailUrls.length === 0) {
+            const uploadedImages: string[] = (body.images as string[] | undefined) ?? [];
+            if (uploadedImages.length > 0) {
+              finalResult.thumbnailUrls = uploadedImages.map((img) =>
+                img.startsWith("data:") ? img : `data:image/png;base64,${img}`
+              );
+            }
+            // For flow steps, extract images from step data
+            if (Array.isArray(body.flowSteps)) {
+              finalResult.thumbnailUrls = (body.flowSteps as Array<{ image?: string }>)
+                .map((s) => s.image ?? "")
+                .filter(Boolean)
+                .map((img) => img.startsWith("data:") ? img : `data:image/png;base64,${img}`);
+            }
+          }
+          // Restore issue-level thumbnailUrl from thumbnailUrls via screenIndex
+          if (finalResult.thumbnailUrls?.length && Array.isArray(finalResult.issues)) {
+            finalResult.issues = finalResult.issues.map((issue) => ({
+              ...issue,
+              thumbnailUrl: typeof issue.screenIndex === "number" && finalResult.thumbnailUrls[issue.screenIndex]
+                ? finalResult.thumbnailUrls[issue.screenIndex]
+                : issue.thumbnailUrl,
+            }));
+          }
           storage.save(finalResult);
           router.push(`/report/${finalResult.id}`);
         } else {
