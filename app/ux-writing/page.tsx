@@ -137,7 +137,7 @@ export default function UxWritingPage() {
           ...(c.n ? { figmaNodeId: c.n } : {}),
         }));
 
-        writingStorage.save(frames, fileKey || undefined);
+        writingStorage.save(frames, fileKey);
         setPageTab("checklist");
         history.replaceState(null, "", window.location.pathname + window.location.search);
       } catch (e) {
@@ -1032,7 +1032,7 @@ function ChecklistView({
             .filter((i) => severityFilter === "all" || i.severity === severityFilter)
             .map((issue) => ({ ...issue, frameName: f.frameName, score: f.score, figmaNodeId: f.figmaNodeId }))
         );
-        const hasFigmaLink = !!session.figmaFileKey;
+        const hasFigmaLink = !!session.figmaFileKey || session.frames.some((f) => !!f.figmaNodeId);
         const avgScore = session.frames.length > 0
           ? Math.round(session.frames.reduce((s, f) => s + f.score, 0) / session.frames.length)
           : 0;

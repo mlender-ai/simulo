@@ -59,8 +59,12 @@ export const writingStorage = {
       id: generateId(),
       createdAt: new Date().toISOString(),
       frames,
-      ...(figmaFileKey ? { figmaFileKey } : {}),
+      ...(figmaFileKey !== undefined && figmaFileKey !== "" ? { figmaFileKey } : {}),
     };
+    // figmaFileKey가 없어도 frames에 nodeId가 있으면 fileKey를 빈 문자열로라도 저장
+    if (!session.figmaFileKey && frames.some((f) => f.figmaNodeId)) {
+      session.figmaFileKey = figmaFileKey || "";
+    }
     sessions.unshift(session);
     // 최대 50개 세션 유지
     if (sessions.length > 50) sessions.length = 50;
