@@ -7,6 +7,9 @@
   "editorType": ["figma"],
   "permissions": ["currentuser"],
   "networkAccess": {
-    "allowedDomains": ["https://api.anthropic.com"]
+    "allowedDomains": [
+      "https://api.anthropic.com",
+      "https://simulo.vercel.app"
+    ]
   }
 }
