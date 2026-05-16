@@ -1,0 +1,491 @@
+<!doctype html><html><head><meta charset="utf-8"><style>* { box-sizing: border-box; margin: 0; padding: 0; }
+    body {
+      font-family: 'Inter', -apple-system, BlinkMacSystemFont, sans-serif;
+      background: #0d0d0d;
+      color: #e5e5e5;
+      font-size: 13px;
+      line-height: 1.5;
+      -webkit-font-smoothing: antialiased;
+    }
+
+    .header {
+      padding: 14px 16px 12px;
+      border-bottom: 1px solid #1f1f1f;
+      display: flex;
+      align-items: center;
+      justify-content: space-between;
+    }
+    .logo { font-size: 15px; font-weight: 600; letter-spacing: -0.3px; }
+    .version { font-size: 11px; color: #555; font-family: monospace; }
+
+    .selection-bar {
+      padding: 10px 16px;
+      background: #111;
+      border-bottom: 1px solid #1a1a1a;
+      font-size: 12px;
+      color: #888;
+    }
+    .selection-bar.active { color: #a3e635; }
+
+    .form { padding: 16px; display: flex; flex-direction: column; gap: 14px; }
+    label {
+      font-size: 11px;
+      color: #666;
+      letter-spacing: 0.05em;
+      text-transform: uppercase;
+      margin-bottom: 5px;
+      display: block;
+    }
+    textarea, input {
+      width: 100%;
+      background: #111;
+      border: 1px solid #222;
+      border-radius: 6px;
+      color: #e5e5e5;
+      font-size: 13px;
+      padding: 10px 12px;
+      font-family: inherit;
+      resize: none;
+      outline: none;
+      transition: border-color 0.15s;
+    }
+    textarea:focus, input:focus { border-color: #444; }
+    textarea { height: 80px; line-height: 1.5; }
+
+    .btn-primary {
+      width: 100%;
+      padding: 11px;
+      background: #e5e5e5;
+      color: #0d0d0d;
+      border: none;
+      border-radius: 6px;
+      font-size: 13px;
+      font-weight: 600;
+      cursor: pointer;
+      transition: opacity 0.15s;
+    }
+    .btn-primary:hover { opacity: 0.9; }
+    .btn-primary:disabled { opacity: 0.3; cursor: not-allowed; }
+
+    .settings-section {
+      padding: 0 16px 16px;
+      border-bottom: 1px solid #1a1a1a;
+    }
+    .settings-toggle {
+      font-size: 12px;
+      color: #555;
+      cursor: pointer;
+      padding: 10px 0;
+      display: flex;
+      align-items: center;
+      gap: 6px;
+      user-select: none;
+    }
+    .settings-toggle:hover { color: #888; }
+    .settings-body { display: none; }
+    .settings-body.visible { display: block; }
+    .settings-hint { margin-top: 6px; font-size: 11px; color: #555; }
+
+    .loading {
+      display: none;
+      padding: 40px 16px;
+      text-align: center;
+      color: #666;
+      font-size: 13px;
+    }
+    .loading.visible { display: block; }
+    .loading-spin {
+      color: #555;
+      font-size: 20px;
+      animation: spin 1.2s linear infinite;
+      display: inline-block;
+    }
+    @keyframes spin { to { transform: rotate(360deg); } }
+    .loading-msg { margin-top: 10px; font-family: monospace; font-size: 12px; }
+
+    .report { display: none; padding: 16px; }
+    .report.visible { display: block; }
+
+    .score-row {
+      display: flex;
+      align-items: baseline;
+      gap: 12px;
+      margin-bottom: 12px;
+    }
+    .score-num { font-size: 36px; font-weight: 700; font-family: monospace; }
+    .verdict-badge {
+      font-size: 11px;
+      font-weight: 600;
+      padding: 3px 10px;
+      border-radius: 4px;
+      letter-spacing: 0.03em;
+    }
+    .verdict-pass { background: #14532d; color: #86efac; }
+    .verdict-partial { background: #431407; color: #fdba74; }
+    .verdict-fail { background: #450a0a; color: #fca5a5; }
+
+    .summary {
+      font-size: 13px;
+      color: #aaa;
+      line-height: 1.7;
+      margin-bottom: 16px;
+      padding: 12px;
+      background: #111;
+      border-radius: 6px;
+      border: 1px solid #1a1a1a;
+    }
+
+    .section-label {
+      font-size: 11px;
+      color: #555;
+      text-transform: uppercase;
+      letter-spacing: 0.05em;
+      margin-bottom: 8px;
+    }
+
+    .strength-item {
+      font-size: 12px;
+      color: #aaa;
+      padding: 6px 0;
+      border-bottom: 1px solid #1a1a1a;
+    }
+    .strength-item:last-child { border-bottom: none; }
+
+    .issue-item {
+      padding: 10px 12px;
+      background: #111;
+      border: 1px solid #1a1a1a;
+      border-radius: 6px;
+      margin-bottom: 8px;
+    }
+    .issue-severity {
+      font-size: 10px;
+      font-weight: 600;
+      padding: 2px 7px;
+      border-radius: 3px;
+      margin-bottom: 5px;
+      display: inline-block;
+    }
+    .sev-critical { background: #450a0a; color: #fca5a5; }
+    .sev-medium { background: #431407; color: #fdba74; }
+    .sev-low { background: #1a1a1a; color: #888; }
+    .issue-screen { font-size: 10px; color: #555; margin-left: 6px; font-family: monospace; }
+    .issue-text { font-size: 12px; color: #ccc; margin: 4px 0; }
+    .issue-rec { font-size: 11px; color: #666; }
+
+    .think-wrap { margin-bottom: 10px; }
+    .think-screen { font-size: 11px; color: #555; margin-bottom: 4px; }
+    .think-aloud {
+      font-size: 13px;
+      color: #999;
+      line-height: 1.7;
+      font-style: italic;
+      padding: 10px 12px;
+      background: #111;
+      border-left: 2px solid #333;
+      border-radius: 0 6px 6px 0;
+    }
+
+    .tab-bar {
+      display: flex;
+      gap: 0;
+      margin-bottom: 14px;
+      border-bottom: 1px solid #1a1a1a;
+    }
+    .tab {
+      padding: 8px 14px;
+      font-size: 12px;
+      color: #555;
+      cursor: pointer;
+      border-bottom: 2px solid transparent;
+      margin-bottom: -1px;
+      user-select: none;
+    }
+    .tab.active { color: #e5e5e5; border-bottom-color: #e5e5e5; }
+
+    .tab-content { display: none; }
+    .tab-content.active { display: block; }
+
+    .btn-secondary {
+      width: 100%;
+      padding: 9px;
+      background: transparent;
+      color: #666;
+      border: 1px solid #222;
+      border-radius: 6px;
+      font-size: 12px;
+      cursor: pointer;
+      margin-top: 12px;
+      font-family: inherit;
+    }
+    .btn-secondary:hover { color: #aaa; border-color: #333; }
+
+    .error-msg {
+      display: none;
+      padding: 10px 12px;
+      background: #1a0a0a;
+      border: 1px solid #3a1a1a;
+      border-radius: 6px;
+      color: #fca5a5;
+      font-size: 12px;
+      margin: 0 16px 16px;
+    }
+    .error-msg.visible { display: block; }
+
+    .empty { color: #555; font-size: 12px; padding: 8px 0; }
+
+    /* Mode tabs */
+    .mode-bar {
+      display: flex;
+      border-bottom: 1px solid #1a1a1a;
+    }
+    .mode-tab {
+      flex: 1;
+      padding: 10px;
+      text-align: center;
+      font-size: 12px;
+      font-weight: 500;
+      color: #555;
+      cursor: pointer;
+      border-bottom: 2px solid transparent;
+      margin-bottom: -1px;
+      user-select: none;
+      transition: color 0.15s;
+    }
+    .mode-tab:hover { color: #888; }
+    .mode-tab.active { color: #e5e5e5; border-bottom-color: #e5e5e5; }
+
+    /* Writing form */
+    .writing-form {
+      padding: 16px;
+      display: none;
+      flex-direction: column;
+      gap: 14px;
+    }
+    .writing-hint {
+      font-size: 12px;
+      color: #666;
+      line-height: 1.6;
+      padding: 12px;
+      background: #111;
+      border: 1px solid #1a1a1a;
+      border-radius: 6px;
+    }
+
+    /* Writing report */
+    .writing-report { display: none; padding: 16px; }
+    .writing-report.visible { display: block; }
+
+    .writing-frame-result {
+      margin-bottom: 20px;
+      padding-bottom: 20px;
+      border-bottom: 1px solid #1a1a1a;
+    }
+    .writing-frame-result:last-child { border-bottom: none; }
+    .writing-frame-name { font-size: 12px; color: #888; }
+
+    .score-good { color: #86efac; }
+    .score-ok { color: #fdba74; }
+    .score-bad { color: #fca5a5; }
+
+    .writing-issue {
+      padding: 10px 12px;
+      background: #111;
+      border: 1px solid #1a1a1a;
+      border-radius: 6px;
+      margin-bottom: 8px;
+    }
+    .writing-issue-header {
+      display: flex;
+      align-items: center;
+      gap: 6px;
+      margin-bottom: 8px;
+    }
+    .writing-principle {
+      font-size: 10px;
+      color: #444;
+      margin-left: auto;
+    }
+    .writing-compare {
+      display: flex;
+      flex-direction: column;
+      gap: 4px;
+      margin-bottom: 6px;
+    }
+    .writing-before, .writing-after {
+      display: flex;
+      gap: 8px;
+      align-items: baseline;
+      padding: 6px 8px;
+      border-radius: 4px;
+      background: #0a0a0a;
+    }
+    .writing-label {
+      font-size: 10px;
+      color: #555;
+      flex-shrink: 0;
+      min-width: 24px;
+    }
+    .writing-label-good { color: #86efac; }
+    .writing-text-del {
+      font-size: 12px;
+      color: #666;
+      text-decoration: line-through;
+    }
+    .writing-text-new {
+      font-size: 12px;
+      color: #e5e5e5;
+    }
+    .writing-reason {
+      font-size: 11px;
+      color: #555;
+      line-height: 1.5;
+    }
+
+    /* Fix buttons */
+    .fix-all-btn {
+      width: 100%;
+      padding: 9px;
+      background: #14532d;
+      color: #86efac;
+      border: 1px solid #166534;
+      border-radius: 6px;
+      font-size: 12px;
+      font-weight: 600;
+      cursor: pointer;
+      margin-bottom: 12px;
+      font-family: inherit;
+      transition: opacity 0.15s;
+    }
+    .fix-all-btn:hover { opacity: 0.85; }
+    .fix-all-btn:disabled { opacity: 0.4; cursor: not-allowed; }
+    .fix-all-btn.fix-applied {
+      background: #1a1a1a;
+      color: #555;
+      border-color: #222;
+    }
+
+    .fix-badge {
+      font-size: 9px;
+      padding: 2px 6px;
+      border-radius: 3px;
+      background: #1a1a1a;
+      color: #555;
+      margin-left: auto;
+      flex-shrink: 0;
+    }
+    .fix-badge.fix-applied {
+      background: #14532d;
+      color: #86efac;
+    }
+
+    /* Fix toast */
+    .fix-toast {
+      position: fixed;
+      bottom: 16px;
+      left: 16px;
+      right: 16px;
+      padding: 10px 14px;
+      border-radius: 6px;
+      font-size: 12px;
+      font-weight: 500;
+      z-index: 100;
+      animation: toast-in 0.2s ease;
+    }
+    .fix-toast-success {
+      background: #14532d;
+      color: #86efac;
+      border: 1px solid #166534;
+    }
+    .fix-toast-error {
+      background: #450a0a;
+      color: #fca5a5;
+      border: 1px solid #7f1d1d;
+    }
+    .fix-toast-hide { opacity: 0; transition: opacity 0.3s; }
+    @keyframes toast-in { from { opacity: 0; transform: translateY(8px); } to { opacity: 1; transform: translateY(0); } }
+
+    /* Feedback bar */
+    /* Free mode banner */
+    .free-mode-banner {
+      display: none;
+      padding: 8px 12px;
+      background: #431407;
+      border: 1px solid #7c2d12;
+      color: #fdba74;
+      font-size: 11px;
+      line-height: 1.5;
+      margin: 0 16px 8px;
+      border-radius: 6px;
+    }
+    .free-mode-banner.visible { display: block; }
+
+    .feedback-bar {
+      padding: 12px 16px;
+      border-top: 1px solid #1a1a1a;
+      background: #0d0d0d;
+    }
+    .feedback-prompt {
+      font-size: 11px;
+      color: #555;
+      margin-bottom: 8px;
+    }
+    .feedback-btns {
+      display: flex;
+      gap: 8px;
+    }
+    .feedback-btn {
+      flex: 1;
+      padding: 8px;
+      border: 1px solid #222;
+      border-radius: 6px;
+      background: #111;
+      color: #888;
+      font-size: 13px;
+      cursor: pointer;
+      transition: all 0.15s;
+      font-family: inherit;
+      text-align: center;
+    }
+    .feedback-btn:hover { border-color: #333; color: #ccc; }
+    .feedback-btn.selected-good { background: #14532d; border-color: #166534; color: #86efac; }
+    .feedback-btn.selected-bad { background: #450a0a; border-color: #7f1d1d; color: #fca5a5; }
+    .feedback-comment {
+      margin-top: 8px;
+      display: none;
+    }
+    .feedback-comment.visible { display: block; }
+    .feedback-comment textarea {
+      width: 100%;
+      height: 60px;
+      background: #111;
+      border: 1px solid #222;
+      border-radius: 6px;
+      color: #e5e5e5;
+      font-size: 12px;
+      padding: 8px 10px;
+      font-family: inherit;
+      resize: none;
+      outline: none;
+    }
+    .feedback-comment textarea:focus { border-color: #444; }
+    .feedback-submit {
+      margin-top: 6px;
+      padding: 7px;
+      width: 100%;
+      background: #e5e5e5;
+      color: #0d0d0d;
+      border: none;
+      border-radius: 6px;
+      font-size: 12px;
+      font-weight: 600;
+      cursor: pointer;
+      font-family: inherit;
+    }
+    .feedback-submit:disabled { opacity: 0.3; cursor: not-allowed; }
+    .feedback-done {
+      font-size: 11px;
+      color: #555;
+      text-align: center;
+      padding: 8px 0;
+    }</style></head><body><div class="header"><span class="logo">Simulo</span> <span class="version">v1.0</span></div><div class="mode-bar"><div class="mode-tab active" data-mode="analysis">UX 분석</div><div class="mode-tab" data-mode="writing">UX 라이팅</div></div><div class="selection-bar" id="selectionBar" data-count="0" data-names="">프레임이나 레이어를 선택해주세요</div><div class="error-msg" id="errorMsg"></div><div class="free-mode-banner" id="freeModeBanner">⚠ 무료 모드로 분석합니다. API 키가 없거나 사용량을 초과했습니다. 품질이 저하될 수 있습니다.</div><div class="settings-section"><div class="settings-toggle" id="settingsToggle">⚙ API 설정</div><div class="settings-body" id="settingsPanel"><label>Anthropic API Key</label> <input type="password" id="apiKey" placeholder="sk-ant-api03-..."/><div class="settings-hint">입력한 키는 이 기기에만 저장됩니다. 없으면 무료 모드로 작동합니다.</div><label style="margin-top:12px">분석 모델</label> <select id="modelSelect" style="width:100%;background:#111;border:1px solid #222;border-radius:6px;color:#e5e5e5;font-size:13px;padding:8px 10px;font-family:inherit;outline:none;"><option value="haiku">Haiku (빠르고 저렴 — 기본)</option><option value="sonnet">Sonnet (정밀 분석)</option></select><div class="settings-hint">Haiku: 90% 비용 절감. Sonnet: 복잡한 화면 정밀 분석 시 추천</div><label style="margin-top:12px">Simulo URL (선택)</label> <input type="url" id="simuloUrl" placeholder="https://simulo.vercel.app"/><div class="settings-hint">로컬 테스트 시 http://localhost:3000 입력</div></div></div><div class="form" id="inputForm"><div><label>가설</label> <textarea id="hypothesis" placeholder="예: 신규 유저가 마일리지 적립 방법을 이해하고 첫 미션을 완료할 수 있는가?"></textarea></div><div><label>타깃 유저</label> <input id="targetUser" placeholder="예: 야핏무브 신규 설치 유저, 30대 직장인"/></div><button class="btn-primary" id="runBtn" disabled="disabled">선택된 항목 없음</button> <button class="btn-secondary" id="runFlowBtn" disabled="disabled" style="margin-top:6px;">🔗 플로우 분석 (화면 간 전환 마찰)</button></div><div class="loading" id="loading"><div class="loading-spin">⟳</div><div class="loading-msg" id="loadingMsg">화면을 분석하고 있습니다...</div></div><div class="report" id="report"><div class="score-row"><span class="score-num" id="reportScore">-</span> <span class="verdict-badge" id="reportVerdict">-</span></div><div class="summary" id="reportSummary"></div><div class="tab-bar"><div class="tab active" data-tab="overview">Overview</div><div class="tab" data-tab="think">Think Aloud</div><div class="tab" data-tab="issues">이슈</div></div><div class="tab-content active" id="tab-overview"><div class="section-label">강점</div><div id="reportStrengths"></div></div><div class="tab-content" id="tab-think"><div id="reportThinkAloud"></div></div><div class="tab-content" id="tab-issues"><div id="reportIssues"></div></div><button class="btn-secondary" id="resetBtn">← 다시 분석</button></div><div class="writing-form" id="writingForm"><div class="writing-hint">Figma에서 프레임을 선택한 후 아래 버튼을 누르면, 화면의 모든 텍스트를 분석하여 UX 라이팅 개선점을 찾아드립니다.</div><button class="btn-primary" id="runWritingBtn" disabled="disabled">선택된 항목 없음</button></div><div class="writing-report" id="writingReport"></div><div id="writingActions" style="display:none;padding:0 16px 16px;display:none;"><div style="display:flex;gap:8px;margin-bottom:8px;"><button class="btn-secondary" id="exportCsvBtn" style="margin:0;flex:1;">CSV 내보내기</button> <button class="btn-secondary" id="exportSimuloBtn" style="margin:0;flex:1;">Simulo에 저장</button></div><button class="btn-secondary" id="writingResetBtn" style="margin:0;">← 다시 체크</button></div><script defer="defer">(()=>{"use strict";({785(){var e=this&&this.__awaiter||function(e,t,n,s){return new(n||(n=Promise))(function(i,o){function a(e){try{l(s.next(e))}catch(e){o(e)}}function r(e){try{l(s.throw(e))}catch(e){o(e)}}function l(e){var t;e.done?i(e.value):(t=e.value,t instanceof n?t:new n(function(e){e(t)})).then(a,r)}l((s=s.apply(e,t||[])).next())})};let t=[],n="analysis",s=[],i="",o=new Set,a=!1;const r={haiku:"claude-haiku-4-5-20251001",sonnet:"claude-sonnet-4-20250514"};function l(){const e=d("modelSelect");return r[(null==e?void 0:e.value)||"haiku"]}function c(){const e=f();a=!e,d("freeModeBanner").className=a?"free-mode-banner visible":"free-mode-banner"}function d(e){return document.getElementById(e)}function p(e){return e.replace(/&/g,"&amp;").replace(/</g,"&lt;").replace(/>/g,"&gt;").replace(/"/g,"&quot;").replace(/'/g,"&#39;")}function u(e,t){const n=d("selectionBar");n.dataset.count=String(e),n.dataset.names=t.join(",");const s=d("runBtn"),i=d("runFlowBtn"),o=d("runWritingBtn");if(0===e)n.textContent="프레임이나 레이어를 선택해주세요",n.className="selection-bar",s.disabled=!0,s.textContent="선택된 항목 없음",i.disabled=!0,o.disabled=!0,o.textContent="선택된 항목 없음";else{const a=t.slice(0,2).join(", "),r=t.length>2?" 외":"";n.textContent=`${e}개 선택됨 — ${a}${r}`,n.className="selection-bar active";const l=Math.min(e,8);s.disabled=!1,s.textContent=`${l}개 화면 분석 시작`,i.disabled=e<2,o.disabled=!1,o.textContent=`${l}개 화면 UX 라이팅 체크`}}function m(){c(),d("hypothesis").value.trim()?(N(),x(),parent.postMessage({pluginMessage:{type:"get-selection"}},"*")):k("가설을 입력해주세요.")}function g(){c(),d("hypothesis").value.trim()?(N(),x(),w("플로우 분석용 화면을 추출 중..."),parent.postMessage({pluginMessage:{type:"get-selection-for-flow"}},"*")):k("가설을 입력해주세요. (예: 신규 유저가 결제까지 완료할 수 있는가?)")}function f(){return d("apiKey").value.trim()}function v(e){document.querySelectorAll(".tab").forEach(t=>{const n=t.dataset.tab;t.className="tab"+(n===e?" active":"")}),document.querySelectorAll(".tab-content").forEach(e=>{e.className="tab-content"});const t=document.getElementById(`tab-${e}`);t&&(t.className="tab-content active")}function y(){d("report").className="report",d("writingReport").className="writing-report",d("writingActions").style.display="none",t=[],s=[],"analysis"===n?(d("inputForm").style.display="flex",d("writingForm").style.display="none"):(d("inputForm").style.display="none",d("writingForm").style.display="flex")}function h(){c(),N(),x(),w("프레임 텍스트를 분석 중..."),parent.postMessage({pluginMessage:{type:"get-selection-for-writing"}},"*")}function b(e){let t=`이 UI 화면("${e.name}")의 텍스트를 UX 라이팅 매뉴얼 기준으로 분석하세요.\n\n`;if(e.texts&&e.texts.length>0){t+="## Figma에서 추출한 실제 텍스트 목록\n아래는 Figma 레이어에서 직접 추출한 정확한 텍스트입니다. 이미지의 텍스트를 OCR로 읽지 말고, 아래 텍스트를 기준으로 분석하세요.\n\n";for(const n of e.texts){const e=[];n.parentName&&e.push(`위치: ${n.parentName}`),n.fontSize&&e.push(`${n.fontSize}px`),"bold"===n.fontWeight&&e.push("볼드"),t+=`- "${n.text}"${e.length>0?` (${e.join(", ")})`:""}\n`}t+=`\n총 ${e.texts.length}개 텍스트 노드.\n`}return t+='\n## 분석 순서 (이 순서대로 각 텍스트를 체크)\n1. 해요체인가? (반말/합쇼체 → 해요체로)\n2. 군더더기가 있는가? ("혹시", "잠깐", "한번", "지금 바로" 등)\n3. CTA라면: 누르면 무엇이 일어나는지 예측 가능한가?\n4. 한 문장에 메시지가 2개 이상 들어있는가?\n5. 같은 단어가 화면에서 3회 이상 반복되는가?\n6. 소리 내어 읽었을 때 자연스러운가?\n\n기능 자체(게이미피케이션, 카드뽑기, 운세 등)는 평가하지 마세요. 문장 표현만 평가하세요.\nsuggestion은 원본과 비슷한 길이로, UI 공간을 벗어나지 않게 작성하세요.\n\nJSON만 반환하세요.',t}function x(){d("inputForm").style.display="none",d("writingForm").style.display="none",d("loading").className="loading visible"}function $(){d("loading").className="loading","analysis"===n?d("inputForm").style.display="flex":d("writingForm").style.display="flex"}function w(e){d("loadingMsg").textContent=e}function k(e){const t=d("errorMsg");t.textContent=e,t.className="error-msg visible"}function N(){d("errorMsg").className="error-msg"}function S(e){return e?`"${e.replace(/"/g,'""')}"`:""}function C(){if(0===s.length)return;const e=function(e){const t=["프레임","위치","심각도","원칙","현재 문구 (Don't)","제안 문구 (Do)","사유"].join(","),n=[];for(const t of e)if(0!==t.issues.length)for(const e of t.issues)n.push([S(t.frameName),S(e.location),"critical"===e.severity?"심각":"warning"===e.severity?"주의":"참고",S(e.principle),S(e.original),S(e.suggestion),S(e.reason)].join(","));else n.push([S(t.frameName),"","","","","","이슈 없음"].join(","));return"\ufeff"+t+"\n"+n.join("\n")}(s),t=new Blob([e],{type:"text/csv;charset=utf-8;"}),n=URL.createObjectURL(t),i=document.createElement("a");i.href=n,i.download=`ux-writing-${(new Date).toISOString().slice(0,10)}.csv`,i.click(),URL.revokeObjectURL(n)}function M(){if(0===s.length)return;const e={fk:i,frames:s.map(e=>({f:e.frameName,n:e.figmaNodeId||"",s:e.score,i:e.issues.map(e=>({l:e.location,o:e.original,g:e.suggestion,r:e.reason,v:e.severity,p:e.principle}))}))},t=JSON.stringify(e),n=btoa(unescape(encodeURIComponent(t)));try{navigator.clipboard.writeText(t)}catch(e){}const o=`${L()}/ux-writing?tab=checklist#import=${n}`;parent.postMessage({pluginMessage:{type:"open-external",url:o}},"*"),w("Simulo 페이지를 여는 중..."),d("loading").className="loading visible",setTimeout(()=>{d("loading").className="loading"},1500)}function L(){return d("simuloUrl").value.trim()||"https://simulo.vercel.app"}function E(e,t,n){const s=e.querySelector(".feedback-bar");s&&s.remove();const i=document.createElement("div");i.className="feedback-bar",i.innerHTML=`\n    <div class="feedback-prompt">분석 결과가 도움이 되었나요?</div>\n    <div class="feedback-btns">\n      <button class="feedback-btn" data-rating="good">👍 좋아요</button>\n      <button class="feedback-btn" data-rating="bad">👎 아쉬워요</button>\n    </div>\n    <div class="feedback-comment" id="feedbackComment-${t}">\n      <textarea placeholder="어떤 점이 아쉬웠나요? (예: 기획 의도와 맞지 않는 제안, 불필요한 수정 등)"></textarea>\n      <button class="feedback-submit">피드백 보내기</button>\n    </div>\n    <div class="feedback-done" style="display:none">피드백이 전송되었습니다. 감사합니다!</div>\n  `,e.appendChild(i);let o=null;const a=i.querySelectorAll(".feedback-btn"),r=i.querySelector(".feedback-comment"),l=i.querySelector(".feedback-done");a.forEach(e=>{e.addEventListener("click",()=>{var s,c;const d=e.dataset.rating;o=d,a.forEach(e=>e.className="feedback-btn"),e.className=`feedback-btn selected-${d}`,"good"===d?(r.classList.remove("visible"),T(t,"good",void 0,n),null===(s=i.querySelector(".feedback-btns"))||void 0===s||s.remove(),null===(c=i.querySelector(".feedback-prompt"))||void 0===c||c.remove(),r.style.display="none",l.style.display="block"):r.classList.add("visible")})});const c=i.querySelector(".feedback-submit"),d=i.querySelector("textarea");c.addEventListener("click",()=>{o&&(c.disabled=!0,c.textContent="전송 중...",T(t,o,d.value.trim(),n),setTimeout(()=>{var e,t;null===(e=i.querySelector(".feedback-btns"))||void 0===e||e.remove(),null===(t=i.querySelector(".feedback-prompt"))||void 0===t||t.remove(),r.style.display="none",l.style.display="block"},300))})}function T(t,n,s,i){return e(this,void 0,void 0,function*(){const e=L();try{yield fetch(`${e}/api/feedback`,{method:"POST",headers:{"Content-Type":"application/json"},body:JSON.stringify({type:t,rating:n,comment:s,context:i})})}catch(e){}})}function j(t,n){return e(this,void 0,void 0,function*(){const e=L(),s=yield fetch(`${e}/api/analyze-free`,{method:"POST",headers:{"Content-Type":"application/json"},body:JSON.stringify({mode:t,systemPrompt:n.systemPrompt,content:n.content,frameName:n.frameName})});if(!s.ok){const e=yield s.json().catch(()=>({}));throw new Error((null==e?void 0:e.error)||`무료 분석 실패 (${s.status})`)}return(yield s.json()).result})}function O(e,t){const n=document.querySelector(".fix-toast");n&&n.remove();const s=document.createElement("div");s.className=`fix-toast fix-toast-${t}`,s.textContent=e,document.body.appendChild(s),setTimeout(()=>{s.classList.add("fix-toast-hide"),setTimeout(()=>s.remove(),300)},3e3)}window.addEventListener("DOMContentLoaded",()=>{parent.postMessage({pluginMessage:{type:"load-api-key"}},"*"),parent.postMessage({pluginMessage:{type:"load-simulo-url"}},"*"),d("apiKey").addEventListener("change",e=>{const t=e.target.value.trim();t&&parent.postMessage({pluginMessage:{type:"save-api-key",key:t}},"*"),c()}),d("modelSelect").addEventListener("change",e=>{const t=e.target.value;parent.postMessage({pluginMessage:{type:"save-model",model:t}},"*")}),d("simuloUrl").addEventListener("change",e=>{const t=e.target.value.trim();parent.postMessage({pluginMessage:{type:"save-simulo-url",url:t}},"*")}),d("settingsToggle").addEventListener("click",()=>{d("settingsPanel").classList.toggle("visible")}),d("runBtn").addEventListener("click",m),d("runFlowBtn").addEventListener("click",g),d("runWritingBtn").addEventListener("click",h),d("resetBtn").addEventListener("click",y),d("writingResetBtn").addEventListener("click",y),d("exportCsvBtn").addEventListener("click",C),d("exportSimuloBtn").addEventListener("click",M),document.querySelectorAll(".mode-tab").forEach(e=>{e.addEventListener("click",()=>{const t=e.dataset.mode;t&&function(e){n=e,document.querySelectorAll(".mode-tab").forEach(t=>{const n=t.dataset.mode;t.className="mode-tab"+(n===e?" active":"")}),d("inputForm").style.display="analysis"===e?"flex":"none",d("writingForm").style.display="writing"===e?"flex":"none",d("report").className="report",d("writingReport").className="writing-report",u(parseInt(d("selectionBar").dataset.count||"0"),(d("selectionBar").dataset.names||"").split(",").filter(Boolean))}(t)})}),document.querySelectorAll(".tab").forEach(e=>{e.addEventListener("click",()=>{const t=e.dataset.tab;t&&v(t)})}),parent.postMessage({pluginMessage:{type:"get-file-info"}},"*"),parent.postMessage({pluginMessage:{type:"load-model"}},"*"),setTimeout(c,500)}),window.onmessage=n=>{const r=n.data.pluginMessage;if(r){if("api-key-loaded"===r.type){const e=r.key;e&&(d("apiKey").value=e),c()}if("simulo-url-loaded"===r.type){const e=r.url;e&&(d("simuloUrl").value=e)}if("model-loaded"===r.type){const e=r.model;e&&(d("modelSelect").value=e)}if("selection-changed"===r.type&&u(r.count,r.names),"file-info"===r.type&&u(r.selectionCount,r.names||[]),"selection-ready"===r.type&&(t=r.images,function(){e(this,void 0,void 0,function*(){var e,n,s,i;const o=f(),r=d("hypothesis").value.trim(),c=d("targetUser").value.trim(),u=[];t.forEach((e,t)=>{if(u.push({type:"text",text:`[화면 ${t+1}: ${e.name}]`}),u.push({type:"image",source:{type:"base64",media_type:"image/png",data:e.base64}}),e.texts&&e.texts.length>0){let n=`\n[화면 ${t+1} 텍스트 — Figma에서 직접 추출 (OCR 아님)]\n`;for(const t of e.texts){const e=[];t.parentName&&e.push(t.parentName),t.fontSize&&e.push(`${t.fontSize}px`),"bold"===t.fontWeight&&e.push("볼드"),n+=`- "${t.text}"${e.length?` (${e.join(", ")})`:""}\n`}u.push({type:"text",text:n})}}),u.push({type:"text",text:`가설: "${r}"\n타깃 유저: "${c||"일반 사용자"}"\n\n위 화면들을 분석하여 가설에 대한 사용성 평가를 JSON으로 반환해주세요.\n\n중요: 각 화면의 텍스트는 Figma 레이어에서 직접 추출한 것이므로 정확합니다. 이미지에서 텍스트를 OCR로 읽지 말고 추출된 텍스트를 기준으로 분석하세요.`});const m='You are a professional UX analysis agent for YafitMove, a Korean fitness reward app. Analyze the provided design screens against the given hypothesis and target user profile. Respond ONLY in pure JSON, no markdown, no code blocks.\n\n{\n  "verdict": "통과" | "부분 통과" | "실패",\n  "score": 0-100,\n  "summary": "2-3문장 한국어 요약",\n  "strengths": ["강점1", "강점2"],\n  "taskSuccessLikelihood": "높음" | "보통" | "낮음",\n  "thinkAloud": [{"screen": "화면명", "thought": "1인칭 한국어 발화"}],\n  "issues": [{"screen": "화면명", "severity": "심각" | "보통" | "낮음", "issue": "한국어 설명", "recommendation": "한국어 권고"}]\n}';try{let r;if(w("AI가 화면을 분석 중..."),a)r=yield j("analysis",{systemPrompt:m,content:u});else{const t=yield fetch("https://api.anthropic.com/v1/messages",{method:"POST",headers:{"Content-Type":"application/json","x-api-key":o,"anthropic-version":"2023-06-01","anthropic-dangerous-direct-browser-access":"true"},body:JSON.stringify({model:l(),max_tokens:4096,system:[{type:"text",text:m,cache_control:{type:"ephemeral"}}],messages:[{role:"user",content:u}]})});if(t.ok){const e=(null!==(i=null===(s=null===(n=(yield t.json()).content)||void 0===n?void 0:n[0])||void 0===s?void 0:s.text)&&void 0!==i?i:"").replace(/```json\n?/g,"").replace(/```\n?/g,"").trim();r=JSON.parse(e)}else{const n=yield t.json().catch(()=>({})),s=t.status;if(429!==s&&401!==s)throw new Error((null===(e=null==n?void 0:n.error)||void 0===e?void 0:e.message)||`API 오류 ${s}`);a=!0,d("freeModeBanner").className="free-mode-banner visible",r=yield j("analysis",{systemPrompt:m,content:u})}}!function(e){var n;$(),d("reportScore").textContent=String(null!==(n=e.score)&&void 0!==n?n:"-");const s=d("reportVerdict");s.textContent=e.verdict||"-";const i="통과"===e.verdict?"verdict-pass":"부분 통과"===e.verdict?"verdict-partial":"verdict-fail";s.className=`verdict-badge ${i}`,d("reportSummary").textContent=e.summary||"";const o=(e.strengths||[]).map(e=>`<div class="strength-item">+ ${p(e)}</div>`).join("");d("reportStrengths").innerHTML=o||'<div class="empty">강점 없음</div>';const a=(e.thinkAloud||[]).map(e=>`\n      <div class="think-wrap">\n        <div class="think-screen">${p(e.screen)}</div>\n        <div class="think-aloud">&ldquo;${p(e.thought)}&rdquo;</div>\n      </div>`).join("");d("reportThinkAloud").innerHTML=a||'<div class="empty">Think Aloud 없음</div>';const r=(e.issues||[]).map(e=>{return`\n      <div class="issue-item">\n        <span class="issue-severity ${t=e.severity,"심각"===t?"sev-critical":"보통"===t?"sev-medium":"sev-low"}">${p(e.severity)}</span>\n        <span class="issue-screen">${p(e.screen||"")}</span>\n        <div class="issue-text">${p(e.issue)}</div>\n        <div class="issue-rec">→ ${p(e.recommendation)}</div>\n      </div>`;var t}).join("");d("reportIssues").innerHTML=r||'<div class="empty">발견된 이슈 없음</div>',d("inputForm").style.display="none",d("report").className="report visible",E(d("report"),"analysis",{frameName:t.map(e=>e.name).join(", "),score:e.score,issueCount:(e.issues||[]).length})}(r)}catch(e){$(),k(`분석 실패: ${e instanceof Error?e.message:String(e)}`)}})}()),"writing-selection-ready"===r.type){const t=r.frames;i=r.fileKey||"",function(t){e(this,void 0,void 0,function*(){var e,n,i,r;const c=f(),u='당신은 야핏무브 UX 라이팅 전문가입니다. 야핏무브 UX 라이팅 매뉴얼(v1.0)에 근거하여 Figma 디자인 프레임의 모든 텍스트를 분석합니다.\n\n## 절대 규칙 — 기획 판단 금지 (최우선)\n당신은 **문장 표현의 품질만 평가**합니다. 기능/기획 자체에 대한 판단은 **절대 금지**입니다.\n- 게이미피케이션, 운세, 카드뽑기, 랜덤보상, 이벤트, 챌린지 등 **모든 기능은 이미 확정된 기획**입니다.\n- "이 기능이 4060에게 적합하지 않다", "건강 앱에 맞지 않다", "게이미피케이션이 사용자에게 혼란을 줄 수 있다" 같은 판단은 **하지 마세요.**\n- "뽑기", "카드", "운세" 같은 단어가 있어도 기능 자체를 문제 삼지 마세요. 그 단어가 해요체인지, 명확한지, 군더더기가 없는지만 보세요.\n- **위반 예시 (금지)**: "궁금한 카드를 뽑아주세요 → 게이미피케이션 요소가 4060에게 적합하지 않을 수 있음"\n- **올바른 평가**: "궁금한 카드를 뽑아주세요 → \'궁금한\'이 군더더기. \'카드를 선택해주세요\'가 행동을 더 명확히 예측하게 함"\n\n당신이 판단할 수 있는 것: 해요체 여부, 군더더기, CTA 명확성, 구어체, 단어 반복, 따뜻한 톤, 문장 길이.\n당신이 판단할 수 없는 것: 기능의 적합성, 브랜드 방향성, 콘텐츠 전략, 제품 정체성.\n\n## 제안 텍스트 작성 규칙\n- suggestion은 **반드시 원본과 비슷한 길이**여야 합니다. 원본보다 2배 이상 길어지면 안 됩니다.\n- UI 공간은 제한적입니다. 짧고 명확한 문장이 좋습니다.\n- suggestion이 원본과 동일한 의미를 전달하되, 매뉴얼 원칙에 더 부합하도록 수정하세요.\n\n## 타깃 사용자\n야핏무브의 핵심 사용자는 **4060대 한국 여성**입니다. 이분들에게 화면 위의 글자는 매일 만나는 작은 대화입니다.\n\n## 코어밸류 — 5가지 가치\n1. **명확한(Clear)**: 4060 사용자가 한눈에 보고 무엇을 해야 할지 즉시 알 수 있어야 한다\n2. **정중한(Respectful)**: 모든 문구는 해요체. 반말, 강요, 위협 없음. 가르치거나 재촉하지 않는다\n3. **따뜻한(Warm)**: 격려하는 감정 표현을 환영. "잘하고 있어요", "내일 더 행복해질 거예요" 같은 표현\n4. **깔끔한(Clean)**: 한 화면에 같은 단어/문장 반복하지 않는다. 군더더기를 뺀다\n5. **정직한(Honest)**: 거짓 약속이나 과장 없음. 보상 액수는 확정 가능할 때만 명시\n\n## 두두 캐릭터 원칙\n두두는 시각적 마스코트다. **화자가 아니다.** 두두를 의인화해 말하게 하는 모든 표현은 금지.\n- ✗ "두두가 마일리지 줄게" → ✓ "보너스 마일리지를 받았어요"\n- ✗ "두두랑 같이 걸어볼래?" → ✓ "같이 걸어볼까요?"\n\n## 8가지 라이팅 원칙 (문장 단위)\n\n### 원칙1: 4060이 한눈에 이해할 수 있게 쓴다\n화면을 보고 1~2초 안에 무엇이 가능한지 알 수 있어야 한다. **이 원칙이 다른 모든 원칙 위에 있다.**\n- ✗ "본 서비스 이용 시 마일리지가 적립됩니다" → ✓ "광고를 보면 마일리지를 받아요"\n- ✗ "보상 미수령 건이 있습니다" → ✓ "아직 받지 않은 보너스가 있어요"\n\n### 원칙2: 다음 행동이 예측되는 문장을 쓴다\nCTA는 누른 뒤 무엇이 일어날지 직접 말한다.\n- ✗ "확인" → ✓ "마일리지 받기"\n- ✗ "시작하기" → ✓ "잠자기 시간 정하기"\n- ✗ "더 보기" → ✓ "오늘 받을 보너스 보기"\n\n### 원칙3: 군더더기를 뺀다\n뺐을 때 의미가 변하지 않는 단어는 빼야 한다.\n금지 군더더기: "혹시", "잠깐", "한번", "지금 바로", "당장", "공짜", "열심히", "~하실 수 있는"\n\n### 원칙4: 한 문장에 한 메시지를 담는다\n여러 정보를 한 문장에 욱여넣으면 4060 사용자에게 부담스럽다.\n\n### 원칙5: 따뜻한 감정으로 격려한다\n사실만 건조하게 적시하지 않는다. 격려, 응원, 기대감을 준다.\n- ✗ "오늘 5,034걸음을 걸었어요" → ✓ "오늘도 잘하고 있어요"\n\n### 원칙6: 입으로 말할 수 있는 문장을 쓴다\n소리 내어 읽었을 때 어색하면 다시 쓴다. 한자어, 문어체, 긴 호흡 문장 금지.\n- ✗ "보상 지급이 완료되었습니다" → ✓ "보너스 마일리지를 받았어요"\n\n### 원칙7: 권유하되 강요하지 않는다\n손실 회피는 야핏무브의 핵심 메커니즘이나 표현이 공격적이지 않게 한다.\n\n### 원칙8: 모두가 이해할 수 있는 말을 쓴다\n외래어, 줄임말, 인터넷 밈은 거리감을 만든다.\n야핏무브 내부 용어(에너지, 두두, 마일리지, 마일리지샵, 보너스 마일리지)는 허용.\n\n## 제품 라이팅 원칙 (화면 단위)\n- 한 화면, 하나의 핵심 메시지\n- 같은 단어를 한 화면에서 반복하지 않는다 (동일 명사 3회 이상 = 정리되지 않은 인상)\n- 원페이지 원액션: 타이틀 1줄 + CTA 1개만 봤을 때 행동할 수 있어야 한다\n\n## 심각도 기준\n- **critical**: 사용자가 오해하거나 행동하지 못하는 텍스트\n- **warning**: 개선하면 전환율/만족도가 올라가는 텍스트\n- **info**: 더 나은 대안이 있는 텍스트\n\n## principle 값 (반드시 아래 중 하나)\n"한눈에 이해", "행동 예측", "군더더기 제거", "한 문장 한 메시지", "따뜻한 격려", "구어체", "권유/비강요", "쉬운 말", "두두 원칙", "원페이지 원액션", "단어 반복 금지", "해요체", "정직한 표현"\n\n## 응답 형식\n반드시 아래 JSON 형식으로 응답하세요. JSON 외 다른 텍스트를 포함하지 마세요.\n\n{\n  "summary": "전체 UX 라이팅에 대한 1-2문장 요약",\n  "score": 0-100,\n  "issues": [\n    {\n      "location": "텍스트가 위치한 UI 요소",\n      "original": "원본 텍스트",\n      "suggestion": "개선된 텍스트",\n      "reason": "어떤 원칙을 위반했는지 + 왜 변경해야 하는지",\n      "severity": "critical | warning | info",\n      "principle": "위 principle 값 중 하나"\n    }\n  ],\n  "strengths": ["매뉴얼 기준으로 잘 작성된 텍스트에 대한 칭찬"],\n  "screenLevel": {\n    "hasOneKeyMessage": true/false,\n    "hasWordRepetition": true/false,\n    "repeatedWords": ["반복된 단어"],\n    "ctaCount": 0,\n    "ctaClarity": "CTA가 행동을 예측하게 하는지 평가"\n  }\n}';try{const m=[];for(let s=0;s<t.length;s++){w(`프레임 ${s+1}/${t.length} 분석 중${a?" (무료 모드)":""}...`);const o=[{type:"image",source:{type:"base64",media_type:"image/png",data:t[s].base64}},{type:"text",text:b(t[s])}];let p;if(a)p=yield j("writing",{systemPrompt:u,content:[{role:"user",content:o}],frameName:t[s].name});else{const m=yield fetch("https://api.anthropic.com/v1/messages",{method:"POST",headers:{"Content-Type":"application/json","x-api-key":c,"anthropic-version":"2023-06-01","anthropic-dangerous-direct-browser-access":"true"},body:JSON.stringify({model:l(),max_tokens:4096,temperature:.2,system:[{type:"text",text:u,cache_control:{type:"ephemeral"}}],messages:[{role:"user",content:o}]})});if(m.ok){const e=(null!==(r=null===(i=null===(n=(yield m.json()).content)||void 0===n?void 0:n[0])||void 0===i?void 0:i.text)&&void 0!==r?r:"").replace(/```json\n?/g,"").replace(/```\n?/g,"").trim();p=JSON.parse(e)}else{const n=m.status;if(429!==n&&401!==n){const t=yield m.json().catch(()=>({}));throw new Error((null===(e=null==t?void 0:t.error)||void 0===e?void 0:e.message)||`API 오류 ${n}`)}a=!0,d("freeModeBanner").className="free-mode-banner visible",p=yield j("writing",{systemPrompt:u,content:[{role:"user",content:o}],frameName:t[s].name})}}m.push(Object.assign(Object.assign({},p),{frameName:t[s].name,figmaNodeId:t[s].nodeId}))}!function(e){$(),d("inputForm").style.display="none",d("writingForm").style.display="none",o=new Set;const t=d("writingReport");let n="";for(let t=0;t<e.length;t++){const s=e[t],i=s.score>=80?"score-good":s.score>=60?"score-ok":"score-bad",o=!!s.figmaNodeId,a=s.issues&&s.issues.length>0;if(n+=`\n      <div class="writing-frame-result">\n        <div class="score-row">\n          <span class="score-num ${i}">${s.score}</span>\n          <span class="writing-frame-name">${p(s.frameName)}</span>\n        </div>\n        <div class="summary">${p(s.summary)}</div>\n    `,o&&a&&(n+=`<button class="fix-all-btn" data-fix-all="${t}">전체 수정 적용 (복제 프레임 생성)</button>`),s.screenLevel){const e=s.screenLevel;n+='<div class="section-label">화면 단위 체크</div>',n+='<div style="display:flex;flex-wrap:wrap;gap:6px;margin-bottom:12px;">',n+=`<span class="issue-severity ${e.hasOneKeyMessage?"sev-low":"sev-critical"}" style="font-size:10px">${e.hasOneKeyMessage?"✓ 핵심 메시지 1개":"✗ 핵심 메시지 복수"}</span>`,n+=`<span class="issue-severity ${e.hasWordRepetition?"sev-medium":"sev-low"}" style="font-size:10px">${e.hasWordRepetition?`✗ 반복: ${e.repeatedWords.map(e=>p(e)).join(", ")}`:"✓ 단어 반복 없음"}</span>`,n+=`<span class="issue-severity sev-low" style="font-size:10px">CTA ${e.ctaCount}개</span>`,n+="</div>",e.ctaClarity&&(n+=`<div style="font-size:11px;color:#666;margin-bottom:12px">${p(e.ctaClarity)}</div>`)}if(s.strengths&&s.strengths.length>0){n+='<div class="section-label">잘 된 점</div>';for(const e of s.strengths)n+=`<div class="strength-item">✓ ${p(e)}</div>`}if(a){n+=`<div class="section-label" style="margin-top:12px">개선 사항 (${s.issues.length})</div>`;for(let e=0;e<s.issues.length;e++){const i=s.issues[e];n+=`\n          <div class="writing-issue">\n            <div class="writing-issue-header">\n              <span class="issue-severity ${"critical"===i.severity?"sev-critical":"warning"===i.severity?"sev-medium":"sev-low"}">${p("critical"===i.severity?"심각":"warning"===i.severity?"주의":"참고")}</span>\n              <span class="issue-screen">${p(i.location)}</span>\n              <span class="writing-principle">${p(i.principle)}</span>\n              ${o?`<span class="fix-badge" data-fix-badge="${t}-${e}">수정 대기</span>`:""}\n            </div>\n            <div class="writing-compare">\n              <div class="writing-before">\n                <span class="writing-label">현재</span>\n                <span class="writing-text-del">${p(i.original)}</span>\n              </div>\n              <div class="writing-after">\n                <span class="writing-label writing-label-good">제안</span>\n                <span class="writing-text-new">${p(i.suggestion)}</span>\n              </div>\n            </div>\n            <div class="writing-reason">${p(i.reason)}</div>\n          </div>\n        `}}n+="</div>"}t.innerHTML=n,t.className="writing-report visible",t.querySelectorAll(".fix-all-btn").forEach(e=>{e.addEventListener("click",()=>{!function(e){const t=s[e];if(!t||!t.figmaNodeId)return;const n=t.issues.map(e=>({original:e.original,suggestion:e.suggestion}));if(0===n.length)return;window.__pendingFixFrameIdx=e;const i=document.querySelector(`[data-fix-all="${e}"]`);i&&(i.disabled=!0,i.textContent="적용 중..."),parent.postMessage({pluginMessage:{type:"apply-writing-fixes",nodeId:t.figmaNodeId,fixes:n}},"*")}(parseInt(e.dataset.fixAll||"0",10))})}),s=e,d("writingActions").style.display="block";const i=e.reduce((e,t)=>{var n;return e+((null===(n=t.issues)||void 0===n?void 0:n.length)||0)},0),a=e.length>0?Math.round(e.reduce((e,t)=>e+t.score,0)/e.length):0;E(t,"writing",{frameName:e.map(e=>e.frameName).join(", "),score:a,issueCount:i})}(m)}catch(e){$(),k(`분석 실패: ${e instanceof Error?e.message:String(e)}`)}})}(t)}if("flow-selection-ready"===r.type&&(t=r.flowSteps.map(e=>({name:e.stepName,base64:e.base64,texts:[]})),function(){e(this,void 0,void 0,function*(){const e=f(),n=d("hypothesis").value.trim(),s=d("targetUser").value.trim(),i=L(),o=t.slice(0,8).map((e,t)=>({stepNumber:t+1,stepName:e.name,image:e.base64}));try{w(`${o.length}개 화면 플로우 분석 중...`);const t=yield fetch(`${i}/api/analyze`,{method:"POST",headers:{"Content-Type":"application/json"},body:JSON.stringify({inputType:"flow",flowSteps:o,hypothesis:n,targetUser:s||"일반 사용자",locale:"ko",mode:"hypothesis",apiKey:e||void 0})});if(!t.ok){const e=yield t.json().catch(()=>({}));throw new Error((null==e?void 0:e.error)||`플로우 분석 실패 (${t.status})`)}!function(e){var t,n,s,i,o,a,r,l,c,p,u,m,g,f;$();const y=null!==(t=e.score)&&void 0!==t?t:0,h=null!==(n=e.summary)&&void 0!==n?n:"",b=null!==(s=e.issues)&&void 0!==s?s:[],x=null!==(i=e.flowAnalysis)&&void 0!==i?i:[];d("reportScore").textContent=String(y);const w=y>=80?"통과":y>=60?"부분 통과":"실패";d("reportVerdict").textContent=`플로우 분석 — ${w}`,d("reportVerdict").className="verdict-badge "+(y>=80?"pass":y>=60?"partial":"fail"),d("reportSummary").textContent=h;const k=b.filter(e=>{var t;return"플로우"===e.screen||(null===(t=e.screen)||void 0===t?void 0:t.includes("→"))||"transition"===e.type}),N=b.filter(e=>!k.includes(e));let S="";if(x.length>0){S+='<div style="margin-bottom:12px"><div style="font-size:11px;color:#666;text-transform:uppercase;letter-spacing:.05em;margin-bottom:6px">화면 간 전환 분석</div>';for(const e of x){const t=e.dropOffAtTransition,n=e.dropOffRisk,s="High"===n||"높음"===n?"#ef4444":"보통"===n?"#f59e0b":"#22c55e";S+=`<div style="padding:6px 0;border-bottom:1px solid #1a1a1a;font-size:12px">\n        <span style="color:#888">${null!==(o=e.stepName)&&void 0!==o?o:""}</span>\n        ${void 0!==t?`<span style="float:right;color:${s}">${t}% 이탈 위험</span>`:""}\n      </div>`}S+="</div>"}if(k.length>0){S+='<div style="font-size:11px;color:#ef4444;text-transform:uppercase;letter-spacing:.05em;margin-bottom:6px">전환 마찰 이슈</div>';for(const e of k)S+=`<div style="padding:6px;margin-bottom:4px;background:#1a0f0f;border-radius:4px;border-left:2px solid #ef4444;font-size:12px">\n        <div style="color:#e5e5e5;margin-bottom:2px">${null!==(a=e.issue)&&void 0!==a?a:""}</div>\n        <div style="color:#888">${null!==(r=e.recommendation)&&void 0!==r?r:""}</div>\n      </div>`}d("tab-overview").innerHTML=S||"<p style='color:#555;font-size:12px'>전환 마찰 없음</p>";const C=null!==(l=e.thinkAloud)&&void 0!==l?l:[];let M="";for(const e of C)M+=`<div style="padding:8px 0;border-bottom:1px solid #1a1a1a;font-size:12px">\n      <div style="color:#666;font-size:10px;margin-bottom:3px">${null!==(c=e.screen)&&void 0!==c?c:""}</div>\n      <div style="color:#ccc">"${null!==(p=e.thought)&&void 0!==p?p:""}"</div>\n    </div>`;d("tab-think").innerHTML=M||"<p style='color:#555;font-size:12px'>없음</p>";let L="";for(const e of N){const t=null!==(u=e.severity)&&void 0!==u?u:"낮음",n="심각"===t||"Critical"===t?"#ef4444":"보통"===t||"Medium"===t?"#f59e0b":"#22c55e";L+=`<div style="padding:8px;margin-bottom:6px;background:#111;border-radius:6px;border-left:2px solid ${n};font-size:12px">\n      <div style="display:flex;justify-content:space-between;margin-bottom:3px">\n        <span style="color:#888">${null!==(m=e.screen)&&void 0!==m?m:""}</span>\n        <span style="color:${n};font-size:10px">${t}</span>\n      </div>\n      <div style="color:#e5e5e5;margin-bottom:3px">${null!==(g=e.issue)&&void 0!==g?g:""}</div>\n      <div style="color:#666">${null!==(f=e.recommendation)&&void 0!==f?f:""}</div>\n    </div>`}d("tab-issues").innerHTML=L||"<p style='color:#555;font-size:12px'>발견된 이슈 없음</p>",d("report").className="report visible",v("overview")}(yield t.json())}catch(e){$(),k(`플로우 분석 실패: ${e instanceof Error?e.message:String(e)}`)}})}()),"fix-result"===r.type){const e=document.querySelector(".fix-loading");if(e&&e.remove(),r.success){const e=r.appliedCount,t=r.totalFixes,n=window.__pendingFixFrameIdx;if(void 0!==n){const e=s[n];if(e){for(let t=0;t<e.issues.length;t++)o.add(`${n}-${t}`);!function(e){const t=s[e];if(!t)return;const n=document.querySelector(`[data-fix-all="${e}"]`);n&&(n.disabled=!0,n.textContent="✓ 적용 완료",n.classList.add("fix-applied"));for(let n=0;n<t.issues.length;n++){const t=document.querySelector(`[data-fix-badge="${e}-${n}"]`);t&&(t.textContent="적용됨",t.className="fix-badge fix-applied")}}(n)}}O(`${e}/${t}개 수정이 복제 프레임에 적용되었습니다.`,"success")}else O(`수정 실패: ${r.error||"알 수 없는 오류"}`,"error")}"error"===r.type&&($(),k(r.message))}}}})[785].call({})})();</script></body></html>
