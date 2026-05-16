@@ -43,6 +43,7 @@ export function IssuesTab({
   const [hypothesisFilterOn, setHypothesisFilterOn] = useState(false);
   const [severityFilter, setSeverityFilter] = useState<"All" | "Critical" | "Medium" | "Low">("All");
   const [copied, setCopied] = useState(false);
+  const [copiedCardIdx, setCopiedCardIdx] = useState<number | null>(null);
   const safeIssues = data.issues ?? [];
   const safeThumbnailUrls = data.thumbnailUrls ?? [];
   const hasThumbnails = safeThumbnailUrls.some((u) => u !== STRIPPED_IMAGE);
@@ -309,10 +310,18 @@ export function IssuesTab({
                 const isHighlighted = hoveredIssueIdx === globalIdx || activeIssueIdx === globalIdx;
                 const isLowRelevance = issue.relevanceToHypothesis === "Low";
 
+                const handleCopyCard = (e: { stopPropagation: () => void }) => {
+                  e.stopPropagation();
+                  const text = `[${issue.severity}] ${issue.issue}\n→ 권고: ${issue.recommendation}`;
+                  navigator.clipboard.writeText(text);
+                  setCopiedCardIdx(globalIdx);
+                  setTimeout(() => setCopiedCardIdx((prev) => (prev === globalIdx ? null : prev)), 2000);
+                };
+
                 return (
                   <div
                     key={globalIdx}
-                    className="rounded-lg border border-[var(--border)] bg-[var(--surface)] transition-colors cursor-pointer overflow-hidden"
+                    className="relative rounded-lg border border-[var(--border)] bg-[var(--surface)] transition-colors cursor-pointer overflow-hidden"
                     style={{
                       ...(isHighlighted ? { borderColor: "rgba(255,255,255,0.2)", background: "rgba(255,255,255,0.05)" } : {}),
                       display: "flex",
@@ -390,6 +399,25 @@ export function IssuesTab({
                         <p className="text-[11px] text-white/20 mt-1">클릭하여 상세 보기</p>
                       )}
                     </div>
+                    {isHighlighted && (
+                      <button
+                        onClick={handleCopyCard}
+                        title="이슈 복사"
+                        className="absolute top-2 right-2 flex items-center justify-center rounded border border-[var(--border)] bg-[var(--surface)] hover:bg-white/10 transition-colors"
+                        style={{ width: 28, height: 28 }}
+                      >
+                        {copiedCardIdx === globalIdx ? (
+                          <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round" style={{ color: "#fff" }}>
+                            <polyline points="20 6 9 17 4 12" />
+                          </svg>
+                        ) : (
+                          <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" style={{ color: "var(--muted)" }}>
+                            <rect x="9" y="9" width="13" height="13" rx="2" ry="2" />
+                            <path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1" />
+                          </svg>
+                        )}
+                      </button>
+                    )}
                   </div>
                 );
               })}
