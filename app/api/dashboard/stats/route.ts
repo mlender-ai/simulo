@@ -169,7 +169,7 @@ export async function POST(req: Request) {
     // ── Resolved issue rate ──
     // improvement analysis exists for the original → original issue is "resolved"
     const improvedIds = new Set(
-      rows.filter((r) => r.isImprovement && r.previousAnalysisId).map((r) => r.previousAnalysisId!)
+      rows.filter((r) => r.isImprovement && r.previousAnalysisId).map((r) => r.previousAnalysisId as string)
     );
     const nonImprovementAnalyses = rows.filter((r) => !r.isImprovement);
     const resolvedIssueRate =

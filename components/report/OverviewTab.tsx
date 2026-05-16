@@ -85,12 +85,13 @@ export function OverviewTab({ data, locale, issueCountPerScreen, isFlow, onScree
               const labelKey = key === "flow" ? "flowScore" : key === "feedback" ? "feedbackScore" : key;
               const descKey = key === "flow" ? "flowScoreDesc" : key === "feedback" ? "feedbackScoreDesc" : key === "clarity" ? "clarityDesc" : "efficiencyDesc";
               const entry = key === "flow"
-                ? data.scoreBreakdown!.flow
+                ? data.scoreBreakdown?.flow
                 : key === "feedback"
-                  ? data.scoreBreakdown!.feedback
+                  ? data.scoreBreakdown?.feedback
                   : key === "clarity"
-                    ? data.scoreBreakdown!.clarity
-                    : data.scoreBreakdown!.efficiency;
+                    ? data.scoreBreakdown?.clarity
+                    : data.scoreBreakdown?.efficiency;
+              if (!entry) return null;
               const pct = (entry.score / 25) * 100;
               const barColor = entry.score >= 20 ? "#22c55e" : entry.score >= 13 ? "#f59e0b" : "#ef4444";
               return (
@@ -190,7 +191,9 @@ export function OverviewTab({ data, locale, issueCountPerScreen, isFlow, onScree
           <p style={{ fontSize: "12px", color: "#888", marginBottom: "12px" }}>{t("desireAlignmentSub", locale)}</p>
           <div className="grid grid-cols-1 sm:grid-cols-3 gap-3">
             {(["utility", "healthPride", "lossAversion"] as const).map((key) => {
-              const desire = data.desireAlignment![key];
+              const da = data.desireAlignment;
+              if (!da) return null;
+              const desire = da[key];
               const nameKey = key === "utility" ? "desireUtility" : key === "healthPride" ? "desireHealthPride" : "desireLossAversion";
               const descKey = key === "utility" ? "desireUtilityDesc" : key === "healthPride" ? "desireHealthPrideDesc" : "desireLossAversionDesc";
               const IconComponent = key === "utility" ? CoinIcon : key === "healthPride" ? RunnerIcon : BoltIcon;
@@ -223,7 +226,9 @@ export function OverviewTab({ data, locale, issueCountPerScreen, isFlow, onScree
           <div className="p-4 rounded-lg border border-[var(--border)] bg-[var(--surface)]">
             <div className="flex gap-6 mb-4">
               {(["d1Risk", "d7Risk"] as const).map((riskKey) => {
-                const riskValue = data.retentionRisk![riskKey];
+                const rr = data.retentionRisk;
+                if (!rr) return null;
+                const riskValue = rr[riskKey];
                 const badge = RETENTION_RISK_BADGE[riskValue] || RETENTION_RISK_BADGE.Low;
                 return (
                   <div key={riskKey}>
@@ -255,7 +260,7 @@ export function OverviewTab({ data, locale, issueCountPerScreen, isFlow, onScree
               <div
                 key={i}
                 className="flex items-center gap-3 px-4 py-3"
-                style={i < data.topPriorities!.length - 1 ? { borderBottom: "1px solid var(--border)" } : {}}
+                style={i < (data.topPriorities?.length ?? 0) - 1 ? { borderBottom: "1px solid var(--border)" } : {}}
               >
                 <span
                   className="shrink-0 flex items-center justify-center rounded-full font-bold"

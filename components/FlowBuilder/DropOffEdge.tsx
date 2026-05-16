@@ -78,7 +78,7 @@ function DropOffEdgeComponent({
             onMouseEnter={() => setShowTooltip(true)}
             onMouseLeave={() => setShowTooltip(false)}
           >
-            {data!.dropOffAtTransition}% 이탈
+            {data?.dropOffAtTransition}% 이탈
           </div>
 
           {/* Tooltip with reason + recommendation */}

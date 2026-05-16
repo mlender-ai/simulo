@@ -16,7 +16,7 @@ interface FlowTabProps {
 }
 
 export function FlowTab({ data, locale, issuesByScreen, onThumbnailClick, onHeatmapClick }: FlowTabProps) {
-  const flowAnalysis = data.flowAnalysis!;
+  const flowAnalysis = data.flowAnalysis ?? [];
   const safeThumbnailUrls = data.thumbnailUrls ?? [];
   const hasThumbnails = safeThumbnailUrls.some((u) => u !== STRIPPED_IMAGE);
   const highRiskCount = flowAnalysis.filter((f) => f.dropOffRisk === "High" || f.dropOffRisk === "높음").length;

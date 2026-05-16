@@ -142,7 +142,9 @@ export function UsabilityReportTabs({ data, locale }: { data: AnalysisResult; lo
               <div className="grid grid-cols-2 gap-3">
                 {(["clarity", "flow", "feedback", "efficiency"] as const).map((key) => {
                   const labelKey = key === "flow" ? "flowScore" : key === "feedback" ? "feedbackScore" : key;
-                  const entry = data.scoreBreakdown![key];
+                  const sb = data.scoreBreakdown;
+                  if (!sb) return null;
+                  const entry = sb[key];
                   const pct = (entry.score / 25) * 100;
                   const barColor = entry.score >= 20 ? "#22c55e" : entry.score >= 13 ? "#f59e0b" : "#ef4444";
                   return (
@@ -174,7 +176,9 @@ export function UsabilityReportTabs({ data, locale }: { data: AnalysisResult; lo
               </p>
               <div className="grid grid-cols-1 sm:grid-cols-3 gap-3">
                 {(["utility", "healthPride", "lossAversion"] as const).map((key) => {
-                  const desire = data.desireAlignment![key];
+                  const da = data.desireAlignment;
+                  if (!da) return null;
+                  const desire = da[key];
                   const nameKey = key === "utility" ? "desireUtility" : key === "healthPride" ? "desireHealthPride" : "desireLossAversion";
                   const IconComponent = key === "utility" ? CoinIcon : key === "healthPride" ? RunnerIcon : BoltIcon;
                   const pct = (desire.score / 10) * 100;
@@ -216,14 +220,17 @@ export function UsabilityReportTabs({ data, locale }: { data: AnalysisResult; lo
                       { key: "languageFriendliness", labelKey: "languageFriendlinessLabel" },
                       { key: "visualComplexity", labelKey: "visualComplexityLabel" },
                     ] as const
-                  ).map((item) => (
+                  ).map((item) => {
+                    const a4050 = data.accessibility4050;
+                    if (!a4050) return null;
+                    return (
                     <div key={item.key}>
                       <div className="text-xs text-[var(--muted)] uppercase tracking-wider mb-1">
                         {t(item.labelKey, locale)}
                       </div>
-                      <ExpandableText text={data.accessibility4050![item.key]} maxLines={2} style={{ fontSize: "13px", color: "#aaa", lineHeight: "1.6" }} />
+                      <ExpandableText text={a4050[item.key]} maxLines={2} style={{ fontSize: "13px", color: "#aaa", lineHeight: "1.6" }} />
                     </div>
-                  ))}
+                  );})}
                 </div>
               </div>
             </div>
@@ -237,7 +244,9 @@ export function UsabilityReportTabs({ data, locale }: { data: AnalysisResult; lo
               <div className="p-4 rounded-lg border border-[var(--border)] bg-[var(--surface)]">
                 <div className="flex gap-6 mb-4">
                   {(["d1Risk", "d7Risk"] as const).map((riskKey) => {
-                    const riskValue = data.retentionRisk![riskKey];
+                    const rr = data.retentionRisk;
+                    if (!rr) return null;
+                    const riskValue = rr[riskKey];
                     const badge = RETENTION_RISK_BADGE[riskValue] || RETENTION_RISK_BADGE.Low;
                     return (
                       <div key={riskKey}>

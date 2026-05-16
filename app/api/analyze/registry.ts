@@ -108,8 +108,8 @@ const flowPlugin: AnalysisPlugin = {
   },
   async handle(params, body) {
     const { handleFlowAnalysis } = await import("./handlers/flow");
-    console.log("[registry] Flow analysis with", (body.flowSteps!).length, "steps");
-    return handleFlowAnalysis({ ...params, flowSteps: body.flowSteps! });
+    console.log("[registry] Flow analysis with", (body.flowSteps as unknown[]).length, "steps");
+    return handleFlowAnalysis({ ...params, flowSteps: body.flowSteps as Parameters<typeof handleFlowAnalysis>[0]["flowSteps"] });
   },
 };
 
@@ -136,10 +136,10 @@ const imagePlugin: AnalysisPlugin = {
   },
   async handle(params, body) {
     const { handleImageAnalysis } = await import("./handlers/image");
-    console.log("[registry] Image analysis with", (body.images!).length, "images");
+    console.log("[registry] Image analysis with", (body.images as unknown[]).length, "images");
     return handleImageAnalysis({
       ...params,
-      images: body.images!,
+      images: body.images as string[],
       videos: body.videos,
     });
   },

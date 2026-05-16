@@ -439,7 +439,9 @@ function ProductDetailCard({
           </div>
           <div className="grid grid-cols-3 gap-2">
             {(["utility", "healthPride", "lossAversion"] as const).map((key) => {
-              const desire = product.desireAlignment![key];
+              const da = product.desireAlignment;
+              if (!da) return null;
+              const desire = da[key];
               const colors = DESIRE_COLORS[key];
               const nameKey = key === "utility" ? "desireUtility" : key === "healthPride" ? "desireHealthPride" : "desireLossAversion";
               const pct = (desire.score / 10) * 100;

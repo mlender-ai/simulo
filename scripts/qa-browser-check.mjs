@@ -12,6 +12,13 @@
  * 사용법:
  *   node scripts/qa-browser-check.mjs
  *   node scripts/qa-browser-check.mjs --url http://localhost:3001
+ *
+ * 브라우저 엔진 선택 (#106 Obscura 평가):
+ *   현재: headless Chromium via @playwright/test (CI 환경 표준)
+ *   대안: Obscura (https://github.com/h4ckf0r0day/obscura) — Playwright 호환 Rust 브라우저
+ *     - 장점: 메모리 30MB, 시작 즉시, 6배 빠름
+ *     - 단점 (2026-05): Vercel 서버리스 배포 불가 (바이너리 의존), npm 패키지 미출시
+ *     - 결론: 로컬 CI 환경 최적화 시 재평가. 현재는 headless Chromium 유지.
  */
 
 import { chromium } from '@playwright/test';

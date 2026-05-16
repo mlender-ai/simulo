@@ -276,6 +276,23 @@ node --input-type=module < /tmp/simulo-qa-check.mjs
 
 ---
 
+## Playwright MCP 고도화 (선택적 — MCP 환경에서 실행 시)
+
+> **참고 (#107)**: Microsoft 공식 Playwright MCP 서버(`@playwright/mcp`)를 설치하면  
+> Claude가 브라우저를 직접 제어하며 더 지능적인 UX 검증이 가능하다.  
+> 설치: `npm install -g @playwright/mcp`  
+> MCP 설정에 추가: `{ "command": "npx", "args": ["@playwright/mcp"] }`
+
+MCP 환경에서는 기존 Playwright 스크립트 대신 Claude Agent가 직접 브라우저를 제어한다:
+- `browser_navigate` → 페이지 이동
+- `browser_click` → 버튼 클릭 검증
+- `browser_screenshot` → 스크린샷 비교
+- `browser_evaluate` → JS 실행으로 `body.style.overflow` 등 확인
+
+현재 환경에서 MCP가 없으면 기존 `scripts/qa-browser-check.mjs` 스크립트를 사용한다.
+
+---
+
 ## 종료 조건
 
 - CRITICAL 0건 + HIGH 0건 → QA 통과, git push 진행

@@ -121,6 +121,7 @@ window.addEventListener("DOMContentLoaded", () => {
   });
 
   $("runBtn").addEventListener("click", runAnalysis);
+  $("runFlowBtn").addEventListener("click", runFlowAnalysis);
   $("runWritingBtn").addEventListener("click", runWritingCheck);
   $("resetBtn").addEventListener("click", resetToInput);
   $("writingResetBtn").addEventListener("click", resetToInput);
@@ -196,6 +197,15 @@ window.onmessage = (event) => {
     startWritingCheck(frames);
   }
 
+  if (msg.type === "flow-selection-ready") {
+    selectedImages = (msg.flowSteps as Array<{ stepNumber: number; stepName: string; base64: string }>).map((s) => ({
+      name: s.stepName,
+      base64: s.base64,
+      texts: [],
+    }));
+    startFlowAnalysisWithImages();
+  }
+
   if (msg.type === "fix-result") {
     const fixLoading = document.querySelector(".fix-loading") as HTMLElement | null;
     if (fixLoading) fixLoading.remove();
@@ -237,6 +247,7 @@ function updateSelectionBar(count: number, names: string[]) {
   bar.dataset.names = names.join(",");
 
   const analysisBtn = $<HTMLButtonElement>("runBtn");
+  const flowBtn = $<HTMLButtonElement>("runFlowBtn");
   const writingBtn = $<HTMLButtonElement>("runWritingBtn");
 
   if (count === 0) {
@@ -244,6 +255,7 @@ function updateSelectionBar(count: number, names: string[]) {
     bar.className = "selection-bar";
     analysisBtn.disabled = true;
     analysisBtn.textContent = "선택된 항목 없음";
+    flowBtn.disabled = true;
     writingBtn.disabled = true;
     writingBtn.textContent = "선택된 항목 없음";
   } else {
@@ -254,6 +266,7 @@ function updateSelectionBar(count: number, names: string[]) {
     const n = Math.min(count, 8);
     analysisBtn.disabled = false;
     analysisBtn.textContent = `${n}개 화면 분석 시작`;
+    flowBtn.disabled = count < 2;
     writingBtn.disabled = false;
     writingBtn.textContent = `${n}개 화면 UX 라이팅 체크`;
   }
@@ -272,6 +285,141 @@ function runAnalysis() {
   hideError();
   showLoading();
   parent.postMessage({ pluginMessage: { type: "get-selection" } }, "*");
+}
+
+// -------- Run flow scenario analysis --------
+function runFlowAnalysis() {
+  checkFreeMode();
+
+  const hypothesis = $<HTMLTextAreaElement>("hypothesis").value.trim();
+  if (!hypothesis) {
+    showError("가설을 입력해주세요. (예: 신규 유저가 결제까지 완료할 수 있는가?)");
+    return;
+  }
+
+  hideError();
+  showLoading();
+  updateLoadingMsg("플로우 분석용 화면을 추출 중...");
+  parent.postMessage({ pluginMessage: { type: "get-selection-for-flow" } }, "*");
+}
+
+async function startFlowAnalysisWithImages() {
+  const apiKey = getApiKey();
+  const hypothesis = $<HTMLTextAreaElement>("hypothesis").value.trim();
+  const targetUser = $<HTMLInputElement>("targetUser").value.trim();
+  const baseUrl = getSimuloBaseUrl();
+
+  const flowSteps = selectedImages.slice(0, 8).map((img, i) => ({
+    stepNumber: i + 1,
+    stepName: img.name,
+    image: img.base64,
+  }));
+
+  try {
+    updateLoadingMsg(`${flowSteps.length}개 화면 플로우 분석 중...`);
+
+    const response = await fetch(`${baseUrl}/api/analyze`, {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({
+        inputType: "flow",
+        flowSteps,
+        hypothesis,
+        targetUser: targetUser || "일반 사용자",
+        locale: "ko",
+        mode: "hypothesis",
+        apiKey: apiKey || undefined,
+      }),
+    });
+
+    if (!response.ok) {
+      const err = await response.json().catch(() => ({}));
+      throw new Error(err?.error || `플로우 분석 실패 (${response.status})`);
+    }
+
+    const data = await response.json();
+    showFlowReport(data);
+  } catch (error) {
+    hideLoading();
+    const msg = error instanceof Error ? error.message : String(error);
+    showError(`플로우 분석 실패: ${msg}`);
+  }
+}
+
+function showFlowReport(data: Record<string, unknown>) {
+  hideLoading();
+
+  const score = (data.score as number) ?? 0;
+  const summary = (data.summary as string) ?? "";
+  const issues = (data.issues as Array<Record<string, string>>) ?? [];
+  const flowAnalysis = (data.flowAnalysis as Array<Record<string, unknown>>) ?? [];
+
+  $("reportScore").textContent = String(score);
+  const verdict = score >= 80 ? "통과" : score >= 60 ? "부분 통과" : "실패";
+  $("reportVerdict").textContent = `플로우 분석 — ${verdict}`;
+  $("reportVerdict").className = `verdict-badge ${score >= 80 ? "pass" : score >= 60 ? "partial" : "fail"}`;
+  $("reportSummary").textContent = summary;
+
+  // Flow transition issues
+  const flowIssues = issues.filter((i) => i.screen === "플로우" || i.screen?.includes("→") || i.type === "transition");
+  const screenIssues = issues.filter((i) => !flowIssues.includes(i));
+
+  let overviewHtml = "";
+  if (flowAnalysis.length > 0) {
+    overviewHtml += `<div style="margin-bottom:12px"><div style="font-size:11px;color:#666;text-transform:uppercase;letter-spacing:.05em;margin-bottom:6px">화면 간 전환 분석</div>`;
+    for (const step of flowAnalysis) {
+      const dropOff = step.dropOffAtTransition as number | undefined;
+      const risk = step.dropOffRisk as string | undefined;
+      const riskColor = risk === "High" || risk === "높음" ? "#ef4444" : risk === "보통" ? "#f59e0b" : "#22c55e";
+      overviewHtml += `<div style="padding:6px 0;border-bottom:1px solid #1a1a1a;font-size:12px">
+        <span style="color:#888">${step.stepName as string ?? ""}</span>
+        ${dropOff !== undefined ? `<span style="float:right;color:${riskColor}">${dropOff}% 이탈 위험</span>` : ""}
+      </div>`;
+    }
+    overviewHtml += `</div>`;
+  }
+
+  if (flowIssues.length > 0) {
+    overviewHtml += `<div style="font-size:11px;color:#ef4444;text-transform:uppercase;letter-spacing:.05em;margin-bottom:6px">전환 마찰 이슈</div>`;
+    for (const issue of flowIssues) {
+      overviewHtml += `<div style="padding:6px;margin-bottom:4px;background:#1a0f0f;border-radius:4px;border-left:2px solid #ef4444;font-size:12px">
+        <div style="color:#e5e5e5;margin-bottom:2px">${issue.issue ?? ""}</div>
+        <div style="color:#888">${issue.recommendation ?? ""}</div>
+      </div>`;
+    }
+  }
+
+  $("tab-overview").innerHTML = overviewHtml || "<p style='color:#555;font-size:12px'>전환 마찰 없음</p>";
+
+  // Think aloud tab — per-screen thoughts
+  const thinkAloud = (data.thinkAloud as Array<Record<string, string>>) ?? [];
+  let thinkHtml = "";
+  for (const t of thinkAloud) {
+    thinkHtml += `<div style="padding:8px 0;border-bottom:1px solid #1a1a1a;font-size:12px">
+      <div style="color:#666;font-size:10px;margin-bottom:3px">${t.screen ?? ""}</div>
+      <div style="color:#ccc">"${t.thought ?? ""}"</div>
+    </div>`;
+  }
+  $("tab-think").innerHTML = thinkHtml || "<p style='color:#555;font-size:12px'>없음</p>";
+
+  // Issues tab
+  let issuesHtml = "";
+  for (const issue of screenIssues) {
+    const sev = issue.severity ?? "낮음";
+    const sevColor = sev === "심각" || sev === "Critical" ? "#ef4444" : sev === "보통" || sev === "Medium" ? "#f59e0b" : "#22c55e";
+    issuesHtml += `<div style="padding:8px;margin-bottom:6px;background:#111;border-radius:6px;border-left:2px solid ${sevColor};font-size:12px">
+      <div style="display:flex;justify-content:space-between;margin-bottom:3px">
+        <span style="color:#888">${issue.screen ?? ""}</span>
+        <span style="color:${sevColor};font-size:10px">${sev}</span>
+      </div>
+      <div style="color:#e5e5e5;margin-bottom:3px">${issue.issue ?? ""}</div>
+      <div style="color:#666">${issue.recommendation ?? ""}</div>
+    </div>`;
+  }
+  $("tab-issues").innerHTML = issuesHtml || "<p style='color:#555;font-size:12px'>발견된 이슈 없음</p>";
+
+  $("report").className = "report visible";
+  switchTab("overview");
 }
 
 function getApiKey(): string {

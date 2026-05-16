@@ -135,8 +135,8 @@ export function HeatmapViewer({
         />
 
         {/* Single zone overlay — only the selected/hovered issue */}
-        {activeIssue && (() => {
-          const zone = normalizeZone(activeIssue.heatZone!);
+        {activeIssue && activeIssue.heatZone && (() => {
+          const zone = normalizeZone(activeIssue.heatZone);
           const style = getSeverityStyle(activeIssue.severity);
           const nearTop = zone.y < 10;
           const nearBottom = zone.y + zone.height > 88;
@@ -291,7 +291,7 @@ export function HeatmapViewer({
                     whiteSpace: "nowrap",
                   }}
                 >
-                  {issue.heatZone!.label}
+                  {issue.heatZone?.label}
                 </span>
               </button>
             );

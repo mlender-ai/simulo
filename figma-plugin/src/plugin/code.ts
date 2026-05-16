@@ -78,6 +78,7 @@ type WritingFix = {
 type PluginMessage =
   | { type: "get-selection" }
   | { type: "get-selection-for-writing" }
+  | { type: "get-selection-for-flow" }
   | { type: "get-file-info" }
   | { type: "save-api-key"; key: string }
   | { type: "load-api-key" }
@@ -136,6 +137,54 @@ figma.ui.onmessage = async (msg: PluginMessage) => {
       type: "selection-ready",
       images,
       count: images.length,
+    });
+  }
+
+  if (msg.type === "get-selection-for-flow") {
+    const selection = figma.currentPage.selection;
+
+    if (selection.length < 2) {
+      figma.ui.postMessage({
+        type: "error",
+        message: "플로우 분석에는 2개 이상의 화면을 선택해주세요.",
+      });
+      return;
+    }
+
+    const nodes = selection.slice(0, 8);
+    const flowSteps: { stepNumber: number; stepName: string; base64: string }[] = [];
+
+    for (let i = 0; i < nodes.length; i++) {
+      const node = nodes[i];
+      try {
+        if ("exportAsync" in node) {
+          const bytes = await (node as ExportMixin).exportAsync({
+            format: "PNG",
+            constraint: { type: "SCALE", value: 1.5 },
+          });
+          flowSteps.push({
+            stepNumber: i + 1,
+            stepName: node.name,
+            base64: uint8ToBase64(bytes),
+          });
+        }
+      } catch (e) {
+        console.error("플로우 이미지 추출 실패:", node.name, e);
+      }
+    }
+
+    if (flowSteps.length < 2) {
+      figma.ui.postMessage({
+        type: "error",
+        message: "플로우 이미지 추출에 실패했습니다.",
+      });
+      return;
+    }
+
+    figma.ui.postMessage({
+      type: "flow-selection-ready",
+      flowSteps,
+      count: flowSteps.length,
     });
   }
 

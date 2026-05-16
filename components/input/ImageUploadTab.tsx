@@ -6,7 +6,7 @@ import { t, type Locale } from "@/lib/i18n";
 import { MediaUploader, type UploadedVideo } from "@/components/MediaUploader";
 
 function resizeImage(file: File, maxSize: number): Promise<string> {
-  return new Promise((resolve) => {
+  return new Promise((resolve, reject) => {
     const img = new Image();
     const url = URL.createObjectURL(file);
     img.onload = () => {
@@ -20,7 +20,8 @@ function resizeImage(file: File, maxSize: number): Promise<string> {
       const canvas = document.createElement("canvas");
       canvas.width = width;
       canvas.height = height;
-      const ctx = canvas.getContext("2d")!;
+      const ctx = canvas.getContext("2d");
+      if (!ctx) { reject(new Error("canvas context unavailable")); return; }
       ctx.drawImage(img, 0, 0, width, height);
       const dataUrl = canvas.toDataURL("image/png", 0.85);
       resolve(dataUrl.split(",")[1]);

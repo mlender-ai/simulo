@@ -23,7 +23,8 @@ export function OnboardingBanner({ locale, open, onClose }: OnboardingBannerProp
     if (!mounted) return;
     const outer = innerRef.current?.parentElement as HTMLDivElement | null;
     if (!outer) return;
-    const inner = innerRef.current!;
+    const inner = innerRef.current;
+    if (!inner) return;
     if (open) {
       outer.style.height = inner.offsetHeight + "px";
       outer.style.opacity = "1";
