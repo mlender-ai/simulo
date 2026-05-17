@@ -35,6 +35,7 @@ export default function HistoryPage() {
     toggleSelect,
     selectAll,
     deleteSelected,
+    diffMap,
   } = useHistory(locale);
 
   const handleReanalyze = useCallback((analysis: AnalysisResult) => {
@@ -221,6 +222,7 @@ export default function HistoryPage() {
                           onToggleSelect={toggleSelect}
                           onReanalyze={handleReanalyze}
                           onTagClick={(tag) => setProjectTagFilter(projectTagFilter === tag ? "all" : tag)}
+                          scoreDiff={diffMap.get(child.id)}
                         />
                       ))}
                     </div>

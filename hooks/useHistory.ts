@@ -113,6 +113,15 @@ export function useHistory(locale: Locale) {
     setToDate("");
   }, []);
 
+  const scoreMap = new Map(analyses.map((a) => [a.id, a.score]));
+  const diffMap = new Map<string, number>();
+  for (const a of analyses) {
+    if (a.isImprovement && a.previousAnalysisId) {
+      const prevScore = scoreMap.get(a.previousAnalysisId);
+      if (prevScore !== undefined) diffMap.set(a.id, a.score - prevScore);
+    }
+  }
+
   const { roots, parentMap } = partitionTree(filtered);
   const grouped = groupByDate(roots);
 
@@ -164,5 +173,6 @@ export function useHistory(locale: Locale) {
     toggleSelect,
     selectAll,
     deleteSelected,
+    diffMap,
   };
 }

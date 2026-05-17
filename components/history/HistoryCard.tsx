@@ -44,6 +44,7 @@ interface HistoryCardProps {
   onToggleSelect: (id: string) => void;
   onReanalyze: (analysis: AnalysisResult) => void;
   onTagClick?: (tag: string) => void;
+  scoreDiff?: number;
 }
 
 export function HistoryCard({
@@ -55,6 +56,7 @@ export function HistoryCard({
   onToggleSelect,
   onReanalyze,
   onTagClick,
+  scoreDiff,
 }: HistoryCardProps) {
   const verdictKey = analysis.verdict as "Pass" | "Partial" | "Fail";
   const rowMode = analysis.mode ?? "hypothesis";
@@ -124,6 +126,14 @@ export function HistoryCard({
                 </p>
                 <div className="flex items-center gap-1.5 shrink-0 ml-1">
                   <span className="mono text-sm font-medium tabular-nums">{analysis.score}</span>
+                  {analysis.isImprovement && scoreDiff !== undefined && scoreDiff !== 0 && (
+                    <span
+                      className="mono text-[10px] tabular-nums leading-none"
+                      style={{ color: scoreDiff > 0 ? "#86efac" : "#fca5a5" }}
+                    >
+                      {scoreDiff > 0 ? `▲+${scoreDiff}` : `▼${scoreDiff}`}
+                    </span>
+                  )}
                   {isUsability || analysis.isImprovement ? (
                     <span
                       className="text-[11px] px-1.5 py-0.5 rounded border whitespace-nowrap"
