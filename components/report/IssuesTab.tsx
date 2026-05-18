@@ -1,9 +1,29 @@
 /* eslint-disable @next/next/no-img-element */
 "use client";
 
-import { useState, useCallback } from "react";
+import { useState, useCallback, useEffect } from "react";
 import type { AnalysisResult } from "@/lib/storage";
 import { STRIPPED_IMAGE } from "@/lib/storage";
+
+function useResolvedIssues(analysisId: string) {
+  const key = `simulo_resolved_${analysisId}`;
+  const [resolved, setResolved] = useState<number[]>(() => {
+    if (typeof window === "undefined") return [];
+    try { return JSON.parse(localStorage.getItem(key) || "[]"); } catch { return []; }
+  });
+
+  useEffect(() => {
+    try { localStorage.setItem(key, JSON.stringify(resolved)); } catch { /* quota */ }
+  }, [key, resolved]);
+
+  const toggle = useCallback((idx: number) => {
+    setResolved((prev) =>
+      prev.includes(idx) ? prev.filter((i) => i !== idx) : [...prev, idx]
+    );
+  }, []);
+
+  return { resolved, toggle };
+}
 import { t, type Locale } from "@/lib/i18n";
 import { HeatmapViewer, HeatmapIssueDetail, type HeatmapIssue } from "@/components/HeatmapViewer";
 import { SEVERITY_COLORS, DESIRE_TYPE_BADGE_STYLES } from "./constants";
@@ -44,6 +64,7 @@ export function IssuesTab({
   const [severityFilter, setSeverityFilter] = useState<"All" | "Critical" | "Medium" | "Low">("All");
   const [copied, setCopied] = useState(false);
   const [copiedCardIdx, setCopiedCardIdx] = useState<number | null>(null);
+  const { resolved, toggle: toggleResolved } = useResolvedIssues(data.id);
   const safeIssues = data.issues ?? [];
   const safeThumbnailUrls = data.thumbnailUrls ?? [];
   const hasThumbnails = safeThumbnailUrls.some((u) => u !== STRIPPED_IMAGE);
@@ -149,6 +170,13 @@ export function IssuesTab({
               </button>
             );
           })}
+
+          {/* Resolved counter */}
+          {resolved.length > 0 && (
+            <span className="text-xs text-emerald-400/80 ml-2 self-center">
+              해결됨 {resolved.length} / {safeIssues.length}
+            </span>
+          )}
 
           {/* Hypothesis filter + heatmap on the right */}
           <div className="flex gap-2 ml-auto">
@@ -309,6 +337,7 @@ export function IssuesTab({
                 const severityKey = issue.severity as "Critical" | "Medium" | "Low";
                 const isHighlighted = hoveredIssueIdx === globalIdx || activeIssueIdx === globalIdx;
                 const isLowRelevance = issue.relevanceToHypothesis === "Low";
+                const isResolved = resolved.includes(globalIdx);
 
                 const handleCopyCard = (e: { stopPropagation: () => void }) => {
                   e.stopPropagation();
@@ -324,6 +353,7 @@ export function IssuesTab({
                     className="relative rounded-lg border border-[var(--border)] bg-[var(--surface)] transition-colors cursor-pointer overflow-hidden"
                     style={{
                       ...(isHighlighted ? { borderColor: "rgba(255,255,255,0.2)", background: "rgba(255,255,255,0.05)" } : {}),
+                      ...(isResolved ? { opacity: 0.4 } : {}),
                       display: "flex",
                     }}
                     onMouseEnter={() => onSetHoveredIssue(globalIdx)}
@@ -335,6 +365,13 @@ export function IssuesTab({
                     )}
                     <div className="p-4 flex-1">
                       <div className="flex items-center gap-2 mb-2 flex-wrap">
+                        <input
+                          type="checkbox"
+                          checked={isResolved}
+                          onChange={(e) => { e.stopPropagation(); toggleResolved(globalIdx); }}
+                          onClick={(e) => e.stopPropagation()}
+                          className="w-4 h-4 accent-emerald-400 shrink-0 cursor-pointer"
+                        />
                         <span className={`text-xs px-2 py-0.5 rounded border ${SEVERITY_COLORS[issue.severity] ?? ""}`}>
                           {t(severityKey, locale)}
                         </span>
@@ -362,9 +399,9 @@ export function IssuesTab({
                         <span className="text-xs text-[var(--muted)] mono">{issue.screen}</span>
                       </div>
                       {isHighlighted ? (
-                        <p className="text-sm mb-2">{issue.issue}</p>
+                        <p className="text-sm mb-2" style={isResolved ? { textDecoration: "line-through" } : undefined}>{issue.issue}</p>
                       ) : (
-                        <ExpandableText text={issue.issue} maxLines={2} className="text-sm mb-2" />
+                        <ExpandableText text={issue.issue} maxLines={2} className="text-sm mb-2" style={isResolved ? { textDecoration: "line-through" } : undefined} />
                       )}
                       {isHighlighted && (
                         <>
