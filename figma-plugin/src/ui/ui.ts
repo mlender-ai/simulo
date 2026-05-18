@@ -1359,6 +1359,7 @@ async function exportToGoogleSheets() {
     const authenticated = await startGoogleAuth();
     if (!authenticated) return;
   }
+  if (!googleTokens) return;
 
   const btn = $<HTMLButtonElement>("exportSheetsBtn");
   btn.disabled = true;
