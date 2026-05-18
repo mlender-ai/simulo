@@ -1,7 +1,7 @@
-import { NextResponse } from "next/server";
+import { NextRequest, NextResponse } from "next/server";
 import { google } from "googleapis";
 
-export async function GET() {
+export async function GET(req: NextRequest) {
   const clientId = process.env.GOOGLE_CLIENT_ID;
   const clientSecret = process.env.GOOGLE_CLIENT_SECRET;
 
@@ -23,10 +23,15 @@ export async function GET() {
     `${baseUrl}/api/google/callback`,
   );
 
+  // Figma 플러그인에서 plugin_session 파라미터를 보내면 state에 포함
+  const pluginSession = req.nextUrl.searchParams.get("plugin_session");
+  const state = pluginSession ? JSON.stringify({ pluginSession }) : undefined;
+
   const authUrl = oauth2Client.generateAuthUrl({
     access_type: "offline",
     prompt: "consent",
     scope: ["https://www.googleapis.com/auth/spreadsheets"],
+    state,
   });
 
   return NextResponse.redirect(authUrl);

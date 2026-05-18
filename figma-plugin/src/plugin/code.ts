@@ -88,6 +88,10 @@ type PluginMessage =
   | { type: "apply-writing-fixes"; nodeId: string; fixes: WritingFix[] }
   | { type: "save-model"; model: string }
   | { type: "load-model" }
+  | { type: "save-google-tokens"; tokens: string }
+  | { type: "load-google-tokens" }
+  | { type: "save-spreadsheet-id"; spreadsheetId: string }
+  | { type: "load-spreadsheet-id" }
   | { type: "close" };
 
 figma.ui.onmessage = async (msg: PluginMessage) => {
@@ -273,6 +277,24 @@ figma.ui.onmessage = async (msg: PluginMessage) => {
   if (msg.type === "load-model") {
     const model = await figma.clientStorage.getAsync("simulo_model");
     figma.ui.postMessage({ type: "model-loaded", model: model || "haiku" });
+  }
+
+  if (msg.type === "save-google-tokens") {
+    await figma.clientStorage.setAsync("simulo_google_tokens", msg.tokens);
+  }
+
+  if (msg.type === "load-google-tokens") {
+    const tokens = await figma.clientStorage.getAsync("simulo_google_tokens");
+    figma.ui.postMessage({ type: "google-tokens-loaded", tokens: tokens || "" });
+  }
+
+  if (msg.type === "save-spreadsheet-id") {
+    await figma.clientStorage.setAsync("simulo_spreadsheet_id", msg.spreadsheetId);
+  }
+
+  if (msg.type === "load-spreadsheet-id") {
+    const id = await figma.clientStorage.getAsync("simulo_spreadsheet_id");
+    figma.ui.postMessage({ type: "spreadsheet-id-loaded", spreadsheetId: id || "" });
   }
 
   if (msg.type === "open-external") {

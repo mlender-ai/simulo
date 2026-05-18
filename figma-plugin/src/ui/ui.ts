@@ -58,6 +58,9 @@ let lastWritingResults: WritingCheckResult[] = [];
 let lastFileKey = "";
 let appliedFixes = new Set<string>(); // "frameIdx-issueIdx" tracking
 let freeMode = false; // API 키 없거나 초과 시 true
+let googleTokens: { access_token: string; refresh_token: string; expiry_date?: number } | null = null;
+let savedSpreadsheetId = "";
+let googleAuthPollTimer: ReturnType<typeof setInterval> | null = null;
 
 const MODEL_MAP = {
   haiku: "claude-haiku-4-5-20251001",
@@ -127,6 +130,11 @@ window.addEventListener("DOMContentLoaded", () => {
   $("writingResetBtn").addEventListener("click", resetToInput);
   $("exportCsvBtn").addEventListener("click", exportWritingCSV);
   $("exportSimuloBtn").addEventListener("click", exportToSimulo);
+  $("exportSheetsBtn").addEventListener("click", exportToGoogleSheets);
+
+  // Load Google tokens from clientStorage
+  parent.postMessage({ pluginMessage: { type: "load-google-tokens" } }, "*");
+  parent.postMessage({ pluginMessage: { type: "load-spreadsheet-id" } }, "*");
 
   // Mode toggle
   document.querySelectorAll(".mode-tab").forEach((tab) => {
@@ -232,6 +240,18 @@ window.onmessage = (event) => {
     } else {
       showFixToast(`수정 실패: ${msg.error || "알 수 없는 오류"}`, "error");
     }
+  }
+
+  if (msg.type === "google-tokens-loaded") {
+    const raw = msg.tokens as string;
+    if (raw) {
+      try { googleTokens = JSON.parse(raw); } catch { googleTokens = null; }
+    }
+    updateSheetsButtonState();
+  }
+
+  if (msg.type === "spreadsheet-id-loaded") {
+    savedSpreadsheetId = (msg.spreadsheetId as string) || "";
   }
 
   if (msg.type === "error") {
@@ -1265,6 +1285,154 @@ async function callFreeMode(
 
   const data = await response.json();
   return data.result;
+}
+
+// -------- Google Sheets export --------
+
+function updateSheetsButtonState() {
+  const btn = $<HTMLButtonElement>("exportSheetsBtn");
+  if (!btn) return;
+  btn.textContent = googleTokens ? "구글 시트 내보내기" : "구글 연동 후 내보내기";
+}
+
+function generateSessionId(): string {
+  const arr = new Uint8Array(16);
+  crypto.getRandomValues(arr);
+  return Array.from(arr, (b) => b.toString(16).padStart(2, "0")).join("");
+}
+
+async function startGoogleAuth(): Promise<boolean> {
+  const baseUrl = getSimuloBaseUrl();
+  const sessionId = generateSessionId();
+
+  // Open auth URL in external browser
+  parent.postMessage({
+    pluginMessage: { type: "open-external", url: `${baseUrl}/api/google/auth?plugin_session=${sessionId}` },
+  }, "*");
+
+  showFixToast("브라우저에서 Google 계정을 연동해주세요.", "success");
+
+  // Poll for tokens
+  return new Promise<boolean>((resolve) => {
+    let attempts = 0;
+    const maxAttempts = 60; // 2s * 60 = 2분 타임아웃
+
+    if (googleAuthPollTimer) clearInterval(googleAuthPollTimer);
+
+    googleAuthPollTimer = setInterval(async () => {
+      attempts++;
+      if (attempts > maxAttempts) {
+        if (googleAuthPollTimer) clearInterval(googleAuthPollTimer);
+        googleAuthPollTimer = null;
+        showFixToast("Google 인증 시간 초과. 다시 시도해주세요.", "error");
+        resolve(false);
+        return;
+      }
+
+      try {
+        const res = await fetch(`${baseUrl}/api/google/token-check?session=${sessionId}`);
+        const data = await res.json();
+        if (data.status === "ready" && data.tokens) {
+          if (googleAuthPollTimer) clearInterval(googleAuthPollTimer);
+          googleAuthPollTimer = null;
+          googleTokens = data.tokens;
+          // Save to clientStorage
+          parent.postMessage({
+            pluginMessage: { type: "save-google-tokens", tokens: JSON.stringify(googleTokens) },
+          }, "*");
+          updateSheetsButtonState();
+          showFixToast("Google 연동 완료!", "success");
+          resolve(true);
+        }
+      } catch {
+        // 네트워크 에러 무시, 계속 폴링
+      }
+    }, 2000);
+  });
+}
+
+async function exportToGoogleSheets() {
+  if (lastWritingResults.length === 0) return;
+
+  // 인증 안 됐으면 인증 먼저
+  if (!googleTokens) {
+    const authenticated = await startGoogleAuth();
+    if (!authenticated) return;
+  }
+
+  const btn = $<HTMLButtonElement>("exportSheetsBtn");
+  btn.disabled = true;
+  btn.textContent = "내보내는 중...";
+
+  const baseUrl = getSimuloBaseUrl();
+
+  const sessions = [{
+    createdAt: new Date().toISOString(),
+    frames: lastWritingResults.map((r) => ({
+      frameName: r.frameName,
+      score: r.score,
+      issues: r.issues.map((iss) => ({
+        location: iss.location,
+        original: iss.original,
+        suggestion: iss.suggestion,
+        reason: iss.reason,
+        severity: iss.severity,
+        principle: iss.principle,
+      })),
+    })),
+  }];
+
+  try {
+    const res = await fetch(`${baseUrl}/api/google/sheets`, {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({
+        accessToken: googleTokens.access_token,
+        refreshToken: googleTokens.refresh_token,
+        sessions,
+        spreadsheetId: savedSpreadsheetId || undefined,
+      }),
+    });
+
+    const data = await res.json();
+
+    if (data.error === "google_token_expired") {
+      // 토큰 만료 → 재인증
+      googleTokens = null;
+      parent.postMessage({ pluginMessage: { type: "save-google-tokens", tokens: "" } }, "*");
+      updateSheetsButtonState();
+      showFixToast("Google 인증이 만료되었습니다. 다시 연동해주세요.", "error");
+      btn.disabled = false;
+      btn.textContent = "구글 연동 후 내보내기";
+      return;
+    }
+
+    if (data.error) {
+      throw new Error(data.error);
+    }
+
+    // 성공: spreadsheetId 저장 (다음번에 append)
+    if (data.spreadsheetId) {
+      savedSpreadsheetId = data.spreadsheetId;
+      parent.postMessage({
+        pluginMessage: { type: "save-spreadsheet-id", spreadsheetId: data.spreadsheetId },
+      }, "*");
+    }
+
+    // 시트 열기
+    if (data.url) {
+      parent.postMessage({ pluginMessage: { type: "open-external", url: data.url } }, "*");
+    }
+
+    const label = data.appended ? "기존 시트에 추가됨" : "새 시트 생성됨";
+    showFixToast(`${label} — Google 시트가 열립니다.`, "success");
+  } catch (err) {
+    const msg = err instanceof Error ? err.message : "내보내기 실패";
+    showFixToast(`구글 시트 내보내기 실패: ${msg}`, "error");
+  } finally {
+    btn.disabled = false;
+    btn.textContent = googleTokens ? "구글 시트 내보내기" : "구글 연동 후 내보내기";
+  }
 }
 
 function showFixToast(message: string, type: "success" | "error") {

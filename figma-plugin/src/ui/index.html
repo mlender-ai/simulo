@@ -347,6 +347,23 @@
       line-height: 1.5;
     }
 
+    /* Google Sheets export button */
+    .btn-sheets {
+      width: 100%;
+      padding: 11px;
+      background: #1a4d2e;
+      color: #86efac;
+      border: 1px solid #166534;
+      border-radius: 6px;
+      font-size: 13px;
+      font-weight: 600;
+      cursor: pointer;
+      font-family: inherit;
+      transition: opacity 0.15s;
+    }
+    .btn-sheets:hover { opacity: 0.85; }
+    .btn-sheets:disabled { opacity: 0.4; cursor: not-allowed; }
+
     /* Fix buttons */
     .fix-all-btn {
       width: 100%;
@@ -596,6 +613,7 @@
 
   <div class="writing-report" id="writingReport"></div>
   <div id="writingActions" style="display:none;padding:0 16px 16px;display:none;">
+    <button class="btn-sheets" id="exportSheetsBtn" style="margin:0 0 8px;">구글 시트 내보내기</button>
     <div style="display:flex;gap:8px;margin-bottom:8px;">
       <button class="btn-secondary" id="exportCsvBtn" style="margin:0;flex:1;">CSV 내보내기</button>
       <button class="btn-secondary" id="exportSimuloBtn" style="margin:0;flex:1;">Simulo에 저장</button>

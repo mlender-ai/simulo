@@ -3,6 +3,7 @@
     "next/core-web-vitals",
     "plugin:@typescript-eslint/recommended"
   ],
+  "ignorePatterns": ["figma-plugin/dist/**"],
   "plugins": ["unused-imports"],
   "rules": {
     "@typescript-eslint/no-unused-vars": "off",

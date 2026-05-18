@@ -69,11 +69,11 @@
     "typescript": "^5"
   },
   "lint-staged": {
-    "*.{ts,tsx}": [
+    "!(figma-plugin/dist/**)*.{ts,tsx}": [
       "eslint --max-warnings 0",
       "bash -c 'tsc --noEmit'"
     ],
-    "*.{js,jsx}": [
+    "!(figma-plugin/dist/**)*.{js,jsx}": [
       "eslint --max-warnings 0"
     ]
   }

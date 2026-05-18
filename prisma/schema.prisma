@@ -54,3 +54,9 @@ model DashboardInsight {
   insights   Json
   createdAt  DateTime @default(now())
 }
+
+model PluginAuthSession {
+  id        String   @id
+  tokens    String
+  createdAt DateTime @default(now())
+}
