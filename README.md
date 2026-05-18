@@ -20,7 +20,7 @@
 - **스타일**: Tailwind CSS (다크 테마)
 - **AI**: Anthropic Claude SDK (Haiku 4.5 기본, Sonnet 4.5 정밀)
 - **DB**: Prisma + PostgreSQL (선택, 없으면 localStorage)
-- **배포**: Vercel (앱) + Railway (DB)
+- **배포**: Vercel (앱) + Supabase (DB)
 - **CI**: GitHub Actions (lint → type-check → build)
 
 ## 빠른 시작
@@ -103,7 +103,6 @@ simulo/
 ├── .github/
 │   └── workflows/ci.yml   # GitHub Actions CI
 ├── .env.example           # 환경변수 템플릿
-├── railway.json           # Railway 배포 설정
 └── vercel.json            # Vercel 배포 설정
 ```
 
@@ -130,13 +129,14 @@ cd figma-plugin && npm install && npm run build
 ### Vercel (앱)
 
 1. GitHub 레포 연결
-2. 환경변수 설정 (`ANTHROPIC_API_KEY`, `DATABASE_URL` 등)
+2. 환경변수 설정 (`ANTHROPIC_API_KEY`, `DATABASE_URL`, `DIRECT_URL` 등)
 3. 자동 배포
 
-### Railway (DB)
+### Supabase (DB)
 
-1. PostgreSQL 인스턴스 생성
-2. `DATABASE_URL`을 Vercel 환경변수에 추가
+1. Supabase 프로젝트 생성
+2. Settings → Database → Connection string에서 URL 복사
+3. `DATABASE_URL` (Transaction pooler, 포트 6543) + `DIRECT_URL` (Direct, 포트 5432)를 Vercel 환경변수에 추가
 
 ### Figma 플러그인
 

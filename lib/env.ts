@@ -29,8 +29,11 @@ export const env = {
   /** Anthropic API key — required on the server; may be overridden per-request by users. */
   ANTHROPIC_API_KEY: get("ANTHROPIC_API_KEY") as string | undefined,
 
-  /** PostgreSQL connection string — absent in local dev without a DB. */
+  /** Supabase PostgreSQL — pooled connection (port 6543). */
   DATABASE_URL: get("DATABASE_URL") as string | undefined,
+
+  /** Supabase PostgreSQL — direct connection (port 5432). Used by Prisma for migrations/push. */
+  DIRECT_URL: get("DIRECT_URL") as string | undefined,
 
   /** Node environment. */
   NODE_ENV: (get("NODE_ENV") ?? "development") as

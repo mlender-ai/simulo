@@ -24,7 +24,7 @@ Think Aloud 방식으로 사용자 반응을 시뮬레이션하는 내부 도구
 **Simulo의 존재 이유**: 실제 사용자 테스트 전에 UX 문제를 미리 발견하여
 디자인-개발 사이클의 낭비를 줄이는 것
 
-**현재 기술 스택**: Next.js 14, TypeScript, Tailwind CSS, Claude API, Prisma/PostgreSQL, Vercel/Railway
+**현재 기술 스택**: Next.js 14, TypeScript, Tailwind CSS, Claude API, Prisma/PostgreSQL, Vercel/Supabase
 
 ---
 

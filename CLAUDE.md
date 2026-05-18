@@ -40,7 +40,7 @@ npm run build                         # 2. 프로덕션 빌드 (가장 중요)
 기술 스택:      Next.js 14 (App Router) + TypeScript + Tailwind CSS + Prisma + PostgreSQL
 패키지 매니저:  npm
 런타임:         Node.js 20+
-배포:           Vercel (앱) + Railway (DB)
+배포:           Vercel (앱) + Supabase (DB)
 저장소:         https://github.com/mlender-ai/simulo
 ```
 
@@ -50,8 +50,10 @@ npm run build                         # 2. 프로덕션 빌드 (가장 중요)
 - 두 제품이 같은 데이터를 공유하며 "분석 → 개선 → 재검증" 사이클 완성
 
 ### DB
-- Prisma + PostgreSQL (Railway). 스키마 변경 시 `npx prisma db push` 사용.
+- Prisma + PostgreSQL (Supabase). 스키마 변경 시 `npx prisma db push` 사용.
 - `npx prisma migrate dev` 사용 금지. migrations 폴더 없음.
+- `DATABASE_URL` = Supabase Transaction pooler (포트 6543, `?pgbouncer=true`)
+- `DIRECT_URL` = Supabase Direct connection (포트 5432) — prisma db push 등에 사용
 
 ## 개발 명령어
 ```bash
@@ -77,6 +79,7 @@ npx prisma generate  # Prisma 클라이언트 생성
 | `simulo-daily-v2` | 매일 11:00 | 열린 이슈 1개 개발 + close |
 | `simulo-issue-gen-debate` | 매일 08:30 | 멀티 에이전트 토론으로 이슈 생성 |
 | `simulo-plugin-idea-daily` | 매일 09:23 | 플러그인 아이디어 1개 → `[플러그인 아이디어]` 라벨로 이슈 등록 |
+| `simulo-agent-research` | 월/목 10:13 | GitHub에서 인기 에이전트/MCP/도구 탐색 → `[에이전트 리서치]` 라벨로 이슈 등록 |
 
 ## 슬래시 커맨드 (`.claude/commands/`)
 - `/idea` — 제품 아이디어 생성 에이전트
