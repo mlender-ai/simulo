@@ -442,7 +442,11 @@ function isNearQuota(thresholdPercent = 80): boolean {
 function deleteById(id: string): void {
   const all = getAll();
   const filtered = all.filter((a) => a.id !== id);
-  localStorage.setItem(STORAGE_KEY, JSON.stringify(filtered));
+  try {
+    localStorage.setItem(STORAGE_KEY, JSON.stringify(filtered));
+  } catch {
+    console.error("[storage] Failed to persist after delete — localStorage may be unavailable.");
+  }
   deleteImages(id);
 }
 
@@ -465,7 +469,11 @@ function deleteOlderThan(days: number): number {
   }
 
   if (remove.length > 0) {
-    localStorage.setItem(STORAGE_KEY, JSON.stringify(keep));
+    try {
+      localStorage.setItem(STORAGE_KEY, JSON.stringify(keep));
+    } catch {
+      console.error("[storage] Failed to persist after deleteOlderThan — localStorage may be unavailable.");
+    }
     for (const a of remove) {
       deleteImages(a.id);
     }
