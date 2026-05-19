@@ -2,10 +2,11 @@
 
 import { useState, useEffect, useCallback } from "react";
 import { useRouter } from "next/navigation";
-import { type AnalysisResult } from "@/lib/storage";
+import { storage, type AnalysisResult } from "@/lib/storage";
 import { getLocale, t, type Locale } from "@/lib/i18n";
 import { useHistory, GROUP_ORDER } from "@/hooks/useHistory";
 import { HistoryCard, INPUT_TYPE_BADGE } from "@/components/history/HistoryCard";
+import { VersionComparison } from "@/components/VersionComparison";
 
 export default function HistoryPage() {
   const router = useRouter();
@@ -37,6 +38,17 @@ export default function HistoryPage() {
     deleteSelected,
     diffMap,
   } = useHistory(locale);
+
+  const [compareData, setCompareData] = useState<{ original: AnalysisResult; improved: AnalysisResult } | null>(null);
+
+  const handleCompare = useCallback(() => {
+    const [id1, id2] = Array.from(selectedIds);
+    const a = storage.getById(id1);
+    const b = storage.getById(id2);
+    if (!a || !b) return;
+    const sorted = [a, b].sort((x, y) => new Date(x.createdAt).getTime() - new Date(y.createdAt).getTime());
+    setCompareData({ original: sorted[0], improved: sorted[1] });
+  }, [selectedIds]);
 
   const handleReanalyze = useCallback((analysis: AnalysisResult) => {
     const params = {
@@ -168,6 +180,14 @@ export default function HistoryPage() {
             >
               {selectedIds.size === filtered.length ? t("deselectAll", locale) : t("selectAll", locale)}
             </button>
+            {selectedIds.size === 2 && (
+              <button
+                onClick={handleCompare}
+                className="px-3 py-2.5 text-xs rounded-md border border-blue-400/30 text-blue-400 hover:bg-blue-400/10 transition-colors min-h-[44px]"
+              >
+                버전 비교
+              </button>
+            )}
             {selectedIds.size > 0 && (
               <button
                 onClick={deleteSelected}
@@ -233,6 +253,26 @@ export default function HistoryPage() {
           ))
         )}
       </div>
+
+      {/* Version comparison modal */}
+      {compareData && (
+        <div
+          className="fixed inset-0 z-50 bg-black/70 flex items-start justify-center overflow-y-auto py-8"
+          onClick={() => setCompareData(null)}
+        >
+          <div className="max-w-3xl w-full mx-4" onClick={(e) => e.stopPropagation()}>
+            <div className="flex justify-end mb-2">
+              <button
+                onClick={() => setCompareData(null)}
+                className="px-3 py-1.5 text-xs rounded-md border border-[var(--border)] text-[var(--muted)] hover:text-white transition-colors"
+              >
+                닫기 ✕
+              </button>
+            </div>
+            <VersionComparison original={compareData.original} improved={compareData.improved} />
+          </div>
+        </div>
+      )}
     </div>
   );
 }
