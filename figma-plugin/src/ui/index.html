@@ -347,6 +347,62 @@
       line-height: 1.5;
     }
 
+    /* Analysis mode sub-tabs (가설 검증 / 사용성 분석) */
+    .analysis-mode-bar {
+      display: flex;
+      gap: 0;
+      margin-bottom: 14px;
+      border: 1px solid #222;
+      border-radius: 6px;
+      overflow: hidden;
+    }
+    .analysis-mode-tab {
+      flex: 1;
+      padding: 8px;
+      text-align: center;
+      font-size: 12px;
+      color: #666;
+      cursor: pointer;
+      background: #111;
+      user-select: none;
+      transition: all 0.15s;
+    }
+    .analysis-mode-tab:first-child { border-right: 1px solid #222; }
+    .analysis-mode-tab:hover { color: #aaa; }
+    .analysis-mode-tab.active {
+      background: #1a1a1a;
+      color: #e5e5e5;
+      font-weight: 500;
+    }
+
+    /* Usability result extras */
+    .quick-wins { margin-bottom: 12px; }
+    .quick-win-item {
+      padding: 8px 10px;
+      background: #111;
+      border: 1px solid #1a1a1a;
+      border-radius: 6px;
+      margin-bottom: 6px;
+      font-size: 12px;
+    }
+    .quick-win-item .qw-title { color: #e5e5e5; margin-bottom: 3px; }
+    .quick-win-item .qw-detail { color: #666; font-size: 11px; }
+    .score-breakdown {
+      display: flex;
+      flex-wrap: wrap;
+      gap: 6px;
+      margin-bottom: 12px;
+    }
+    .score-breakdown-item {
+      padding: 6px 10px;
+      background: #111;
+      border: 1px solid #1a1a1a;
+      border-radius: 6px;
+      font-size: 11px;
+    }
+    .score-breakdown-label { color: #666; }
+    .score-breakdown-value { color: #e5e5e5; font-weight: 600; margin-left: 4px; }
+
     /* Google Sheets export button */
     .btn-sheets {
       width: 100%;
@@ -552,7 +608,11 @@
   </div>
 
   <div class="form" id="inputForm">
-    <div>
+    <div class="analysis-mode-bar">
+      <div class="analysis-mode-tab active" data-analysis-mode="hypothesis">가설 검증</div>
+      <div class="analysis-mode-tab" data-analysis-mode="usability">사용성 분석</div>
+    </div>
+    <div id="hypothesisField">
       <label>가설</label>
       <textarea id="hypothesis" placeholder="예: 신규 유저가 마일리지 적립 방법을 이해하고 첫 미션을 완료할 수 있는가?"></textarea>
     </div>

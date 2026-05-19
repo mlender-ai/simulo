@@ -54,6 +54,7 @@ interface WritingCheckResult {
 
 let selectedImages: ImageItem[] = [];
 let currentMode: "analysis" | "writing" = "analysis";
+let analysisMode: "hypothesis" | "usability" = "hypothesis";
 let lastWritingResults: WritingCheckResult[] = [];
 let lastFileKey = "";
 let appliedFixes = new Set<string>(); // "frameIdx-issueIdx" tracking
@@ -148,6 +149,14 @@ window.addEventListener("DOMContentLoaded", () => {
     tab.addEventListener("click", () => {
       const name = (tab as HTMLElement).dataset.tab;
       if (name) switchTab(name);
+    });
+  });
+
+  // Analysis mode sub-tabs (가설 검증 / 사용성 분석)
+  document.querySelectorAll(".analysis-mode-tab").forEach((tab) => {
+    tab.addEventListener("click", () => {
+      const mode = (tab as HTMLElement).dataset.analysisMode as "hypothesis" | "usability";
+      if (mode) switchAnalysisMode(mode);
     });
   });
 
@@ -292,14 +301,32 @@ function updateSelectionBar(count: number, names: string[]) {
   }
 }
 
+// -------- Analysis mode switching --------
+function switchAnalysisMode(mode: "hypothesis" | "usability") {
+  analysisMode = mode;
+  document.querySelectorAll(".analysis-mode-tab").forEach((el) => {
+    const m = (el as HTMLElement).dataset.analysisMode;
+    el.className = "analysis-mode-tab" + (m === mode ? " active" : "");
+  });
+
+  const hypothesisField = $("hypothesisField");
+  if (mode === "usability") {
+    hypothesisField.style.display = "none";
+  } else {
+    hypothesisField.style.display = "block";
+  }
+}
+
 // -------- Run analysis --------
 function runAnalysis() {
   checkFreeMode();
 
-  const hypothesis = $<HTMLTextAreaElement>("hypothesis").value.trim();
-  if (!hypothesis) {
-    showError("가설을 입력해주세요.");
-    return;
+  if (analysisMode === "hypothesis") {
+    const hypothesis = $<HTMLTextAreaElement>("hypothesis").value.trim();
+    if (!hypothesis) {
+      showError("가설을 입력해주세요.");
+      return;
+    }
   }
 
   hideError();
@@ -452,6 +479,11 @@ async function startAnalysisWithImages() {
   const hypothesis = $<HTMLTextAreaElement>("hypothesis").value.trim();
   const targetUser = $<HTMLInputElement>("targetUser").value.trim();
 
+  // 사용성 분석 모드: 항상 백엔드 /api/analyze 사용
+  if (analysisMode === "usability") {
+    return startUsabilityAnalysis(targetUser);
+  }
+
   type ContentBlock =
     | { type: "text"; text: string }
     | { type: "image"; source: { type: "base64"; media_type: string; data: string } };
@@ -543,6 +575,129 @@ async function startAnalysisWithImages() {
     const msg = error instanceof Error ? error.message : String(error);
     showError(`분석 실패: ${msg}`);
   }
+}
+
+// -------- Usability analysis (via backend API) --------
+async function startUsabilityAnalysis(targetUser: string) {
+  const apiKey = getApiKey();
+  const baseUrl = getSimuloBaseUrl();
+
+  const images = selectedImages.slice(0, 8).map((img) => img.base64);
+
+  // Figma 텍스트를 screenDescription으로 전달
+  const screenDescriptions = selectedImages.slice(0, 8).map((img) => {
+    if (!img.texts || img.texts.length === 0) return "";
+    return img.texts.map((t) => t.text).join(" / ");
+  });
+  const screenDescription = screenDescriptions.filter(Boolean).join("\n");
+
+  try {
+    updateLoadingMsg("사용성 분석 중...");
+
+    const response = await fetch(`${baseUrl}/api/analyze`, {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({
+        images,
+        inputType: "image",
+        mode: "usability",
+        targetUser: targetUser || "일반 사용자",
+        locale: "ko",
+        model: freeMode ? "haiku" : (getSelectedModel().includes("sonnet") ? "sonnet" : "haiku"),
+        apiKey: apiKey || undefined,
+        screenDescription: screenDescription || undefined,
+      }),
+    });
+
+    if (!response.ok) {
+      const err = await response.json().catch(() => ({}));
+      throw new Error(err?.error || `사용성 분석 실패 (${response.status})`);
+    }
+
+    const data = await response.json();
+    showUsabilityReport(data);
+  } catch (error) {
+    hideLoading();
+    const msg = error instanceof Error ? error.message : String(error);
+    showError(`분석 실패: ${msg}`);
+  }
+}
+
+function showUsabilityReport(data: Record<string, unknown>) {
+  hideLoading();
+
+  const score = (data.score as number) ?? 0;
+  const grade = (data.grade as string) ?? (data.verdict as string) ?? "개선 필요";
+  const summary = (data.summary as string) ?? "";
+  const strengths = (data.strengths as string[]) ?? [];
+  const issues = (data.issues as Array<Record<string, string>>) ?? [];
+  const quickWins = (data.quickWins as Array<Record<string, string>>) ?? [];
+  const scoreBreakdown = data.scoreBreakdown as Record<string, number> | undefined;
+
+  $("reportScore").textContent = String(score);
+
+  const verdictEl = $("reportVerdict");
+  verdictEl.textContent = grade;
+  const gradeClass = score >= 80 ? "verdict-pass" : score >= 60 ? "verdict-partial" : "verdict-fail";
+  verdictEl.className = `verdict-badge ${gradeClass}`;
+
+  $("reportSummary").textContent = summary;
+
+  // Overview tab — scoreBreakdown + quickWins
+  let overviewHtml = "";
+
+  if (scoreBreakdown && typeof scoreBreakdown === "object") {
+    overviewHtml += `<div class="section-label">점수 세부</div><div class="score-breakdown">`;
+    for (const [key, val] of Object.entries(scoreBreakdown)) {
+      overviewHtml += `<div class="score-breakdown-item"><span class="score-breakdown-label">${escapeHtml(key)}</span><span class="score-breakdown-value">${val}</span></div>`;
+    }
+    overviewHtml += `</div>`;
+  }
+
+  if (strengths.length > 0) {
+    overviewHtml += `<div class="section-label">강점</div>`;
+    for (const s of strengths) {
+      overviewHtml += `<div class="strength-item">+ ${escapeHtml(s)}</div>`;
+    }
+  }
+
+  if (quickWins.length > 0) {
+    overviewHtml += `<div class="section-label" style="margin-top:12px">Quick Wins</div><div class="quick-wins">`;
+    for (const qw of quickWins) {
+      overviewHtml += `<div class="quick-win-item"><div class="qw-title">${escapeHtml(qw.title || qw.issue || "")}</div><div class="qw-detail">${escapeHtml(qw.description || qw.recommendation || "")}</div></div>`;
+    }
+    overviewHtml += `</div>`;
+  }
+
+  $("tab-overview").innerHTML = overviewHtml || '<div class="empty">강점 없음</div>';
+
+  // Think aloud — usability 모드에서는 비워둠
+  $("tab-think").innerHTML = '<div class="empty">사용성 분석에서는 Think Aloud 없음</div>';
+
+  // Issues tab
+  const sevClass = (s: string) =>
+    s === "심각" || s === "Critical" ? "sev-critical" : s === "보통" || s === "Medium" ? "sev-medium" : "sev-low";
+  let issuesHtml = "";
+  for (const issue of issues) {
+    const sev = issue.severity ?? "낮음";
+    issuesHtml += `<div class="issue-item">
+      <span class="issue-severity ${sevClass(sev)}">${escapeHtml(sev)}</span>
+      <span class="issue-screen">${escapeHtml(issue.screen || "")}</span>
+      <div class="issue-text">${escapeHtml(issue.issue || "")}</div>
+      <div class="issue-rec">→ ${escapeHtml(issue.recommendation || "")}</div>
+    </div>`;
+  }
+  $("tab-issues").innerHTML = issuesHtml || '<div class="empty">발견된 이슈 없음</div>';
+
+  $("inputForm").style.display = "none";
+  $("report").className = "report visible";
+  switchTab("overview");
+
+  renderFeedbackBar($("report"), "analysis", {
+    frameName: selectedImages.map((img) => img.name).join(", "),
+    score,
+    issueCount: issues.length,
+  });
 }
 
 // -------- Report rendering --------
@@ -1387,8 +1542,8 @@ async function exportToGoogleSheets() {
       method: "POST",
       headers: { "Content-Type": "application/json" },
       body: JSON.stringify({
-        accessToken: googleTokens.access_token,
-        refreshToken: googleTokens.refresh_token,
+        accessToken: googleTokens?.access_token ?? "",
+        refreshToken: googleTokens?.refresh_token ?? "",
         sessions,
         spreadsheetId: savedSpreadsheetId || undefined,
       }),
