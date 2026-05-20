@@ -61,3 +61,64 @@ model PluginAuthSession {
   tokens    String
   createdAt DateTime @default(now())
 }
+
+model Competitor {
+  id        String               @id @default(cuid())
+  name      String
+  url       String?
+  logoUrl   String?
+  createdAt DateTime             @default(now())
+  analyses  CompetitorAnalysis[]
+  snapshots StoreSnapshot[]
+}
+
+model CompetitorAnalysis {
+  id           String     @id @default(cuid())
+  competitorId String
+  competitor   Competitor @relation(fields: [competitorId], references: [id], onDelete: Cascade)
+  screenshots  Json       // base64 image array
+  frameworks   String[]   // framework IDs used
+  results      Json       // FrameworkResult[] serialized
+  createdAt    DateTime   @default(now())
+}
+
+model StoreSnapshot {
+  id             String     @id @default(cuid())
+  competitorId   String
+  competitor     Competitor @relation(fields: [competitorId], references: [id], onDelete: Cascade)
+  platform       String     // 'ios' | 'android'
+  rating         Float
+  ratingCount    Int
+  reviews        Json       // Review[]
+  updateNotes    Json       // UpdateNote[]
+  analysisResult Json?      // Claude analysis result
+  fetchedAt      DateTime   @default(now())
+}
+
+model CalibrationRecord {
+  id                String   @id @default(cuid())
+  analysisId        String
+  criterionId       String
+  predictedSeverity Int
+  actualMetric      String
+  actualValue       Float
+  accuracy          String   // 'accurate' | 'overestimated' | 'underestimated'
+  deviation         Float
+  calibratedAt      DateTime @default(now())
+}
+
+model AnalyticsConnection {
+  id          String   @id @default(cuid())
+  provider    String   // 'ga4' | 'mixpanel' | 'amplitude' | 'manual'
+  credentials Json     // encrypted
+  propertyId  String?
+  isActive    Boolean  @default(true)
+  createdAt   DateTime @default(now())
+}
+
+model SlackConfig {
+  id         String   @id @default(cuid())
+  webhookUrl String
+  isActive   Boolean  @default(true)
+  createdAt  DateTime @default(now())
+}
