@@ -1,8 +1,9 @@
 /* eslint-disable @next/next/no-img-element */
 "use client";
 
+import { useState, useMemo } from "react";
 import Link from "next/link";
-import { STRIPPED_IMAGE, type AnalysisResult } from "@/lib/storage";
+import { STRIPPED_IMAGE, type AnalysisResult, storage } from "@/lib/storage";
 import { t, type Locale } from "@/lib/i18n";
 import { ShareExportPanel } from "@/components/ShareExportPanel";
 import { gradeFromScore } from "@/components/report/constants";
@@ -47,6 +48,14 @@ interface HistoryCardProps {
   scoreDiff?: number;
 }
 
+function debounce<T extends (...args: Parameters<T>) => void>(fn: T, ms: number): T {
+  let timer: ReturnType<typeof setTimeout>;
+  return ((...args: Parameters<T>) => {
+    clearTimeout(timer);
+    timer = setTimeout(() => fn(...args), ms);
+  }) as T;
+}
+
 export function HistoryCard({
   analysis,
   locale,
@@ -58,6 +67,13 @@ export function HistoryCard({
   onTagClick,
   scoreDiff,
 }: HistoryCardProps) {
+  const [showMemo, setShowMemo] = useState(false);
+  const [memo, setMemo] = useState(analysis.userMemo ?? "");
+  const debouncedSave = useMemo(
+    () => debounce((val: string) => storage.updateMemo(analysis.id, val), 500),
+    [analysis.id]
+  );
+
   const verdictKey = analysis.verdict as "Pass" | "Partial" | "Fail";
   const rowMode = analysis.mode ?? "hypothesis";
   const isUsability = rowMode === "usability";
@@ -202,10 +218,38 @@ export function HistoryCard({
             >
               ↻
             </button>
+            <button
+              onClick={() => setShowMemo((v) => !v)}
+              className="px-2 py-1 text-xs rounded border transition-colors min-h-[32px]"
+              style={
+                memo
+                  ? { borderColor: "rgba(147,197,253,0.4)", color: "#93c5fd", background: "rgba(30,58,95,0.3)" }
+                  : { borderColor: "var(--border)", color: "var(--muted)" }
+              }
+              title="메모"
+            >
+              ✏
+            </button>
             <ShareExportPanel analysisId={analysis.id} analysisData={analysis} />
           </div>
         )}
       </div>
+      {showMemo && !isChild && (
+        <div className="mt-2 pl-0">
+          <textarea
+            value={memo}
+            onChange={(e) => {
+              setMemo(e.target.value);
+              debouncedSave(e.target.value);
+            }}
+            placeholder="분석 맥락, 팀 논의 내용, 다음 액션을 메모하세요..."
+            className="w-full text-xs bg-[var(--surface)] border border-[var(--border)] rounded p-2 text-white placeholder:text-[var(--muted)] resize-none focus:outline-none focus:border-white/20 transition-colors"
+            style={{ maxHeight: 120, overflowY: "auto" }}
+            rows={3}
+            onClick={(e) => e.preventDefault()}
+          />
+        </div>
+      )}
     </div>
   );
 }

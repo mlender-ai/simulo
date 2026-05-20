@@ -457,6 +457,39 @@
       color: #86efac;
     }
 
+    /* A/B Variant cards */
+    .variant-card {
+      border: 1px solid #222;
+      border-radius: 6px;
+      padding: 10px;
+      margin-bottom: 8px;
+      background: #111;
+    }
+    .variant-text {
+      font-size: 13px;
+      color: #e5e5e5;
+      margin-bottom: 4px;
+      font-weight: 500;
+    }
+    .variant-reason {
+      font-size: 11px;
+      color: #666;
+      margin-bottom: 8px;
+      line-height: 1.4;
+    }
+    .variant-apply-btn {
+      font-size: 11px;
+      padding: 4px 10px;
+      border-radius: 4px;
+      border: 1px solid #333;
+      background: transparent;
+      color: #93c5fd;
+      cursor: pointer;
+      font-family: inherit;
+    }
+    .variant-apply-btn:hover { background: rgba(147,197,253,0.1); }
+    .variant-apply-btn:disabled { color: #86efac; border-color: #166534; cursor: default; }
+
     /* Fix toast */
     .fix-toast {
       position: fixed;
@@ -578,6 +611,7 @@
   <div class="mode-bar">
     <div class="mode-tab active" data-mode="analysis">UX 분석</div>
     <div class="mode-tab" data-mode="writing">UX 라이팅</div>
+    <div class="mode-tab" data-mode="variants">A/B 변형</div>
   </div>
 
   <div class="selection-bar" id="selectionBar" data-count="0" data-names="">
@@ -660,6 +694,25 @@
     </div>
 
     <button class="btn-secondary" id="resetBtn">← 다시 분석</button>
+  </div>
+
+  <!-- A/B 변형 생성 섹션 -->
+  <div class="variants-form" id="variantsForm" style="display:none;flex-direction:column;gap:10px;padding:16px;">
+    <div class="writing-hint">텍스트 노드를 선택하거나 직접 입력하고, 개선 목표를 선택하면 AI가 변형을 생성합니다.</div>
+    <label>원본 텍스트</label>
+    <input type="text" id="variantOriginal" placeholder="예: 시작하기" style="width:100%;box-sizing:border-box;" />
+    <label>개선 목표</label>
+    <select id="variantGoal" style="width:100%;background:#111;border:1px solid #222;border-radius:6px;color:#e5e5e5;font-size:13px;padding:8px 10px;font-family:inherit;outline:none;box-sizing:border-box;">
+      <option value="conversion">전환율 높이기</option>
+      <option value="trust">신뢰 강화</option>
+      <option value="concise">더 간결하게</option>
+      <option value="friendly">더 친근하게</option>
+      <option value="urgency">긴급감 부여</option>
+      <option value="clarity">더 명확하게</option>
+    </select>
+    <button class="btn-primary" id="runVariantsBtn">변형 생성</button>
+    <div id="variantsLoading" style="display:none;text-align:center;color:#666;font-size:12px;padding:8px 0;">AI가 변형을 생성 중...</div>
+    <div id="variantsResult" style="display:none;"></div>
   </div>
 
   <div class="writing-form" id="writingForm">

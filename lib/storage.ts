@@ -185,6 +185,7 @@ export interface AnalysisResult {
   previousAnalysisId?: string | null;
   roundNumber?: number;
   isImprovement?: boolean;
+  userMemo?: string;
 }
 
 const STORAGE_KEY = "simulo_analyses";
@@ -483,6 +484,21 @@ function deleteOlderThan(days: number): number {
 }
 
 /**
+ * Update only the userMemo field of a stored analysis.
+ */
+function updateMemo(id: string, memo: string): void {
+  const all = getAll();
+  const idx = all.findIndex((a) => a.id === id);
+  if (idx === -1) return;
+  all[idx] = { ...all[idx], userMemo: memo.trim() || undefined };
+  try {
+    localStorage.setItem(STORAGE_KEY, JSON.stringify(all));
+  } catch {
+    console.error("[storage] Failed to persist memo update.");
+  }
+}
+
+/**
  * Clear all analysis data from localStorage and IndexedDB.
  */
 async function clearAll(): Promise<number> {
@@ -515,6 +531,7 @@ export const storage = {
   deleteImages,
   deleteById,
   deleteOlderThan,
+  updateMemo,
   clearAll,
   getStorageUsage,
   getStorageUsageAsync,

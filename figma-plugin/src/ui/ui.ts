@@ -53,7 +53,8 @@ interface WritingCheckResult {
 }
 
 let selectedImages: ImageItem[] = [];
-let currentMode: "analysis" | "writing" = "analysis";
+let currentMode: "analysis" | "writing" | "variants" = "analysis";
+let pendingVariantNodeId: string | null = null;
 let analysisMode: "hypothesis" | "usability" = "hypothesis";
 let lastWritingResults: WritingCheckResult[] = [];
 let lastFileKey = "";
@@ -127,6 +128,7 @@ window.addEventListener("DOMContentLoaded", () => {
   $("runBtn").addEventListener("click", runAnalysis);
   $("runFlowBtn").addEventListener("click", runFlowAnalysis);
   $("runWritingBtn").addEventListener("click", runWritingCheck);
+  $("runVariantsBtn").addEventListener("click", runVariantGeneration);
   $("resetBtn").addEventListener("click", resetToInput);
   $("writingResetBtn").addEventListener("click", resetToInput);
   $("exportCsvBtn").addEventListener("click", exportWritingCSV);
@@ -140,7 +142,7 @@ window.addEventListener("DOMContentLoaded", () => {
   // Mode toggle
   document.querySelectorAll(".mode-tab").forEach((tab) => {
     tab.addEventListener("click", () => {
-      const mode = (tab as HTMLElement).dataset.mode as "analysis" | "writing";
+      const mode = (tab as HTMLElement).dataset.mode as "analysis" | "writing" | "variants";
       if (mode) switchMode(mode);
     });
   });
@@ -197,6 +199,26 @@ window.onmessage = (event) => {
 
   if (msg.type === "selection-changed") {
     updateSelectionBar(msg.count, msg.names);
+    // A/B 변형 모드: 단일 텍스트 노드 선택 시 자동으로 원본 텍스트 채우기
+    if (currentMode === "variants" && msg.count === 1) {
+      parent.postMessage({ pluginMessage: { type: "get-selected-text-node" } }, "*");
+    }
+  }
+
+  if (msg.type === "variant-result") {
+    if (msg.success) {
+      // 적용 성공 피드백은 버튼 상태로만 표시
+    } else {
+      showError(msg.error || "변형 적용 실패");
+    }
+  }
+
+  if (msg.type === "selected-text-node") {
+    const inp = $<HTMLInputElement>("variantOriginal");
+    if (inp && msg.text) {
+      inp.value = msg.text as string;
+      pendingVariantNodeId = (msg.nodeId as string) || null;
+    }
   }
 
   if (msg.type === "file-info") {
@@ -792,7 +814,7 @@ function resetToInput() {
 }
 
 // -------- Mode switching --------
-function switchMode(mode: "analysis" | "writing") {
+function switchMode(mode: "analysis" | "writing" | "variants") {
   currentMode = mode;
   document.querySelectorAll(".mode-tab").forEach((el) => {
     const m = (el as HTMLElement).dataset.mode;
@@ -802,6 +824,7 @@ function switchMode(mode: "analysis" | "writing") {
   // Show/hide form sections
   $("inputForm").style.display = mode === "analysis" ? "flex" : "none";
   $("writingForm").style.display = mode === "writing" ? "flex" : "none";
+  $("variantsForm").style.display = mode === "variants" ? "flex" : "none";
   $("report").className = "report";
   $("writingReport").className = "writing-report";
 
@@ -1323,6 +1346,95 @@ function updateFixButtons(frameIdx: number) {
       badge.className = "fix-badge fix-applied";
     }
   }
+}
+
+// -------- A/B Variant Generation --------
+async function runVariantGeneration() {
+  const original = $<HTMLInputElement>("variantOriginal")?.value?.trim();
+  const goal = $<HTMLSelectElement>("variantGoal")?.value;
+
+  if (!original) {
+    showError("원본 텍스트를 입력하세요");
+    return;
+  }
+
+  const apiKey = $<HTMLInputElement>("apiKey")?.value?.trim();
+  const simuloUrl = ($<HTMLInputElement>("simuloUrl")?.value?.trim()) || "https://simulo.vercel.app";
+
+  hideError();
+  $("variantsLoading").style.display = "block";
+  $("variantsResult").style.display = "none";
+  $<HTMLButtonElement>("runVariantsBtn").disabled = true;
+
+  try {
+    const res = await fetch(`${simuloUrl}/api/plugin/generate-variants`, {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ original, goal, apiKey }),
+    });
+
+    if (!res.ok) {
+      const err = await res.json().catch(() => ({ error: "서버 오류" }));
+      throw new Error(err.error || `HTTP ${res.status}`);
+    }
+
+    const data = await res.json() as {
+      original: string;
+      goalLabel: string;
+      variants: { text: string; reason: string }[];
+    };
+
+    renderVariants(data.original, data.goalLabel, data.variants);
+  } catch (e) {
+    showError(e instanceof Error ? e.message : "변형 생성 실패");
+  } finally {
+    $("variantsLoading").style.display = "none";
+    $<HTMLButtonElement>("runVariantsBtn").disabled = false;
+  }
+}
+
+function renderVariants(
+  original: string,
+  goalLabel: string,
+  variants: { text: string; reason: string }[],
+) {
+  const container = $("variantsResult");
+  let html = `<div style="font-size:11px;color:#666;margin-bottom:10px;">목표: <span style="color:#93c5fd">${goalLabel}</span></div>`;
+
+  for (const v of variants) {
+    html += `
+      <div class="variant-card" data-text="${v.text.replace(/"/g, "&quot;")}">
+        <div class="variant-text">${v.text}</div>
+        <div class="variant-reason">${v.reason}</div>
+        <button class="variant-apply-btn" data-text="${v.text.replace(/"/g, "&quot;")}">Figma에 적용</button>
+      </div>`;
+  }
+
+  container.innerHTML = html;
+  container.style.display = "block";
+
+  container.querySelectorAll(".variant-apply-btn").forEach((btn) => {
+    btn.addEventListener("click", () => {
+      const replacement = (btn as HTMLElement).dataset.text || "";
+      if (!pendingVariantNodeId) {
+        showError("적용할 텍스트 노드를 Figma에서 선택해주세요");
+        return;
+      }
+      (btn as HTMLButtonElement).disabled = true;
+      (btn as HTMLButtonElement).textContent = "적용 중...";
+      parent.postMessage({
+        pluginMessage: {
+          type: "apply-variant",
+          nodeId: pendingVariantNodeId,
+          original,
+          replacement,
+        },
+      }, "*");
+      setTimeout(() => {
+        (btn as HTMLButtonElement).textContent = "✓ 적용됨";
+      }, 800);
+    });
+  });
 }
 
 // -------- Feedback system --------

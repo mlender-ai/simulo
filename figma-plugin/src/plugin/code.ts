@@ -86,6 +86,8 @@ type PluginMessage =
   | { type: "load-simulo-url" }
   | { type: "open-external"; url: string }
   | { type: "apply-writing-fixes"; nodeId: string; fixes: WritingFix[] }
+  | { type: "apply-variant"; nodeId: string; original: string; replacement: string }
+  | { type: "get-selected-text-node" }
   | { type: "save-model"; model: string }
   | { type: "load-model" }
   | { type: "save-google-tokens"; tokens: string }
@@ -361,6 +363,45 @@ figma.ui.onmessage = async (msg: PluginMessage) => {
         type: "fix-result",
         success: false,
         error: e instanceof Error ? e.message : "수정 적용 실패",
+      });
+    }
+  }
+
+  if (msg.type === "get-selected-text-node") {
+    const sel = figma.currentPage.selection;
+    const textNode = sel.find((n) => n.type === "TEXT") as TextNode | undefined;
+    figma.ui.postMessage({
+      type: "selected-text-node",
+      nodeId: textNode?.id ?? null,
+      text: textNode?.characters ?? null,
+    });
+  }
+
+  if (msg.type === "apply-variant") {
+    try {
+      const node = figma.getNodeById(msg.nodeId) as TextNode | null;
+      if (!node || node.type !== "TEXT") {
+        figma.ui.postMessage({ type: "variant-result", success: false, error: "텍스트 노드를 찾을 수 없습니다." });
+        return;
+      }
+      if (!node.characters.includes(msg.original)) {
+        figma.ui.postMessage({ type: "variant-result", success: false, error: "원본 텍스트가 노드에 없습니다." });
+        return;
+      }
+      await Promise.all(
+        node.getRangeAllFontNames(0, node.characters.length).map((font) =>
+          figma.loadFontAsync(font)
+        )
+      );
+      node.characters = node.characters.replace(msg.original, msg.replacement);
+      figma.currentPage.selection = [node];
+      figma.viewport.scrollAndZoomIntoView([node]);
+      figma.ui.postMessage({ type: "variant-result", success: true });
+    } catch (e) {
+      figma.ui.postMessage({
+        type: "variant-result",
+        success: false,
+        error: e instanceof Error ? e.message : "적용 실패",
       });
     }
   }
