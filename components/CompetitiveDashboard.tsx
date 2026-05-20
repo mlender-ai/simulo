@@ -1,6 +1,7 @@
 "use client";
 
 import { useState, useEffect } from "react";
+import { MediaUploader, type UploadedVideo } from "@/components/MediaUploader";
 import {
   RadarChart,
   Radar,
@@ -55,6 +56,8 @@ export default function CompetitiveDashboard() {
   const [uploadingFor, setUploadingFor] = useState<string | null>(null);
   const [analyzing, setAnalyzing] = useState<string | null>(null);
   const [expandedId, setExpandedId] = useState<string | null>(null);
+  const [pendingImages, setPendingImages] = useState<string[]>([]);
+  const [pendingVideos, setPendingVideos] = useState<UploadedVideo[]>([]);
 
   useEffect(() => {
     fetchCompetitors();
@@ -90,31 +93,25 @@ export default function CompetitiveDashboard() {
     fetchCompetitors();
   }
 
-  function handleFileUpload(competitorId: string, files: FileList | null) {
-    if (!files || files.length === 0) return;
-    setUploadingFor(competitorId);
-    const promises = Array.from(files).slice(0, 8).map(
-      (f) =>
-        new Promise<string>((resolve) => {
-          const reader = new FileReader();
-          reader.onload = (e) => resolve(e.target?.result as string);
-          reader.readAsDataURL(f);
-        })
-    );
-    Promise.all(promises).then(async (screenshots) => {
-      setAnalyzing(competitorId);
-      setUploadingFor(null);
-      try {
-        await fetch(`/api/competitors/${competitorId}/analyze`, {
-          method: "POST",
-          headers: { "Content-Type": "application/json" },
-          body: JSON.stringify({ screenshots, frameworks: [] }),
-        });
-        fetchCompetitors();
-      } finally {
-        setAnalyzing(null);
-      }
-    });
+  async function analyzeCompetitor(competitorId: string) {
+    const videoFrames = pendingVideos.flatMap((v) => v.frames.map((f) => f.base64));
+    const allImages = [...pendingImages, ...videoFrames];
+    if (allImages.length === 0) return;
+
+    setAnalyzing(competitorId);
+    setUploadingFor(null);
+    setPendingImages([]);
+    setPendingVideos([]);
+    try {
+      await fetch(`/api/competitors/${competitorId}/analyze`, {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ screenshots: allImages, frameworks: [] }),
+      });
+      fetchCompetitors();
+    } finally {
+      setAnalyzing(null);
+    }
   }
 
   // Build radar chart data from selected analyses
@@ -236,17 +233,21 @@ export default function CompetitiveDashboard() {
                       비교
                     </button>
                   )}
-                  <label className={`text-xs px-2 py-1 rounded border border-gray-600 text-gray-400 hover:border-gray-400 cursor-pointer transition-colors ${analyzing === c.id ? "opacity-50" : ""}`}>
-                    {analyzing === c.id ? "분석중..." : uploadingFor === c.id ? "업로드중..." : "스크린샷 분석"}
-                    <input
-                      type="file"
-                      accept="image/*"
-                      multiple
-                      className="hidden"
-                      disabled={!!analyzing}
-                      onChange={(e) => handleFileUpload(c.id, e.target.files)}
-                    />
-                  </label>
+                  <button
+                    onClick={() => {
+                      if (uploadingFor === c.id) {
+                        setUploadingFor(null);
+                      } else {
+                        setUploadingFor(c.id);
+                        setPendingImages([]);
+                        setPendingVideos([]);
+                      }
+                    }}
+                    disabled={!!analyzing}
+                    className="text-xs px-2 py-1 rounded border border-gray-600 text-gray-400 hover:border-gray-400 cursor-pointer transition-colors disabled:opacity-50"
+                  >
+                    {analyzing === c.id ? "분석중..." : "스크린샷 분석"}
+                  </button>
                   <button
                     onClick={() => setExpandedId(expandedId === c.id ? null : c.id)}
                     className="text-xs px-2 py-1 rounded border border-gray-700 text-gray-400 hover:border-gray-500"
@@ -261,6 +262,31 @@ export default function CompetitiveDashboard() {
                   </button>
                 </div>
               </div>
+
+              {/* Media upload expansion */}
+              {uploadingFor === c.id && (
+                <div className="border-t border-gray-700 p-4 space-y-3">
+                  <MediaUploader
+                    images={pendingImages}
+                    videos={pendingVideos}
+                    onImagesChange={setPendingImages}
+                    onVideosChange={setPendingVideos}
+                    maxImages={8}
+                    maxVideos={2}
+                    uploadZoneId={`competitor-upload-${c.id}`}
+                  />
+                  <button
+                    onClick={() => analyzeCompetitor(c.id)}
+                    disabled={pendingImages.length === 0 && pendingVideos.length === 0}
+                    className="w-full py-2 bg-blue-600 hover:bg-blue-700 disabled:opacity-50 text-white text-sm rounded transition-colors"
+                  >
+                    {(() => {
+                      const frameCount = pendingVideos.flatMap((v) => v.frames).length;
+                      return `분석 시작 (${pendingImages.length + frameCount}장)`;
+                    })()}
+                  </button>
+                </div>
+              )}
 
               {/* Expanded analysis results */}
               {expandedId === c.id && c.analyses.length > 0 && (
