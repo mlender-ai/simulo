@@ -7,6 +7,8 @@ import { extractTextFromImages, validateOCRResults, formatOCRForPrompt } from "@
 import { resolvePlugin } from "./registry";
 import { validateHandlerOutput } from "./outputSchema";
 import { validateImages, validateFigmaInputs, validateFlowSteps, logPreflightWarnings } from "@/lib/preflight";
+import { parseFrameworkResponse } from "@/lib/frameworks";
+import { validateFrameworkIds } from "@/lib/prompts/heuristic";
 
 // Note: ANTHROPIC_API_KEY presence is validated at request time via resolveApiKey()
 
@@ -140,6 +142,7 @@ async function runAnalysisPipeline(request: NextRequest, onProgress: ProgressCal
       productMode: rawProductMode,
       domain: rawDomain,
       domainFocuses: rawDomainFocuses,
+      frameworks: rawFrameworks,
     } = body;
 
     const productMode: "yafit" | "general" = rawProductMode === "general" ? "general" : "yafit";
@@ -211,11 +214,13 @@ async function runAnalysisPipeline(request: NextRequest, onProgress: ProgressCal
           desireAlignment: rawAnalysisOptions?.desireAlignment ?? true,
           competitorComparison: rawAnalysisOptions?.competitorComparison ?? false,
           accessibility: rawAnalysisOptions?.accessibility ?? false,
+          frameworks: validateFrameworkIds(rawFrameworks),
         }
       : {
           desireAlignment: rawAnalysisOptions?.desireAlignment ?? false,
           competitorComparison: rawAnalysisOptions?.competitorComparison ?? false,
           accessibility: rawAnalysisOptions?.accessibility ?? false,
+          frameworks: validateFrameworkIds(rawFrameworks),
         };
 
     const effectiveTargetUser: string = mode === "usability"
@@ -413,6 +418,15 @@ async function runAnalysisPipeline(request: NextRequest, onProgress: ProgressCal
     const roundNumber = typeof rawRoundNumber === "number" ? rawRoundNumber : 1;
     const isImprovement = rawIsImprovement === true;
 
+    // ── Framework heuristic results (opt-in) ──
+    const activeFrameworks = analysisOptions.frameworks ?? [];
+    const frameworkResults = activeFrameworks.length > 0
+      ? parseFrameworkResponse(
+          typeof r._rawText === "string" ? r._rawText : JSON.stringify(r),
+          activeFrameworks,
+        )
+      : [];
+
     const analysis = {
       id: uuidv4(),
       createdAt: new Date().toISOString(),
@@ -444,6 +458,7 @@ async function runAnalysisPipeline(request: NextRequest, onProgress: ProgressCal
       ...(topLevel.confidenceReason ? { confidenceReason: topLevel.confidenceReason } : {}),
       ...(savedFlowSteps ? { flowSteps: savedFlowSteps } : {}),
       ...(isComparison ? { isComparison: true, comparisonData } : {}),
+      ...(frameworkResults.length > 0 ? { frameworkResults } : {}),
       ...(mode === "usability"
         ? {
             analysisOptions: usabilityResultBundle,

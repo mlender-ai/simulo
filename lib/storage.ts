@@ -186,6 +186,7 @@ export interface AnalysisResult {
   roundNumber?: number;
   isImprovement?: boolean;
   userMemo?: string;
+  frameworkResults?: import("./frameworks").FrameworkResult[];
 }
 
 const STORAGE_KEY = "simulo_analyses";

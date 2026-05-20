@@ -1,4 +1,5 @@
 import { getDomainFocuses } from "./domainFocuses";
+import { buildHeuristicLayer, validateFrameworkIds } from "./prompts/heuristic";
 
 // ──────────────────────────────────────────────
 // lib/prompts.ts — Layered Claude system prompts for Simulo
@@ -20,6 +21,7 @@ export interface AnalysisOptions {
   desireAlignment?: boolean;
   competitorComparison?: boolean;
   accessibility?: boolean;
+  frameworks?: string[]; // 활성화된 UX 프레임워크 ID 목록 (lib/frameworks.ts의 FRAMEWORK_MAP 키)
 }
 
 export type AnalysisMode = "hypothesis" | "usability";
@@ -896,6 +898,15 @@ export function buildSystemPrompt(params: BuildSystemPromptParams): string {
 
   if (hasCompetitor || inputShape === "comparison" || analysisOptions.competitorComparison) {
     layers.push(isKo ? COMPARISON_LAYER_KO : COMPARISON_LAYER_EN);
+  }
+
+  // Layer 4: UX framework heuristic evaluation (opt-in)
+  const validFrameworks = validateFrameworkIds(analysisOptions.frameworks);
+  if (validFrameworks.length > 0) {
+    layers.push(buildHeuristicLayer({
+      frameworkIds: validFrameworks,
+      language: isKo ? "ko" : "en",
+    }));
   }
 
   // Domain context + focus areas — general mode only
