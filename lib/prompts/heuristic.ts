@@ -6,6 +6,7 @@ import { FRAMEWORK_MAP, getFrameworksByCategory } from "@/lib/frameworks";
 interface HeuristicSystemPromptParams {
   frameworkIds: string[];
   language: "ko" | "en";
+  calibrationDirective?: string;
 }
 
 /**
@@ -13,7 +14,7 @@ interface HeuristicSystemPromptParams {
  * Claude에게 frameworkResults를 JSON에 포함하도록 지시한다.
  */
 export function buildHeuristicLayer(params: HeuristicSystemPromptParams): string {
-  const { frameworkIds, language } = params;
+  const { frameworkIds, language, calibrationDirective } = params;
   const isKo = language === "ko";
 
   const byCategory = getFrameworksByCategory(frameworkIds);
@@ -87,7 +88,7 @@ export function buildHeuristicLayer(params: HeuristicSystemPromptParams): string
 
   lines.push(jsonInstruction);
 
-  return lines.join("\n");
+  return lines.join("\n") + (calibrationDirective ?? "");
 }
 
 /**
