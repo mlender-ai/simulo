@@ -61,3 +61,36 @@ model PluginAuthSession {
   tokens    String
   createdAt DateTime @default(now())
 }
+
+model Competitor {
+  id        String               @id @default(cuid())
+  name      String
+  url       String?
+  logoUrl   String?
+  createdAt DateTime             @default(now())
+  analyses  CompetitorAnalysis[]
+  snapshots StoreSnapshot[]
+}
+
+model CompetitorAnalysis {
+  id           String     @id @default(cuid())
+  competitorId String
+  competitor   Competitor @relation(fields: [competitorId], references: [id], onDelete: Cascade)
+  screenshots  Json       // base64 image array
+  frameworks   String[]   // framework IDs used
+  results      Json       // FrameworkResult[] serialized
+  createdAt    DateTime   @default(now())
+}
+
+model StoreSnapshot {
+  id             String     @id @default(cuid())
+  competitorId   String
+  competitor     Competitor @relation(fields: [competitorId], references: [id], onDelete: Cascade)
+  platform       String     // 'ios' | 'android'
+  rating         Float
+  ratingCount    Int
+  reviews        Json       // Review[]
+  updateNotes    Json       // UpdateNote[]
+  analysisResult Json?      // Claude analysis result
+  fetchedAt      DateTime   @default(now())
+}
