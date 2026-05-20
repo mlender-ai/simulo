@@ -62,6 +62,17 @@ export function HistoryCard({
 }: HistoryCardProps) {
   const [showMemo, setShowMemo] = useState(false);
   const [memo, setMemo] = useState(analysis.userMemo ?? "");
+  const [copied, setCopied] = useState(false);
+
+  function handleCopyShareLink(e: React.MouseEvent) {
+    e.preventDefault();
+    e.stopPropagation();
+    const url = `${window.location.origin}/share/${analysis.id}`;
+    navigator.clipboard.writeText(url).then(() => {
+      setCopied(true);
+      setTimeout(() => setCopied(false), 1500);
+    });
+  }
   const debouncedSave = useMemo(
     () => debounce((val: string) => storage.updateMemo(analysis.id, val), 500),
     [analysis.id]
@@ -222,6 +233,18 @@ export function HistoryCard({
               title="메모"
             >
               ✏
+            </button>
+            <button
+              onClick={handleCopyShareLink}
+              className="px-2 py-1 text-xs rounded border transition-colors min-h-[32px]"
+              style={
+                copied
+                  ? { borderColor: "rgba(134,239,172,0.4)", color: "#86efac", background: "rgba(20,83,45,0.25)" }
+                  : { borderColor: "var(--border)", color: "var(--muted)" }
+              }
+              title="공유 링크 복사"
+            >
+              {copied ? "✓" : "⎘"}
             </button>
             <ShareExportPanel analysisId={analysis.id} analysisData={analysis} />
           </div>
