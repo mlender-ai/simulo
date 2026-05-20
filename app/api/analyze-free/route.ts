@@ -1,5 +1,6 @@
 import { NextRequest, NextResponse } from "next/server";
 import Anthropic from "@anthropic-ai/sdk";
+import { MODELS } from "@/lib/models";
 
 export const maxDuration = 120;
 
@@ -21,7 +22,7 @@ export async function POST(req: NextRequest) {
     }
 
     // 무료 모드는 항상 Haiku (가장 저렴한 모델)
-    const model = "claude-haiku-4-5-20251001";
+    const model = MODELS.haiku;
 
     const messages =
       Array.isArray(content) && content[0]?.role

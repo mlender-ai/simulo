@@ -7,6 +7,7 @@
 
 import Anthropic from "@anthropic-ai/sdk";
 import type { FlowStep } from "./storage";
+import { MODELS, type ModelTier } from "./models";
 import {
   parseClaudeResponse,
   AnalysisResponseSchema,
@@ -29,12 +30,8 @@ export function detectMediaType(base64: string): "image/png" | "image/jpeg" | "i
 // Re-export so existing imports from "@/lib/claude" keep working
 export type { AnalysisOptions } from "./prompts";
 
-export type ModelTier = "haiku" | "sonnet";
-
-const MODEL_MAP: Record<ModelTier, string> = {
-  haiku: "claude-haiku-4-5-20251001",
-  sonnet: "claude-sonnet-4-6",
-};
+export type { ModelTier };
+const MODEL_MAP = MODELS;
 
 // ──────────────────────────────────────────────
 // Param interfaces

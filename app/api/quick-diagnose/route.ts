@@ -1,6 +1,7 @@
 import { NextRequest, NextResponse } from "next/server";
 import Anthropic from "@anthropic-ai/sdk";
 import { detectMediaType } from "@/lib/claude";
+import { MODELS } from "@/lib/models";
 
 export const maxDuration = 30;
 
@@ -44,7 +45,7 @@ export async function POST(request: NextRequest) {
     const base64 = image.replace(/^data:image\/\w+;base64,/, "");
 
     const response = await client.messages.create({
-      model: "claude-haiku-4-5-20251001",
+      model: MODELS.haiku,
       max_tokens: 512,
       system: SYSTEM_PROMPT,
       messages: [{

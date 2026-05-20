@@ -251,6 +251,10 @@ async function deleteImages(id: string): Promise<void> {
     const db = await openImageDB();
     const tx = db.transaction(IDB_STORE, "readwrite");
     tx.objectStore(IDB_STORE).delete(id);
+    await new Promise<void>((resolve, reject) => {
+      tx.oncomplete = () => resolve();
+      tx.onerror = () => reject(tx.error);
+    });
   } catch {
     // non-critical
   }
@@ -392,26 +396,18 @@ function getStorageUsage(): StorageUsage {
     return { localStorageUsed: 0, localStorageTotal: 0, localStorageQuota: LS_QUOTA_ESTIMATE, usagePercent: 0, analysisCount: 0, indexedDBUsed: 0 };
   }
 
-  let totalBytes = 0;
-  let simuloBytes = 0;
-  for (let i = 0; i < localStorage.length; i++) {
-    const key = localStorage.key(i);
-    if (!key) continue;
-    const value = localStorage.getItem(key) || "";
-    const size = (key.length + value.length) * 2; // UTF-16
-    totalBytes += size;
-    if (key.startsWith("simulo")) simuloBytes += size;
-  }
+  const raw = localStorage.getItem(STORAGE_KEY) ?? "";
+  const simuloBytes = new Blob([raw]).size;
 
   const analyses = getAll();
 
   return {
     localStorageUsed: simuloBytes,
-    localStorageTotal: totalBytes,
+    localStorageTotal: simuloBytes,
     localStorageQuota: LS_QUOTA_ESTIMATE,
-    usagePercent: Math.round((totalBytes / LS_QUOTA_ESTIMATE) * 100),
+    usagePercent: Math.round((simuloBytes / LS_QUOTA_ESTIMATE) * 100),
     analysisCount: analyses.length,
-    indexedDBUsed: 0, // filled async by getStorageUsageAsync
+    indexedDBUsed: 0,
   };
 }
 

@@ -1,5 +1,6 @@
 import { NextRequest, NextResponse } from "next/server";
 import Anthropic from "@anthropic-ai/sdk";
+import { MODELS } from "@/lib/models";
 
 export const maxDuration = 60;
 
@@ -89,7 +90,7 @@ Format:
 
   try {
     const message = await client.messages.create({
-      model: "claude-haiku-4-5",
+      model: MODELS.haiku,
       max_tokens: 1024,
       system: systemPrompt,
       messages: [{ role: "user", content: userPrompt }],

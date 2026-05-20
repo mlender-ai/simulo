@@ -4,6 +4,7 @@
 import { useState, useMemo } from "react";
 import Link from "next/link";
 import { STRIPPED_IMAGE, type AnalysisResult, storage } from "@/lib/storage";
+import { debounce } from "@/lib/utils";
 import { t, type Locale } from "@/lib/i18n";
 import { ShareExportPanel } from "@/components/ShareExportPanel";
 import { gradeFromScore } from "@/components/report/constants";
@@ -46,14 +47,6 @@ interface HistoryCardProps {
   onReanalyze: (analysis: AnalysisResult) => void;
   onTagClick?: (tag: string) => void;
   scoreDiff?: number;
-}
-
-function debounce<T extends (...args: Parameters<T>) => void>(fn: T, ms: number): T {
-  let timer: ReturnType<typeof setTimeout>;
-  return ((...args: Parameters<T>) => {
-    clearTimeout(timer);
-    timer = setTimeout(() => fn(...args), ms);
-  }) as T;
 }
 
 export function HistoryCard({

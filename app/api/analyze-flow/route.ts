@@ -2,6 +2,7 @@ import { NextRequest, NextResponse } from "next/server";
 import Anthropic from "@anthropic-ai/sdk";
 import { detectMediaType } from "@/lib/claude";
 
+
 export const maxDuration = 120;
 import {
   parseClaudeResponse,
@@ -45,10 +46,7 @@ interface EdgeResult {
 
 // ─── Config ──���──────────────────────────────────────────────────────
 
-const MODEL_MAP: Record<string, string> = {
-  haiku: "claude-haiku-4-5-20251001",
-  sonnet: "claude-sonnet-4-5-20241022",
-};
+import { resolveModel } from "@/lib/models";
 
 function getClient(apiKey?: string): Anthropic {
   const key = apiKey || process.env.ANTHROPIC_API_KEY;
@@ -258,7 +256,7 @@ export async function POST(request: NextRequest) {
     }
 
     const client = getClient(apiKey);
-    const modelId = MODEL_MAP[model || "haiku"] ?? MODEL_MAP.haiku;
+    const modelId = resolveModel(model || "haiku");
     const isKo = locale !== "en";
 
     const nodeMap = new Map(nodes.map((n) => [n.id, n]));

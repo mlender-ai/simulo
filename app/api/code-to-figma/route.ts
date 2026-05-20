@@ -1,5 +1,6 @@
 import { NextRequest, NextResponse } from "next/server";
 import Anthropic from "@anthropic-ai/sdk";
+import { MODELS } from "@/lib/models";
 
 export const maxDuration = 120;
 
@@ -164,7 +165,7 @@ async function analyzeWithClaude(
   const userMessage = parts.join("") || "(No input provided)";
 
   const response = await client.messages.create({
-    model: "claude-sonnet-4-6",
+    model: MODELS.sonnet,
     max_tokens: 8192,
     system: SYSTEM_PROMPT,
     messages: [{ role: "user", content: userMessage }],

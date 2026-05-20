@@ -1,6 +1,7 @@
 import { NextRequest, NextResponse } from "next/server";
 import Anthropic from "@anthropic-ai/sdk";
 import { detectMediaType } from "@/lib/claude";
+import { MODELS } from "@/lib/models";
 
 export const maxDuration = 120;
 
@@ -229,7 +230,7 @@ export async function POST(request: NextRequest) {
         : `이 UI 화면에 보이는 모든 텍스트의 UX 라이팅 품질을 분석해주세요. 프레임명: "${frameNames[i]}". JSON만 반환하세요.`;
 
       const response = await client.messages.create({
-        model: "claude-sonnet-4-20250514",
+        model: MODELS.sonnet,
         max_tokens: 4096,
         system: SYSTEM_PROMPT,
         messages: [

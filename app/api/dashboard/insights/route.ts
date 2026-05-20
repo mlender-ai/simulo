@@ -1,6 +1,7 @@
 import { NextResponse } from "next/server";
 import Anthropic from "@anthropic-ai/sdk";
 import { resolveApiKey } from "@/lib/env";
+import { MODELS } from "@/lib/models";
 
 const YAFIT_SYSTEM_PROMPT = `You are a product strategy advisor for YafitMove (야핏무브), a Korean health & reward app targeting 40-60s users.
 Analyze the accumulated UX testing data and provide actionable product improvement suggestions.`;
@@ -160,7 +161,7 @@ ${JSON.stringify(stats.desireTimeline?.slice(-10) ?? [], null, 2)}
 
   try {
     const response = await client.messages.create({
-      model: "claude-sonnet-4-6",
+      model: MODELS.sonnet,
       max_tokens: 2048,
       system: getSystemPrompt(projectTag),
       messages: [{ role: "user", content: userMessage }],
