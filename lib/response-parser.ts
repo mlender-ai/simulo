@@ -287,6 +287,7 @@ const UsabilityAccessibility4050Schema = z.object({
 }).optional();
 
 const QuickWinSchema = z.object({
+  category: z.string().optional(),
   issue: z.string(),
   fix: z.string().default(""),
   effort: z.string().catch("중간"),

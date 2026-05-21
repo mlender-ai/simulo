@@ -952,16 +952,59 @@ function showUsabilityReport(data: Record<string, unknown>) {
 
   if (quickWins.length > 0) {
     improvementsHtml += `<div class="section-label">${t("report.improvements.quickWins")}</div>`;
-    for (const qw of quickWins) {
-      const fix = qw.fix || qw.description || qw.recommendation || "";
-      const effort = qw.effort || "";
-      const impact = qw.impact || "";
-      improvementsHtml += `
-        <div class="improvement-item">
-          <div class="improvement-problem">${escapeHtml(qw.issue || qw.title || "")}</div>
-          <div class="improvement-fix">→ ${escapeHtml(fix)}</div>
-          ${(effort || impact) ? `<div class="improvement-badges">${effort ? `<span class="badge-label">${t("report.effort")}: </span>${effortLabel(effort)}` : ""}${impact ? `&nbsp;&nbsp;<span class="badge-label">${t("report.impact")}: </span>${impactLabel(impact)}` : ""}</div>` : ""}
-        </div>`;
+    // Group by category if available
+    const hasCats = quickWins.some((qw) => qw.category);
+    if (hasCats) {
+      const catOrder = ["UX 라이팅", "CTA / 버튼", "정보 구조", "비주얼", "신뢰 / 권한", "피드백 / 상태"];
+      const grouped: Record<string, Array<Record<string, string>>> = {};
+      const uncategorized: Array<Record<string, string>> = [];
+      for (const qw of quickWins) {
+        const cat = qw.category || "";
+        if (cat) {
+          if (!grouped[cat]) grouped[cat] = [];
+          grouped[cat].push(qw);
+        } else {
+          uncategorized.push(qw);
+        }
+      }
+      const catKeys = [...catOrder.filter((c) => grouped[c]), ...Object.keys(grouped).filter((c) => !catOrder.includes(c))];
+      for (const cat of catKeys) {
+        improvementsHtml += `<div class="improvement-category-header">${escapeHtml(cat)}</div>`;
+        for (const qw of grouped[cat]) {
+          const fix = qw.fix || qw.description || qw.recommendation || "";
+          const effort = qw.effort || "";
+          const impact = qw.impact || "";
+          improvementsHtml += `
+            <div class="improvement-item">
+              <div class="improvement-problem">${escapeHtml(qw.issue || qw.title || "")}</div>
+              <div class="improvement-fix">→ ${escapeHtml(fix)}</div>
+              ${(effort || impact) ? `<div class="improvement-badges">${effort ? `<span class="badge-label">${t("report.effort")}: </span>${effortLabel(effort)}` : ""}${impact ? `&nbsp;&nbsp;<span class="badge-label">${t("report.impact")}: </span>${impactLabel(impact)}` : ""}</div>` : ""}
+            </div>`;
+        }
+      }
+      for (const qw of uncategorized) {
+        const fix = qw.fix || qw.description || qw.recommendation || "";
+        const effort = qw.effort || "";
+        const impact = qw.impact || "";
+        improvementsHtml += `
+          <div class="improvement-item">
+            <div class="improvement-problem">${escapeHtml(qw.issue || qw.title || "")}</div>
+            <div class="improvement-fix">→ ${escapeHtml(fix)}</div>
+            ${(effort || impact) ? `<div class="improvement-badges">${effort ? `<span class="badge-label">${t("report.effort")}: </span>${effortLabel(effort)}` : ""}${impact ? `&nbsp;&nbsp;<span class="badge-label">${t("report.impact")}: </span>${impactLabel(impact)}` : ""}</div>` : ""}
+          </div>`;
+      }
+    } else {
+      for (const qw of quickWins) {
+        const fix = qw.fix || qw.description || qw.recommendation || "";
+        const effort = qw.effort || "";
+        const impact = qw.impact || "";
+        improvementsHtml += `
+          <div class="improvement-item">
+            <div class="improvement-problem">${escapeHtml(qw.issue || qw.title || "")}</div>
+            <div class="improvement-fix">→ ${escapeHtml(fix)}</div>
+            ${(effort || impact) ? `<div class="improvement-badges">${effort ? `<span class="badge-label">${t("report.effort")}: </span>${effortLabel(effort)}` : ""}${impact ? `&nbsp;&nbsp;<span class="badge-label">${t("report.impact")}: </span>${impactLabel(impact)}` : ""}</div>` : ""}
+          </div>`;
+      }
     }
   }
 

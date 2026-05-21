@@ -408,11 +408,27 @@ const USABILITY_LAYER_EN = `## Analysis Mode: Usability Scoring (no hypothesis)
 
 No specific hypothesis is being tested. Evaluate the overall usability quality of the provided screens.
 
+⚠ HALLUCINATION RULES (non-negotiable):
+- ONLY analyze UI elements that are ACTUALLY VISIBLE in the screenshot. Do NOT infer, assume, or fabricate elements.
+- If a button, text, or link is not visible in the image, do NOT mention it in any issue or quickWin.
+- Wrong: "'Skip' button exists but lacks consequence explanation" — if there is no Skip button in the image, do not write this.
+- Right: "The 'Connect' button does not explain what happens after tapping" — cite only what is visible.
+
 Scoring rules:
 - No Pass/Fail verdict. Return score + grade only.
 - 0-100 score. Must equal the sum of scoreBreakdown four items (each 0-25).
 - Grade labels (use these exact Korean strings): 우수(90+), 양호(70-89), 개선 필요(50-69), 미흡(~49).
-- Every quickWin must cite a specific UI element. Order so low-effort + high-impact items appear first.
+- Every quickWin MUST cite a specific UI element actually visible on screen. Order so low-effort + high-impact items appear first.
+
+Category coverage rule:
+Each quickWin must include a "category" field. You MUST cover all categories where issues exist:
+- "UX 라이팅": Headlines, body copy, button labels, error messages, microcopy
+- "CTA / 버튼": Button placement, label clarity, visual hierarchy
+- "정보 구조": Layout, content priority, information hierarchy
+- "비주얼": Images, icons, color, visual weight
+- "신뢰 / 권한": Privacy notices, permissions, data scope
+- "피드백 / 상태": Loading states, success/error feedback, next-step clarity
+Do NOT skip UX Writing if the screen has headline copy or body text. UX Writing improvements are often the highest-impact, lowest-effort changes.
 
 JSON output schema:
 {
@@ -427,7 +443,7 @@ JSON output schema:
   },
   "strengths": ["string with evidence"],
   "quickWins": [
-    { "issue": "string", "fix": "string", "effort": "낮음" | "중간" | "높음", "impact": "낮음" | "중간" | "높음" }
+    { "category": "UX 라이팅" | "CTA / 버튼" | "정보 구조" | "비주얼" | "신뢰 / 권한" | "피드백 / 상태", "issue": "string", "fix": "string", "effort": "낮음" | "중간" | "높음", "impact": "낮음" | "중간" | "높음" }
   ],
   "issues": [
     {
@@ -445,11 +461,27 @@ const USABILITY_LAYER_KO = `## 분석 모드: 사용성 스코어링 (가설 없
 
 특정 가설 없이 제공된 화면의 사용성 품질을 종합 평가합니다.
 
+⚠ 환각 금지 규칙 (절대 준수):
+- 스크린샷에 실제로 보이는 UI 요소만 분석하세요. 보이지 않는 버튼·텍스트·링크를 있다고 가정하거나 추론하지 마세요.
+- 예시 위반 (금지): "'넘어가기' 버튼을 누르면 결과가 불명확" — 화면에 '넘어가기' 버튼이 없다면 절대 언급 금지.
+- 예시 정상: "'연결하기' 버튼을 누른 후 다음 화면이 어떻게 바뀌는지 안내 없음" — 화면에 실제로 있는 버튼만 근거로 사용.
+- "~가 있을 수 있다", "~로 보인다" 같은 추측 표현 금지. 보이는 것만 판단 근거.
+
 채점 원칙:
 - Pass/Fail 판정 없음. 점수와 등급만 반환.
 - 0-100점. scoreBreakdown 4항목 합(각 0-25)과 반드시 일치.
 - 등급 라벨(아래 한글 문자열 그대로): 우수(90+), 양호(70-89), 개선 필요(50-69), 미흡(~49).
-- quickWins의 각 항목은 실제 UI 요소를 근거로 제시. 노력 낮음 + 임팩트 높음 항목을 배열 앞쪽에 배치.
+- quickWins의 각 항목은 실제로 보이는 UI 요소만 근거로 제시. 노력 낮음 + 임팩트 높음 항목을 배열 앞쪽에 배치.
+
+카테고리 커버리지 규칙:
+각 quickWin에는 반드시 "category" 필드를 포함하세요. 문제가 존재하는 모든 카테고리를 커버해야 합니다:
+- "UX 라이팅": 헤드라인·본문 카피·버튼 레이블·안내 문구·마이크로카피 — 텍스트가 있는 화면이라면 반드시 검토
+- "CTA / 버튼": 버튼 위치·레이블 명확성·시각적 위계
+- "정보 구조": 레이아웃·콘텐츠 우선순위·정보 계층
+- "비주얼": 이미지·아이콘·색상·시각적 무게감
+- "신뢰 / 권한": 개인정보 안내·권한 범위·보안 문구
+- "피드백 / 상태": 로딩 안내·성공/오류 피드백·다음 단계 명확성
+UX 라이팅은 놓치지 마세요 — 헤드카피나 본문 텍스트가 있는 화면이라면 UX 라이팅 개선이 가장 쉽고 임팩트가 큰 경우가 많습니다.
 
 JSON 키는 영문, 값은 한국어. 반드시 순수 JSON만 반환:
 {
@@ -464,7 +496,7 @@ JSON 키는 영문, 값은 한국어. 반드시 순수 JSON만 반환:
   },
   "strengths": ["근거 포함 한국어"],
   "quickWins": [
-    { "issue": "한국어", "fix": "한국어", "effort": "낮음" | "중간" | "높음", "impact": "낮음" | "중간" | "높음" }
+    { "category": "UX 라이팅" | "CTA / 버튼" | "정보 구조" | "비주얼" | "신뢰 / 권한" | "피드백 / 상태", "issue": "한국어", "fix": "한국어", "effort": "낮음" | "중간" | "높음", "impact": "낮음" | "중간" | "높음" }
   ],
   "issues": [
     {
