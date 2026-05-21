@@ -20,6 +20,7 @@ const VALID_TABS: readonly Tab[] = ["overview", "thinkAloud", "flow", "issues"];
 export function ReportTabs({ data, locale }: { data: AnalysisResult; locale: Locale }) {
   const [tab, setTab] = useState<Tab>("overview");
   const [lightboxIndex, setLightboxIndex] = useState<number | null>(null);
+  const [resolvedCount, setResolvedCount] = useState<number>(data.resolvedIssueIds?.length ?? 0);
 
   // Heatmap state
   const [heatmapOn, setHeatmapOn] = useState(false);
@@ -65,7 +66,12 @@ export function ReportTabs({ data, locale }: { data: AnalysisResult; locale: Loc
     { key: "overview", label: t("overview", locale) },
     { key: "thinkAloud", label: t("thinkAloud", locale) },
     ...(isFlow ? [{ key: "flow" as Tab, label: t("flowTab", locale) }] : []),
-    { key: "issues", label: `${t("issues", locale)} (${safeIssues.length})` },
+    {
+      key: "issues",
+      label: resolvedCount > 0
+        ? `${t("issues", locale)} (${resolvedCount}/${safeIssues.length} 해결)`
+        : `${t("issues", locale)} (${safeIssues.length})`,
+    },
   ];
 
   const handleTabChange = useCallback((newTab: Tab) => {
@@ -141,6 +147,7 @@ export function ReportTabs({ data, locale }: { data: AnalysisResult; locale: Loc
           onSetActiveIssue={setActiveIssueIdx}
           hoveredIssueIdx={hoveredIssueIdx}
           onSetHoveredIssue={setHoveredIssueIdx}
+          onResolvedCountChange={(resolved) => setResolvedCount(resolved)}
         />
       )}
 

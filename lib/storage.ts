@@ -186,6 +186,7 @@ export interface AnalysisResult {
   roundNumber?: number;
   isImprovement?: boolean;
   userMemo?: string;
+  resolvedIssueIds?: string[];
   frameworkResults?: import("./frameworks").FrameworkResult[];
 }
 
@@ -496,6 +497,21 @@ function updateMemo(id: string, memo: string): void {
 }
 
 /**
+ * Update resolvedIssueIds for a stored analysis.
+ */
+function updateResolvedIssues(id: string, resolvedIds: string[]): void {
+  const all = getAll();
+  const idx = all.findIndex((a) => a.id === id);
+  if (idx === -1) return;
+  all[idx] = { ...all[idx], resolvedIssueIds: resolvedIds.length > 0 ? resolvedIds : undefined };
+  try {
+    localStorage.setItem(STORAGE_KEY, JSON.stringify(all));
+  } catch {
+    console.error("[storage] Failed to persist resolvedIssues update.");
+  }
+}
+
+/**
  * Clear all analysis data from localStorage and IndexedDB.
  */
 async function clearAll(): Promise<number> {
@@ -529,6 +545,7 @@ export const storage = {
   deleteById,
   deleteOlderThan,
   updateMemo,
+  updateResolvedIssues,
   clearAll,
   getStorageUsage,
   getStorageUsageAsync,

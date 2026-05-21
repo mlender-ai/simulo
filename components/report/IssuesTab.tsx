@@ -3,26 +3,29 @@
 
 import { useState, useCallback, useEffect } from "react";
 import type { AnalysisResult } from "@/lib/storage";
-import { STRIPPED_IMAGE } from "@/lib/storage";
+import { STRIPPED_IMAGE, storage } from "@/lib/storage";
 
-function useResolvedIssues(analysisId: string) {
-  const key = `simulo_resolved_${analysisId}`;
-  const [resolved, setResolved] = useState<number[]>(() => {
-    if (typeof window === "undefined") return [];
-    try { return JSON.parse(localStorage.getItem(key) || "[]"); } catch { return []; }
-  });
+/** Build a stable string ID for an issue based on its position/content */
+function issueKey(globalIdx: number, issue: { screen: string; issue: string }): string {
+  return `${globalIdx}:${issue.screen}`;
+}
+
+function useResolvedIssues(analysisId: string, initialResolvedIds?: string[]) {
+  const [resolvedIds, setResolvedIds] = useState<string[]>(() => initialResolvedIds ?? []);
 
   useEffect(() => {
-    try { localStorage.setItem(key, JSON.stringify(resolved)); } catch { /* quota */ }
-  }, [key, resolved]);
+    setResolvedIds(initialResolvedIds ?? []);
+  }, [analysisId]); // eslint-disable-line react-hooks/exhaustive-deps
 
-  const toggle = useCallback((idx: number) => {
-    setResolved((prev) =>
-      prev.includes(idx) ? prev.filter((i) => i !== idx) : [...prev, idx]
-    );
-  }, []);
+  const toggle = useCallback((id: string) => {
+    setResolvedIds((prev) => {
+      const next = prev.includes(id) ? prev.filter((i) => i !== id) : [...prev, id];
+      storage.updateResolvedIssues(analysisId, next);
+      return next;
+    });
+  }, [analysisId]);
 
-  return { resolved, toggle };
+  return { resolvedIds, toggle };
 }
 import { t, type Locale } from "@/lib/i18n";
 import { HeatmapViewer, HeatmapIssueDetail, type HeatmapIssue } from "@/components/HeatmapViewer";
@@ -43,6 +46,7 @@ interface IssuesTabProps {
   onSetActiveIssue: (idx: number | null) => void;
   hoveredIssueIdx: number | null;
   onSetHoveredIssue: (idx: number | null) => void;
+  onResolvedCountChange?: (resolved: number, total: number) => void;
 }
 
 export function IssuesTab({
@@ -59,17 +63,23 @@ export function IssuesTab({
   onSetActiveIssue,
   hoveredIssueIdx,
   onSetHoveredIssue,
+  onResolvedCountChange,
 }: IssuesTabProps) {
   const [hypothesisFilterOn, setHypothesisFilterOn] = useState(false);
   const [severityFilter, setSeverityFilter] = useState<"All" | "Critical" | "Medium" | "Low">("All");
   const [copied, setCopied] = useState(false);
   const [copiedCardIdx, setCopiedCardIdx] = useState<number | null>(null);
-  const { resolved, toggle: toggleResolved } = useResolvedIssues(data.id);
+  const { resolvedIds, toggle: toggleResolved } = useResolvedIssues(data.id, data.resolvedIssueIds);
   const safeIssues = data.issues ?? [];
   const safeThumbnailUrls = data.thumbnailUrls ?? [];
   const hasThumbnails = safeThumbnailUrls.some((u) => u !== STRIPPED_IMAGE);
   const hasMultipleScreens = safeThumbnailUrls.length > 1;
   const hasRelevanceData = safeIssues.some((iss) => iss.relevanceToHypothesis);
+
+  // Notify parent of resolved count changes
+  useEffect(() => {
+    onResolvedCountChange?.(resolvedIds.length, safeIssues.length);
+  }, [resolvedIds.length, safeIssues.length, onResolvedCountChange]);
 
   // When multiple screens exist, always filter by selected screen
   const visibleIssues = hasMultipleScreens
@@ -80,7 +90,7 @@ export function IssuesTab({
     : safeIssues;
 
   // Map visible issues back to their original global indices (for heatmap highlight sync)
-  const visibleWithGlobalIdx = hasMultipleScreens
+  const rawVisibleWithGlobalIdx = hasMultipleScreens
     ? safeIssues
         .map((issue, i) => ({ issue, globalIdx: i }))
         .filter(({ issue }) => {
@@ -88,6 +98,14 @@ export function IssuesTab({
           return screenIdx === selectedScreen;
         })
     : safeIssues.map((issue, i) => ({ issue, globalIdx: i }));
+
+  // Sort: resolved issues go to the bottom
+  const visibleWithGlobalIdx = [...rawVisibleWithGlobalIdx].sort((a, b) => {
+    const aResolved = resolvedIds.includes(issueKey(a.globalIdx, a.issue));
+    const bResolved = resolvedIds.includes(issueKey(b.globalIdx, b.issue));
+    if (aResolved === bResolved) return 0;
+    return aResolved ? 1 : -1;
+  });
 
   const currentThumbnail = safeThumbnailUrls[selectedScreen];
   const thumbnailValid = currentThumbnail && currentThumbnail !== STRIPPED_IMAGE;
@@ -172,9 +190,9 @@ export function IssuesTab({
           })}
 
           {/* Resolved counter */}
-          {resolved.length > 0 && (
+          {resolvedIds.length > 0 && (
             <span className="text-xs text-emerald-400/80 ml-2 self-center">
-              해결됨 {resolved.length} / {safeIssues.length}
+              해결됨 {resolvedIds.length} / {safeIssues.length}
             </span>
           )}
 
@@ -337,7 +355,8 @@ export function IssuesTab({
                 const severityKey = issue.severity as "Critical" | "Medium" | "Low";
                 const isHighlighted = hoveredIssueIdx === globalIdx || activeIssueIdx === globalIdx;
                 const isLowRelevance = issue.relevanceToHypothesis === "Low";
-                const isResolved = resolved.includes(globalIdx);
+                const iKey = issueKey(globalIdx, issue);
+                const isResolved = resolvedIds.includes(iKey);
 
                 const handleCopyCard = (e: { stopPropagation: () => void }) => {
                   e.stopPropagation();
@@ -368,7 +387,7 @@ export function IssuesTab({
                         <input
                           type="checkbox"
                           checked={isResolved}
-                          onChange={(e) => { e.stopPropagation(); toggleResolved(globalIdx); }}
+                          onChange={(e) => { e.stopPropagation(); toggleResolved(iKey); }}
                           onClick={(e) => e.stopPropagation()}
                           className="w-4 h-4 accent-emerald-400 shrink-0 cursor-pointer"
                         />
