@@ -660,6 +660,9 @@
     <button class="btn-secondary" id="runFlowBtn" disabled style="margin-top:6px;">
       🔗 플로우 분석 (화면 간 전환 마찰)
     </button>
+    <button class="btn-secondary" id="runMultiBtn" disabled style="margin-top:6px;display:none;">
+      📋 개별 분석 (프레임별 각각)
+    </button>
   </div>
 
   <div class="loading" id="loading">
@@ -668,6 +671,15 @@
   </div>
 
   <div class="report" id="report">
+    <!-- 다중 프레임 개별 분석 시 페이지네이션 -->
+    <div id="multiPagination" style="display:none;align-items:center;justify-content:space-between;padding:6px 0;margin-bottom:8px;border-bottom:1px solid #1a1a1a;">
+      <button id="paginationPrev" class="btn-secondary" style="padding:3px 10px;font-size:11px;min-width:44px;">‹</button>
+      <div style="text-align:center;flex:1;padding:0 8px;">
+        <div id="paginationFrameName" style="color:#555;font-size:10px;margin-bottom:1px;white-space:nowrap;overflow:hidden;text-overflow:ellipsis;"></div>
+        <div id="paginationInfo" style="color:#e5e5e5;font-size:12px;font-weight:600;"></div>
+      </div>
+      <button id="paginationNext" class="btn-secondary" style="padding:3px 10px;font-size:11px;min-width:44px;">›</button>
+    </div>
     <div class="score-row">
       <span class="score-num" id="reportScore">-</span>
       <span class="verdict-badge" id="reportVerdict">-</span>

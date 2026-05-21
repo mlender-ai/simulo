@@ -55,6 +55,9 @@ interface WritingCheckResult {
 let selectedImages: ImageItem[] = [];
 let currentMode: "analysis" | "writing" | "variants" = "analysis";
 let pendingVariantNodeId: string | null = null;
+let multiResults: (AnalysisResult & { _frameName?: string })[] = [];
+let currentResultIndex = 0;
+let pendingMultiAnalysis = false;
 let analysisMode: "hypothesis" | "usability" = "hypothesis";
 let lastWritingResults: WritingCheckResult[] = [];
 let lastFileKey = "";
@@ -127,9 +130,12 @@ window.addEventListener("DOMContentLoaded", () => {
 
   $("runBtn").addEventListener("click", runAnalysis);
   $("runFlowBtn").addEventListener("click", runFlowAnalysis);
+  $("runMultiBtn").addEventListener("click", runMultiAnalysis);
   $("runWritingBtn").addEventListener("click", runWritingCheck);
   $("runVariantsBtn").addEventListener("click", runVariantGeneration);
-  $("resetBtn").addEventListener("click", resetToInput);
+  $("resetBtn").addEventListener("click", () => { multiResults = []; currentResultIndex = 0; resetToInput(); });
+  $("paginationPrev").addEventListener("click", () => { if (currentResultIndex > 0) showMultiReport(currentResultIndex - 1); });
+  $("paginationNext").addEventListener("click", () => { if (currentResultIndex < multiResults.length - 1) showMultiReport(currentResultIndex + 1); });
   $("writingResetBtn").addEventListener("click", resetToInput);
   $("exportCsvBtn").addEventListener("click", exportWritingCSV);
   $("exportSimuloBtn").addEventListener("click", exportToSimulo);
@@ -227,7 +233,12 @@ window.onmessage = (event) => {
 
   if (msg.type === "selection-ready") {
     selectedImages = msg.images as ImageItem[];
-    startAnalysisWithImages();
+    if (pendingMultiAnalysis) {
+      pendingMultiAnalysis = false;
+      startMultiAnalysis();
+    } else {
+      startAnalysisWithImages();
+    }
   }
 
   if (msg.type === "writing-selection-ready") {
@@ -300,6 +311,7 @@ function updateSelectionBar(count: number, names: string[]) {
   const analysisBtn = $<HTMLButtonElement>("runBtn");
   const flowBtn = $<HTMLButtonElement>("runFlowBtn");
   const writingBtn = $<HTMLButtonElement>("runWritingBtn");
+  const multiBtn = $<HTMLButtonElement>("runMultiBtn");
 
   if (count === 0) {
     bar.textContent = "프레임이나 레이어를 선택해주세요";
@@ -309,6 +321,8 @@ function updateSelectionBar(count: number, names: string[]) {
     flowBtn.disabled = true;
     writingBtn.disabled = true;
     writingBtn.textContent = "선택된 항목 없음";
+    multiBtn.disabled = true;
+    multiBtn.style.display = "none";
   } else {
     const preview = names.slice(0, 2).join(", ");
     const suffix = names.length > 2 ? " 외" : "";
@@ -316,10 +330,18 @@ function updateSelectionBar(count: number, names: string[]) {
     bar.className = "selection-bar active";
     const n = Math.min(count, 8);
     analysisBtn.disabled = false;
-    analysisBtn.textContent = `${n}개 화면 분석 시작`;
+    analysisBtn.textContent = count === 1 ? "화면 분석 시작" : `${n}개 화면 통합 분석`;
     flowBtn.disabled = count < 2;
     writingBtn.disabled = false;
     writingBtn.textContent = `${n}개 화면 UX 라이팅 체크`;
+    if (count >= 2) {
+      multiBtn.disabled = false;
+      multiBtn.style.display = "block";
+      multiBtn.textContent = `📋 개별 분석 (${n}장 각각)`;
+    } else {
+      multiBtn.disabled = true;
+      multiBtn.style.display = "none";
+    }
   }
 }
 
@@ -354,6 +376,91 @@ function runAnalysis() {
   hideError();
   showLoading();
   parent.postMessage({ pluginMessage: { type: "get-selection" } }, "*");
+}
+
+// -------- Multi-frame individual analysis --------
+function runMultiAnalysis() {
+  checkFreeMode();
+  if (analysisMode === "hypothesis") {
+    const hypothesis = $<HTMLTextAreaElement>("hypothesis").value.trim();
+    if (!hypothesis) { showError("가설을 입력해주세요."); return; }
+  }
+  hideError();
+  showLoading();
+  updateLoadingMsg("선택된 프레임을 추출 중...");
+  pendingMultiAnalysis = true;
+  parent.postMessage({ pluginMessage: { type: "get-selection" } }, "*");
+}
+
+async function startMultiAnalysis() {
+  const images = selectedImages.slice(0, 8);
+  multiResults = [];
+  currentResultIndex = 0;
+
+  for (let i = 0; i < images.length; i++) {
+    updateLoadingMsg(`${i + 1} / ${images.length} 분석 중... "${images[i].name}"`);
+    try {
+      const result = await analyzeSingleFrameViaBackend(images[i]);
+      multiResults.push({ ...result, _frameName: images[i].name });
+    } catch (e) {
+      multiResults.push({
+        verdict: "실패",
+        score: 0,
+        summary: `분석 실패: ${e instanceof Error ? e.message : String(e)}`,
+        _frameName: images[i].name,
+      });
+    }
+  }
+
+  showMultiReport(0);
+}
+
+async function analyzeSingleFrameViaBackend(img: ImageItem): Promise<AnalysisResult> {
+  const apiKey = getApiKey();
+  const baseUrl = getSimuloBaseUrl();
+  const hypothesis = $<HTMLTextAreaElement>("hypothesis").value.trim();
+  const targetUser = $<HTMLInputElement>("targetUser").value.trim();
+
+  const screenDescription = img.texts && img.texts.length > 0
+    ? img.texts.map((t) => t.text).join(" / ")
+    : "";
+
+  const response = await fetch(`${baseUrl}/api/analyze`, {
+    method: "POST",
+    headers: { "Content-Type": "application/json" },
+    body: JSON.stringify({
+      inputType: "image",
+      images: [img.base64],
+      hypothesis: hypothesis || `화면 "${img.name}"의 사용성 분석`,
+      targetUser: targetUser || "일반 사용자",
+      screenDescription,
+      locale: "ko",
+      mode: analysisMode,
+      apiKey: apiKey || undefined,
+    }),
+  });
+
+  if (!response.ok) {
+    const err = await response.json().catch(() => ({}));
+    throw new Error(err?.error || `API 오류 ${response.status}`);
+  }
+
+  return response.json() as Promise<AnalysisResult>;
+}
+
+function showMultiReport(index: number) {
+  currentResultIndex = index;
+  const result = multiResults[index];
+
+  // 페이지네이션 표시
+  const paginationEl = $("multiPagination");
+  paginationEl.style.display = "flex";
+  $("paginationFrameName").textContent = result._frameName || `화면 ${index + 1}`;
+  $("paginationInfo").textContent = `${index + 1} / ${multiResults.length}`;
+  ($("paginationPrev") as HTMLButtonElement).disabled = index === 0;
+  ($("paginationNext") as HTMLButtonElement).disabled = index === multiResults.length - 1;
+
+  showReport(result);
 }
 
 // -------- Run flow scenario analysis --------
@@ -726,6 +833,10 @@ function showUsabilityReport(data: Record<string, unknown>) {
 // -------- Report rendering --------
 function showReport(result: AnalysisResult) {
   hideLoading();
+  // 단일 분석 모드에선 페이지네이션 숨김
+  if (multiResults.length === 0) {
+    $("multiPagination").style.display = "none";
+  }
 
   $("reportScore").textContent = String(result.score ?? "-");
 
