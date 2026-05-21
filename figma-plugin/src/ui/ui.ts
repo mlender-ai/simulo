@@ -8,6 +8,10 @@ interface ExtractedText {
   parentName: string;
   fontSize: number | null;
   fontWeight: string | null;
+  x?: number;
+  y?: number;
+  width?: number;
+  height?: number;
 }
 
 interface ImageItem {
@@ -88,6 +92,48 @@ function checkFreeMode() {
 // -------- DOM helpers --------
 function $<T extends HTMLElement = HTMLElement>(id: string): T {
   return document.getElementById(id) as T;
+}
+
+/**
+ * Figma 텍스트 노드를 서버 OCR 패스 없이 Claude에 전달하기 위한 컨텍스트 문자열로 변환.
+ * 이미지 OCR 대신 이 값을 사용하면 한국어 텍스트 오독 문제가 없어짐.
+ */
+function buildFigmaOcrContext(images: ImageItem[], frameWidths?: number[], frameHeights?: number[]): string {
+  const screens = images.map((img, si) => {
+    if (!img.texts || img.texts.length === 0) return `화면 ${si + 1} (${img.name}): (텍스트 없음)`;
+    const fw = frameWidths?.[si];
+    const fh = frameHeights?.[si];
+    // Compute frame origin from first text node
+    let frameOriginX = Infinity;
+    let frameOriginY = Infinity;
+    if (fw && fh) {
+      for (const tx of img.texts) {
+        if (tx.x !== undefined && tx.x < frameOriginX) frameOriginX = tx.x;
+        if (tx.y !== undefined && tx.y < frameOriginY) frameOriginY = tx.y;
+      }
+    }
+    const lines = img.texts.map((tx) => {
+      const role = tx.fontSize && tx.fontSize >= 20 ? "heading"
+        : tx.fontWeight === "bold" ? "label"
+        : tx.parentName.toLowerCase().includes("button") || tx.parentName.toLowerCase().includes("btn") || tx.parentName.toLowerCase().includes("cta") ? "button"
+        : "body";
+      let coord = "";
+      if (fw && fh && tx.x !== undefined && tx.y !== undefined && tx.width !== undefined && tx.height !== undefined) {
+        const ox = isFinite(frameOriginX) ? frameOriginX : 0;
+        const oy = isFinite(frameOriginY) ? frameOriginY : 0;
+        const xPct = Math.round(((tx.x - ox) / fw) * 100);
+        const yPct = Math.round(((tx.y - oy) / fh) * 100);
+        const wPct = Math.round((tx.width / fw) * 100);
+        const hPct = Math.round((tx.height / fh) * 100);
+        coord = ` [x=${xPct}%, y=${yPct}%, w=${wPct}%, h=${hPct}%]`;
+      }
+      const sizeTag = tx.fontSize ? ` fs=${tx.fontSize}` : "";
+      const boldTag = tx.fontWeight === "bold" ? " bold" : "";
+      return `  [${role}${sizeTag}${boldTag}${coord}] "${tx.text}"`;
+    });
+    return `화면 ${si + 1} (${img.name}):\n${lines.join("\n")}`;
+  });
+  return `=== Figma 실제 텍스트 (OCR 오차 없음, 100% 정확) ===\n아래 텍스트는 Figma 디자인 파일에서 직접 추출한 것으로, 이미지 OCR 없이 정확합니다. 반드시 이 텍스트를 기준으로 분석하세요.\n\n${screens.join("\n\n")}`;
 }
 
 function escapeHtml(s: string): string {
@@ -557,9 +603,8 @@ async function analyzeSingleFrameViaBackend(img: ImageItem): Promise<AnalysisRes
   const hypothesis = $<HTMLTextAreaElement>("hypothesis").value.trim();
   const targetUser = $<HTMLInputElement>("targetUser").value.trim();
 
-  const screenDescription = img.texts && img.texts.length > 0
-    ? img.texts.map((t) => t.text).join(" / ")
-    : "";
+  const hasFigmaTexts = img.texts && img.texts.length > 0;
+  const figmaOcrContext = hasFigmaTexts ? buildFigmaOcrContext([img]) : undefined;
 
   const response = await fetch(`${baseUrl}/api/analyze`, {
     method: "POST",
@@ -569,10 +614,10 @@ async function analyzeSingleFrameViaBackend(img: ImageItem): Promise<AnalysisRes
       images: [img.base64],
       hypothesis: hypothesis || `화면 "${img.name}"의 사용성 분석`,
       targetUser: targetUser || t("form.defaultTargetUser"),
-      screenDescription,
       locale: getLang(),
       mode: analysisMode,
       apiKey: apiKey || undefined,
+      figmaOcrContext: figmaOcrContext || undefined,
       focusKeyword: analysisMode === "usability" ? (getFocusKeyword() || undefined) : undefined,
     }),
   });
@@ -852,14 +897,12 @@ async function startUsabilityAnalysis(targetUser: string) {
   const apiKey = getApiKey();
   const baseUrl = getSimuloBaseUrl();
 
-  const images = selectedImages.slice(0, 8).map((img) => img.base64);
+  const srcImages = selectedImages.slice(0, 8);
+  const images = srcImages.map((img) => img.base64);
 
-  // Figma 텍스트를 screenDescription으로 전달
-  const screenDescriptions = selectedImages.slice(0, 8).map((img) => {
-    if (!img.texts || img.texts.length === 0) return "";
-    return img.texts.map((t) => t.text).join(" / ");
-  });
-  const screenDescription = screenDescriptions.filter(Boolean).join("\n");
+  // Figma 실제 텍스트를 OCR 컨텍스트로 변환 (서버 OCR 패스 우회)
+  const hasFigmaTexts = srcImages.some((img) => img.texts && img.texts.length > 0);
+  const figmaOcrContext = hasFigmaTexts ? buildFigmaOcrContext(srcImages) : undefined;
 
   try {
     updateLoadingMsg(t("loading.usability"));
@@ -875,7 +918,7 @@ async function startUsabilityAnalysis(targetUser: string) {
         locale: getLang(),
         model: freeMode ? "haiku" : (getSelectedModel().includes("sonnet") ? "sonnet" : "haiku"),
         apiKey: apiKey || undefined,
-        screenDescription: screenDescription || undefined,
+        figmaOcrContext: figmaOcrContext || undefined,
         focusKeyword: getFocusKeyword() || undefined,
       }),
     });

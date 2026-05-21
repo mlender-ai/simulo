@@ -144,6 +144,7 @@ async function runAnalysisPipeline(request: NextRequest, onProgress: ProgressCal
       domainFocuses: rawDomainFocuses,
       frameworks: rawFrameworks,
       focusKeyword: rawFocusKeyword,
+      figmaOcrContext: rawFigmaOcrContext,
     } = body;
 
     const productMode: "yafit" | "general" = rawProductMode === "general" ? "general" : "yafit";
@@ -179,32 +180,44 @@ async function runAnalysisPipeline(request: NextRequest, onProgress: ProgressCal
       }
     }
 
-    // ── OCR pipeline (Skip for comparison/figma) ──
+    // ── OCR pipeline (Skip for comparison/figma/figmaOcrContext) ──
     await onProgress("입력 검증 완료", `${inputType || "image"} 모드`);
 
     let ocrContext: string | undefined;
-    // 서버 키만 사용하는 경우 (무료 모드) OCR 스킵 — Vercel Hobby 10초 제한 대응
-    const usingServerKey = !apiKey && !!process.env.ANTHROPIC_API_KEY;
-    const shouldRunOCR = !usingServerKey && inputType !== "comparison" && inputType !== "figma" && inputType !== "url" && images.length > 0;
-    if (shouldRunOCR) {
-      try {
-        let finalOCR;
-        if (ocrReview && Array.isArray(ocrReview) && ocrReview.length > 0) {
-          console.log("[analyze] Using client-reviewed OCR results:", ocrReview.length, "screens");
-          finalOCR = ocrReview;
-        } else {
-          await onProgress("화면 텍스트 추출 중", `${images.length}개 이미지 OCR 분석`);
-          console.log("[analyze] Pass 1: Preprocessing", images.length, "images");
-          const processedImages = await preprocessImages(images);
-          console.log("[analyze] Pass 2: OCR extraction with claude-opus-4-7");
-          const rawOCR = await extractTextFromImages(processedImages, apiKey || process.env.ANTHROPIC_API_KEY, productMode);
-          finalOCR = validateOCRResults(rawOCR, productMode);
+
+    // Figma 플러그인에서 실제 텍스트를 보낸 경우 → OCR 완전 스킵 (100% 정확)
+    const figmaOcrContext: string | undefined = typeof rawFigmaOcrContext === "string" && rawFigmaOcrContext.trim()
+      ? rawFigmaOcrContext.trim()
+      : undefined;
+
+    if (figmaOcrContext) {
+      ocrContext = figmaOcrContext;
+      console.log("[analyze] Using Figma-native text (OCR skipped):", ocrContext.slice(0, 120));
+      await onProgress("Figma 텍스트 사용", `OCR 패스 스킵 — 정확한 텍스트 확보`);
+    } else {
+      // 서버 키만 사용하는 경우 (무료 모드) OCR 스킵 — Vercel Hobby 10초 제한 대응
+      const usingServerKey = !apiKey && !!process.env.ANTHROPIC_API_KEY;
+      const shouldRunOCR = !usingServerKey && inputType !== "comparison" && inputType !== "figma" && inputType !== "url" && images.length > 0;
+      if (shouldRunOCR) {
+        try {
+          let finalOCR;
+          if (ocrReview && Array.isArray(ocrReview) && ocrReview.length > 0) {
+            console.log("[analyze] Using client-reviewed OCR results:", ocrReview.length, "screens");
+            finalOCR = ocrReview;
+          } else {
+            await onProgress("화면 텍스트 추출 중", `${images.length}개 이미지 OCR 분석`);
+            console.log("[analyze] Pass 1: Preprocessing", images.length, "images");
+            const processedImages = await preprocessImages(images);
+            console.log("[analyze] Pass 2: OCR extraction with claude-opus-4-7");
+            const rawOCR = await extractTextFromImages(processedImages, apiKey || process.env.ANTHROPIC_API_KEY, productMode);
+            finalOCR = validateOCRResults(rawOCR, productMode);
+          }
+          ocrContext = formatOCRForPrompt(finalOCR, locale || "ko");
+          await onProgress("텍스트 추출 완료", `${ocrContext.length}자 컨텍스트 확보`);
+          console.log("[analyze] OCR context ready:", ocrContext.slice(0, 120));
+        } catch (ocrErr) {
+          console.warn("[analyze] OCR pass failed (non-fatal):", ocrErr);
         }
-        ocrContext = formatOCRForPrompt(finalOCR, locale || "ko");
-        await onProgress("텍스트 추출 완료", `${ocrContext.length}자 컨텍스트 확보`);
-        console.log("[analyze] OCR context ready:", ocrContext.slice(0, 120));
-      } catch (ocrErr) {
-        console.warn("[analyze] OCR pass failed (non-fatal):", ocrErr);
       }
     }
 

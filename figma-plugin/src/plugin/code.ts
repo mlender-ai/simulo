@@ -23,6 +23,11 @@ interface ExtractedText {
   parentName: string;
   fontSize: number | null;
   fontWeight: string | null;
+  // Absolute bounding box (pixels, relative to frame origin)
+  x?: number;
+  y?: number;
+  width?: number;
+  height?: number;
 }
 
 function findAllTextNodes(node: SceneNode): TextNode[] {
@@ -52,11 +57,16 @@ function extractTextNodes(node: SceneNode): ExtractedText[] {
         const fw = textNode.fontWeight;
         if (typeof fw === "number") fontWeight = fw >= 600 ? "bold" : "normal";
       } catch { /* mixed styles */ }
+      const abs = textNode.absoluteBoundingBox;
       results.push({
         text: textNode.characters.trim(),
         parentName: node.parent?.name ?? "",
         fontSize,
         fontWeight,
+        x: abs ? Math.round(abs.x) : undefined,
+        y: abs ? Math.round(abs.y) : undefined,
+        width: abs ? Math.round(abs.width) : undefined,
+        height: abs ? Math.round(abs.height) : undefined,
       });
     }
   }
