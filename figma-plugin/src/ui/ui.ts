@@ -1,6 +1,8 @@
 // Simulo Figma Plugin — UI logic (iframe side)
 // Communicates with plugin sandbox via parent.postMessage.
 
+import { t, setLang, getLang, type Lang } from "./i18n";
+
 interface ExtractedText {
   text: string;
   parentName: string;
@@ -98,10 +100,118 @@ function escapeHtml(s: string): string {
 }
 
 // -------- Initialization --------
+// -------- i18n helpers --------
+function applyI18n() {
+  // Settings panel
+  $("settingsToggle").textContent = t("settings.toggle");
+  const apiKeyLabel = document.querySelector("#settingsPanel label:first-of-type") as HTMLElement | null;
+  if (apiKeyLabel) apiKeyLabel.textContent = t("settings.apiKeyLabel");
+  const apiKeyHint = document.querySelector("#settingsPanel .settings-hint:first-of-type") as HTMLElement | null;
+  if (apiKeyHint) apiKeyHint.textContent = t("settings.apiKeyHint");
+
+  const modelLabel = document.querySelector("#settingsPanel label[for='modelSelect'], #settingsPanel label:nth-of-type(2)") as HTMLElement | null;
+  const allLabels = document.querySelectorAll("#settingsPanel label");
+  if (allLabels[1]) allLabels[1].textContent = t("settings.modelLabel");
+  const haikuOpt = $<HTMLSelectElement>("modelSelect").options[0];
+  if (haikuOpt) haikuOpt.text = t("settings.modelHaiku");
+  const sonnetOpt = $<HTMLSelectElement>("modelSelect").options[1];
+  if (sonnetOpt) sonnetOpt.text = t("settings.modelSonnet");
+  const hints = document.querySelectorAll("#settingsPanel .settings-hint");
+  if (hints[1]) hints[1].textContent = t("settings.modelHint");
+  if (allLabels[2]) allLabels[2].textContent = t("settings.simuloUrlLabel");
+  const labelSimuloUrl = $("labelSimuloUrl");
+  if (labelSimuloUrl) labelSimuloUrl.textContent = t("settings.simuloUrlLabel");
+  const hintSimuloUrl = $("hintSimuloUrl");
+  if (hintSimuloUrl) hintSimuloUrl.textContent = t("settings.simuloUrlHint");
+  const labelLang = $("labelLang");
+  if (labelLang) labelLang.textContent = t("settings.langLabel");
+
+  // Free mode banner
+  $("freeModeBanner").textContent = t("freeMode.banner");
+
+  // Mode tabs
+  document.querySelectorAll(".mode-tab").forEach((el) => {
+    const mode = (el as HTMLElement).dataset.mode;
+    if (mode === "analysis") el.textContent = t("mode.analysis");
+    else if (mode === "writing") el.textContent = t("mode.writing");
+    else if (mode === "variants") el.textContent = t("mode.variants");
+  });
+
+  // Analysis mode sub-tabs
+  document.querySelectorAll(".analysis-mode-tab").forEach((el) => {
+    const mode = (el as HTMLElement).dataset.analysisMode;
+    if (mode === "hypothesis") el.textContent = t("analysisMode.hypothesis");
+    else if (mode === "usability") el.textContent = t("analysisMode.usability");
+  });
+
+  // Form labels & placeholders
+  const hypothesisLabels = document.querySelectorAll("#hypothesisField label");
+  if (hypothesisLabels[0]) hypothesisLabels[0].textContent = t("form.hypothesis");
+  const hypothesisTA = $<HTMLTextAreaElement>("hypothesis");
+  if (hypothesisTA) hypothesisTA.placeholder = t("form.hypothesisPlaceholder");
+  const targetUserLabels = document.querySelectorAll("#inputForm > div:last-of-type label");
+  if (targetUserLabels[0]) targetUserLabels[0].textContent = t("form.targetUser");
+  const targetUserInput = $<HTMLInputElement>("targetUser");
+  if (targetUserInput) targetUserInput.placeholder = t("form.targetUserPlaceholder");
+
+  // Flow button
+  $("runFlowBtn").textContent = t("btn.flow");
+
+  // Report back button
+  $("resetBtn").textContent = t("btn.reset");
+  $("writingResetBtn").textContent = t("btn.writingReset");
+
+  // Report tabs
+  document.querySelectorAll(".tab").forEach((el) => {
+    const tab = (el as HTMLElement).dataset.tab;
+    if (tab === "overview") el.textContent = t("tab.overview");
+    else if (tab === "think") el.textContent = t("tab.thinkAloud");
+    else if (tab === "issues") el.textContent = t("tab.issues");
+  });
+
+  // Loading default msg
+  $("loadingMsg").textContent = t("loading.default");
+
+  // Writing hint
+  const writingHint = document.querySelector(".writing-hint") as HTMLElement | null;
+  if (writingHint) writingHint.textContent = t("writing.hint");
+
+  // Variants form
+  const variantsHint = document.querySelector("#variantsForm .writing-hint") as HTMLElement | null;
+  if (variantsHint) variantsHint.textContent = t("variants.hint");
+  const variantLabels = document.querySelectorAll("#variantsForm label");
+  if (variantLabels[0]) variantLabels[0].textContent = t("variants.original");
+  if (variantLabels[1]) variantLabels[1].textContent = t("variants.goal");
+  const variantOriginal = $<HTMLInputElement>("variantOriginal");
+  if (variantOriginal) variantOriginal.placeholder = t("variants.originalPlaceholder");
+  $("runVariantsBtn").textContent = t("btn.generateVariants");
+
+  // Variant goal options
+  const variantGoalSel = $<HTMLSelectElement>("variantGoal");
+  if (variantGoalSel) {
+    const vals = ["conversion", "trust", "concise", "friendly", "urgency", "clarity"];
+    for (const opt of Array.from(variantGoalSel.options)) {
+      if (vals.includes(opt.value)) opt.text = t(`variants.goal.${opt.value}`);
+    }
+  }
+
+  // Export buttons
+  $("exportCsvBtn").textContent = t("export.csv");
+  $("exportSimuloBtn").textContent = t("export.simulo");
+
+  // Re-apply dynamic state (selection bar + sheets button)
+  const bar = $("selectionBar");
+  const count = parseInt(bar.dataset.count || "0");
+  const names = (bar.dataset.names || "").split(",").filter(Boolean);
+  updateSelectionBar(count, names);
+  updateSheetsButtonState();
+}
+
 window.addEventListener("DOMContentLoaded", () => {
-  // Request saved API key and Simulo URL from plugin sandbox
+  // Request saved API key, Simulo URL, language from plugin sandbox
   parent.postMessage({ pluginMessage: { type: "load-api-key" } }, "*");
   parent.postMessage({ pluginMessage: { type: "load-simulo-url" } }, "*");
+  parent.postMessage({ pluginMessage: { type: "load-language" } }, "*");
 
   // Save API key on change + recheck free mode
   $("apiKey").addEventListener("change", (e) => {
@@ -122,6 +232,14 @@ window.addEventListener("DOMContentLoaded", () => {
   $("simuloUrl").addEventListener("change", (e) => {
     const val = (e.target as HTMLInputElement).value.trim();
     parent.postMessage({ pluginMessage: { type: "save-simulo-url", url: val } }, "*");
+  });
+
+  // Language selector
+  $("langSelect").addEventListener("change", (e) => {
+    const lang = (e.target as HTMLSelectElement).value as Lang;
+    setLang(lang);
+    parent.postMessage({ pluginMessage: { type: "save-language", lang } }, "*");
+    applyI18n();
   });
 
   $("settingsToggle").addEventListener("click", () => {
@@ -196,6 +314,13 @@ window.onmessage = (event) => {
     }
   }
 
+  if (msg.type === "language-loaded") {
+    const lang = (msg.lang as Lang) || "ko";
+    setLang(lang);
+    $<HTMLSelectElement>("langSelect").value = lang;
+    applyI18n();
+  }
+
   if (msg.type === "model-loaded") {
     const model = msg.model as string;
     if (model) {
@@ -215,7 +340,7 @@ window.onmessage = (event) => {
     if (msg.success) {
       // 적용 성공 피드백은 버튼 상태로만 표시
     } else {
-      showError(msg.error || "변형 적용 실패");
+      showError(msg.error || t("error.variantFail"));
     }
   }
 
@@ -278,9 +403,9 @@ window.onmessage = (event) => {
         }
       }
 
-      showFixToast(`${appliedCount}/${totalFixes}개 수정이 복제 프레임에 적용되었습니다.`, "success");
+      showFixToast(t("toast.fixApplied", { applied: appliedCount, total: totalFixes }), "success");
     } else {
-      showFixToast(`수정 실패: ${msg.error || "알 수 없는 오류"}`, "error");
+      showFixToast(t("toast.fixFail", { msg: msg.error || "?" }), "error");
     }
   }
 
@@ -314,30 +439,30 @@ function updateSelectionBar(count: number, names: string[]) {
   const multiBtn = $<HTMLButtonElement>("runMultiBtn");
 
   if (count === 0) {
-    bar.textContent = "프레임이나 레이어를 선택해주세요";
+    bar.textContent = t("selection.empty");
     bar.className = "selection-bar";
     analysisBtn.disabled = true;
-    analysisBtn.textContent = "선택된 항목 없음";
+    analysisBtn.textContent = t("btn.noSelection");
     flowBtn.disabled = true;
     writingBtn.disabled = true;
-    writingBtn.textContent = "선택된 항목 없음";
+    writingBtn.textContent = t("btn.noSelection");
     multiBtn.disabled = true;
     multiBtn.style.display = "none";
   } else {
     const preview = names.slice(0, 2).join(", ");
-    const suffix = names.length > 2 ? " 외" : "";
-    bar.textContent = `${count}개 선택됨 — ${preview}${suffix}`;
+    const suffix = names.length > 2 ? t("selection.countSuffix") : "";
+    bar.textContent = t("selection.count", { n: count, names: preview + suffix });
     bar.className = "selection-bar active";
     const n = Math.min(count, 8);
     analysisBtn.disabled = false;
-    analysisBtn.textContent = count === 1 ? "화면 분석 시작" : `${n}개 화면 통합 분석`;
+    analysisBtn.textContent = count === 1 ? t("btn.analyze") : t("btn.analyzeMulti", { n });
     flowBtn.disabled = count < 2;
     writingBtn.disabled = false;
-    writingBtn.textContent = `${n}개 화면 UX 라이팅 체크`;
+    writingBtn.textContent = t("btn.writingCheck", { n });
     if (count >= 2) {
       multiBtn.disabled = false;
       multiBtn.style.display = "block";
-      multiBtn.textContent = `📋 개별 분석 (${n}장 각각)`;
+      multiBtn.textContent = t("btn.multiIndividual", { n });
     } else {
       multiBtn.disabled = true;
       multiBtn.style.display = "none";
@@ -368,7 +493,7 @@ function runAnalysis() {
   if (analysisMode === "hypothesis") {
     const hypothesis = $<HTMLTextAreaElement>("hypothesis").value.trim();
     if (!hypothesis) {
-      showError("가설을 입력해주세요.");
+      showError(t("error.noHypothesis"));
       return;
     }
   }
@@ -383,11 +508,11 @@ function runMultiAnalysis() {
   checkFreeMode();
   if (analysisMode === "hypothesis") {
     const hypothesis = $<HTMLTextAreaElement>("hypothesis").value.trim();
-    if (!hypothesis) { showError("가설을 입력해주세요."); return; }
+    if (!hypothesis) { showError(t("error.noHypothesis")); return; }
   }
   hideError();
   showLoading();
-  updateLoadingMsg("선택된 프레임을 추출 중...");
+  updateLoadingMsg(t("multi.extracting"));
   pendingMultiAnalysis = true;
   parent.postMessage({ pluginMessage: { type: "get-selection" } }, "*");
 }
@@ -398,15 +523,15 @@ async function startMultiAnalysis() {
   currentResultIndex = 0;
 
   for (let i = 0; i < images.length; i++) {
-    updateLoadingMsg(`${i + 1} / ${images.length} 분석 중... "${images[i].name}"`);
+    updateLoadingMsg(t("multi.analyzing", { current: i + 1, total: images.length, name: images[i].name }));
     try {
       const result = await analyzeSingleFrameViaBackend(images[i]);
       multiResults.push({ ...result, _frameName: images[i].name });
     } catch (e) {
       multiResults.push({
-        verdict: "실패",
+        verdict: t("report.verdict.fail"),
         score: 0,
-        summary: `분석 실패: ${e instanceof Error ? e.message : String(e)}`,
+        summary: t("multi.analysisFail", { msg: e instanceof Error ? e.message : String(e) }),
         _frameName: images[i].name,
       });
     }
@@ -432,9 +557,9 @@ async function analyzeSingleFrameViaBackend(img: ImageItem): Promise<AnalysisRes
       inputType: "image",
       images: [img.base64],
       hypothesis: hypothesis || `화면 "${img.name}"의 사용성 분석`,
-      targetUser: targetUser || "일반 사용자",
+      targetUser: targetUser || t("form.defaultTargetUser"),
       screenDescription,
-      locale: "ko",
+      locale: getLang(),
       mode: analysisMode,
       apiKey: apiKey || undefined,
     }),
@@ -442,7 +567,7 @@ async function analyzeSingleFrameViaBackend(img: ImageItem): Promise<AnalysisRes
 
   if (!response.ok) {
     const err = await response.json().catch(() => ({}));
-    throw new Error(err?.error || `API 오류 ${response.status}`);
+    throw new Error(err?.error || t("error.apiFail", { status: response.status }));
   }
 
   return response.json() as Promise<AnalysisResult>;
@@ -455,7 +580,7 @@ function showMultiReport(index: number) {
   // 페이지네이션 표시
   const paginationEl = $("multiPagination");
   paginationEl.style.display = "flex";
-  $("paginationFrameName").textContent = result._frameName || `화면 ${index + 1}`;
+  $("paginationFrameName").textContent = result._frameName || t("multi.frameName", { n: index + 1 });
   $("paginationInfo").textContent = `${index + 1} / ${multiResults.length}`;
   ($("paginationPrev") as HTMLButtonElement).disabled = index === 0;
   ($("paginationNext") as HTMLButtonElement).disabled = index === multiResults.length - 1;
@@ -469,13 +594,13 @@ function runFlowAnalysis() {
 
   const hypothesis = $<HTMLTextAreaElement>("hypothesis").value.trim();
   if (!hypothesis) {
-    showError("가설을 입력해주세요. (예: 신규 유저가 결제까지 완료할 수 있는가?)");
+    showError(t("error.noFlowHypothesis"));
     return;
   }
 
   hideError();
   showLoading();
-  updateLoadingMsg("플로우 분석용 화면을 추출 중...");
+  updateLoadingMsg(t("flow.extracting"));
   parent.postMessage({ pluginMessage: { type: "get-selection-for-flow" } }, "*");
 }
 
@@ -492,7 +617,7 @@ async function startFlowAnalysisWithImages() {
   }));
 
   try {
-    updateLoadingMsg(`${flowSteps.length}개 화면 플로우 분석 중...`);
+    updateLoadingMsg(t("flow.analyzing", { n: flowSteps.length }));
 
     const response = await fetch(`${baseUrl}/api/analyze`, {
       method: "POST",
@@ -501,8 +626,8 @@ async function startFlowAnalysisWithImages() {
         inputType: "flow",
         flowSteps,
         hypothesis,
-        targetUser: targetUser || "일반 사용자",
-        locale: "ko",
+        targetUser: targetUser || t("form.defaultTargetUser"),
+        locale: getLang(),
         mode: "hypothesis",
         apiKey: apiKey || undefined,
       }),
@@ -510,7 +635,7 @@ async function startFlowAnalysisWithImages() {
 
     if (!response.ok) {
       const err = await response.json().catch(() => ({}));
-      throw new Error(err?.error || `플로우 분석 실패 (${response.status})`);
+      throw new Error(err?.error || t("flow.apiFail", { status: response.status }));
     }
 
     const data = await response.json();
@@ -518,7 +643,7 @@ async function startFlowAnalysisWithImages() {
   } catch (error) {
     hideLoading();
     const msg = error instanceof Error ? error.message : String(error);
-    showError(`플로우 분석 실패: ${msg}`);
+    showError(t("flow.error", { msg }));
   }
 }
 
@@ -531,8 +656,8 @@ function showFlowReport(data: Record<string, unknown>) {
   const flowAnalysis = (data.flowAnalysis as Array<Record<string, unknown>>) ?? [];
 
   $("reportScore").textContent = String(score);
-  const verdict = score >= 80 ? "통과" : score >= 60 ? "부분 통과" : "실패";
-  $("reportVerdict").textContent = `플로우 분석 — ${verdict}`;
+  const verdict = score >= 80 ? t("report.verdict.pass") : score >= 60 ? t("report.verdict.partial") : t("report.verdict.fail");
+  $("reportVerdict").textContent = t("flow.label", { verdict });
   $("reportVerdict").className = `verdict-badge ${score >= 80 ? "pass" : score >= 60 ? "partial" : "fail"}`;
   $("reportSummary").textContent = summary;
 
@@ -542,21 +667,21 @@ function showFlowReport(data: Record<string, unknown>) {
 
   let overviewHtml = "";
   if (flowAnalysis.length > 0) {
-    overviewHtml += `<div style="margin-bottom:12px"><div style="font-size:11px;color:#666;text-transform:uppercase;letter-spacing:.05em;margin-bottom:6px">화면 간 전환 분석</div>`;
+    overviewHtml += `<div style="margin-bottom:12px"><div style="font-size:11px;color:#666;text-transform:uppercase;letter-spacing:.05em;margin-bottom:6px">${t("flow.screenTransition")}</div>`;
     for (const step of flowAnalysis) {
       const dropOff = step.dropOffAtTransition as number | undefined;
       const risk = step.dropOffRisk as string | undefined;
       const riskColor = risk === "High" || risk === "높음" ? "#ef4444" : risk === "보통" ? "#f59e0b" : "#22c55e";
       overviewHtml += `<div style="padding:6px 0;border-bottom:1px solid #1a1a1a;font-size:12px">
         <span style="color:#888">${step.stepName as string ?? ""}</span>
-        ${dropOff !== undefined ? `<span style="float:right;color:${riskColor}">${dropOff}% 이탈 위험</span>` : ""}
+        ${dropOff !== undefined ? `<span style="float:right;color:${riskColor}">${t("flow.dropOffRisk", { n: dropOff })}</span>` : ""}
       </div>`;
     }
     overviewHtml += `</div>`;
   }
 
   if (flowIssues.length > 0) {
-    overviewHtml += `<div style="font-size:11px;color:#ef4444;text-transform:uppercase;letter-spacing:.05em;margin-bottom:6px">전환 마찰 이슈</div>`;
+    overviewHtml += `<div style="font-size:11px;color:#ef4444;text-transform:uppercase;letter-spacing:.05em;margin-bottom:6px">${t("flow.frictionIssues")}</div>`;
     for (const issue of flowIssues) {
       overviewHtml += `<div style="padding:6px;margin-bottom:4px;background:#1a0f0f;border-radius:4px;border-left:2px solid #ef4444;font-size:12px">
         <div style="color:#e5e5e5;margin-bottom:2px">${issue.issue ?? ""}</div>
@@ -565,7 +690,7 @@ function showFlowReport(data: Record<string, unknown>) {
     }
   }
 
-  $("tab-overview").innerHTML = overviewHtml || "<p style='color:#555;font-size:12px'>전환 마찰 없음</p>";
+  $("tab-overview").innerHTML = overviewHtml || `<p style='color:#555;font-size:12px'>${t("flow.noFriction")}</p>`;
 
   // Think aloud tab — per-screen thoughts
   const thinkAloud = (data.thinkAloud as Array<Record<string, string>>) ?? [];
@@ -576,7 +701,7 @@ function showFlowReport(data: Record<string, unknown>) {
       <div style="color:#ccc">"${t.thought ?? ""}"</div>
     </div>`;
   }
-  $("tab-think").innerHTML = thinkHtml || "<p style='color:#555;font-size:12px'>없음</p>";
+  $("tab-think").innerHTML = thinkHtml || `<p style='color:#555;font-size:12px'>${t("report.noThinkAloud")}</p>`;
 
   // Issues tab
   let issuesHtml = "";
@@ -592,7 +717,7 @@ function showFlowReport(data: Record<string, unknown>) {
       <div style="color:#666">${issue.recommendation ?? ""}</div>
     </div>`;
   }
-  $("tab-issues").innerHTML = issuesHtml || "<p style='color:#555;font-size:12px'>발견된 이슈 없음</p>";
+  $("tab-issues").innerHTML = issuesHtml || `<p style='color:#555;font-size:12px'>${t("report.noIssues")}</p>`;
 
   $("report").className = "report visible";
   switchTab("overview");
@@ -639,7 +764,7 @@ async function startAnalysisWithImages() {
   });
   content.push({
     type: "text",
-    text: `가설: "${hypothesis}"\n타깃 유저: "${targetUser || "일반 사용자"}"\n\n위 화면들을 분석하여 가설에 대한 사용성 평가를 JSON으로 반환해주세요.\n\n중요: 각 화면의 텍스트는 Figma 레이어에서 직접 추출한 것이므로 정확합니다. 이미지에서 텍스트를 OCR로 읽지 말고 추출된 텍스트를 기준으로 분석하세요.`,
+    text: `가설: "${hypothesis}"\n타깃 유저: "${targetUser || t("form.defaultTargetUser")}"\n\n위 화면들을 분석하여 가설에 대한 사용성 평가를 JSON으로 반환해주세요.\n\n중요: 각 화면의 텍스트는 Figma 레이어에서 직접 추출한 것이므로 정확합니다. 이미지에서 텍스트를 OCR로 읽지 말고 추출된 텍스트를 기준으로 분석하세요.`,
   });
 
   const systemPrompt = `You are a professional UX analysis agent for YafitMove, a Korean fitness reward app. Analyze the provided design screens against the given hypothesis and target user profile. Respond ONLY in pure JSON, no markdown, no code blocks.
@@ -655,7 +780,7 @@ async function startAnalysisWithImages() {
 }`;
 
   try {
-    updateLoadingMsg("AI가 화면을 분석 중...");
+    updateLoadingMsg(t("loading.analyzing"));
 
     let result: AnalysisResult;
 
@@ -688,7 +813,7 @@ async function startAnalysisWithImages() {
           $("freeModeBanner").className = "free-mode-banner visible";
           result = await callFreeMode("analysis", { systemPrompt, content }) as AnalysisResult;
         } else {
-          throw new Error(err?.error?.message || `API 오류 ${status}`);
+          throw new Error(err?.error?.message || t("error.apiFail", { status }));
         }
       } else {
         const data = await response.json();
@@ -702,7 +827,7 @@ async function startAnalysisWithImages() {
   } catch (error) {
     hideLoading();
     const msg = error instanceof Error ? error.message : String(error);
-    showError(`분석 실패: ${msg}`);
+    showError(t("error.analysisFail", { msg }));
   }
 }
 
@@ -721,7 +846,7 @@ async function startUsabilityAnalysis(targetUser: string) {
   const screenDescription = screenDescriptions.filter(Boolean).join("\n");
 
   try {
-    updateLoadingMsg("사용성 분석 중...");
+    updateLoadingMsg(t("loading.usability"));
 
     const response = await fetch(`${baseUrl}/api/analyze`, {
       method: "POST",
@@ -730,8 +855,8 @@ async function startUsabilityAnalysis(targetUser: string) {
         images,
         inputType: "image",
         mode: "usability",
-        targetUser: targetUser || "일반 사용자",
-        locale: "ko",
+        targetUser: targetUser || t("form.defaultTargetUser"),
+        locale: getLang(),
         model: freeMode ? "haiku" : (getSelectedModel().includes("sonnet") ? "sonnet" : "haiku"),
         apiKey: apiKey || undefined,
         screenDescription: screenDescription || undefined,
@@ -740,7 +865,7 @@ async function startUsabilityAnalysis(targetUser: string) {
 
     if (!response.ok) {
       const err = await response.json().catch(() => ({}));
-      throw new Error(err?.error || `사용성 분석 실패 (${response.status})`);
+      throw new Error(err?.error || t("error.apiFail", { status: response.status }));
     }
 
     const data = await response.json();
@@ -748,7 +873,7 @@ async function startUsabilityAnalysis(targetUser: string) {
   } catch (error) {
     hideLoading();
     const msg = error instanceof Error ? error.message : String(error);
-    showError(`분석 실패: ${msg}`);
+    showError(t("error.analysisFail", { msg }));
   }
 }
 
@@ -776,7 +901,7 @@ function showUsabilityReport(data: Record<string, unknown>) {
   let overviewHtml = "";
 
   if (scoreBreakdown && typeof scoreBreakdown === "object") {
-    overviewHtml += `<div class="section-label">점수 세부</div><div class="score-breakdown">`;
+    overviewHtml += `<div class="section-label">${t("report.scoreBreakdown")}</div><div class="score-breakdown">`;
     for (const [key, val] of Object.entries(scoreBreakdown)) {
       const score = typeof val === "object" && val !== null ? val.score : val;
       overviewHtml += `<div class="score-breakdown-item"><span class="score-breakdown-label">${escapeHtml(key)}</span><span class="score-breakdown-value">${score}</span></div>`;
@@ -785,24 +910,24 @@ function showUsabilityReport(data: Record<string, unknown>) {
   }
 
   if (strengths.length > 0) {
-    overviewHtml += `<div class="section-label">강점</div>`;
+    overviewHtml += `<div class="section-label">${t("report.strengths")}</div>`;
     for (const s of strengths) {
       overviewHtml += `<div class="strength-item">+ ${escapeHtml(s)}</div>`;
     }
   }
 
   if (quickWins.length > 0) {
-    overviewHtml += `<div class="section-label" style="margin-top:12px">Quick Wins</div><div class="quick-wins">`;
+    overviewHtml += `<div class="section-label" style="margin-top:12px">${t("report.quickWins")}</div><div class="quick-wins">`;
     for (const qw of quickWins) {
       overviewHtml += `<div class="quick-win-item"><div class="qw-title">${escapeHtml(qw.title || qw.issue || "")}</div><div class="qw-detail">${escapeHtml(qw.description || qw.recommendation || "")}</div></div>`;
     }
     overviewHtml += `</div>`;
   }
 
-  $("tab-overview").innerHTML = overviewHtml || '<div class="empty">강점 없음</div>';
+  $("tab-overview").innerHTML = overviewHtml || `<div class="empty">${t("report.noStrengths")}</div>`;
 
   // Think aloud — usability 모드에서는 비워둠
-  $("tab-think").innerHTML = '<div class="empty">사용성 분석에서는 Think Aloud 없음</div>';
+  $("tab-think").innerHTML = `<div class="empty">${t("report.usabilityNoThinkAloud")}</div>`;
 
   // Issues tab
   const sevClass = (s: string) =>
@@ -817,7 +942,7 @@ function showUsabilityReport(data: Record<string, unknown>) {
       <div class="issue-rec">→ ${escapeHtml(issue.recommendation || "")}</div>
     </div>`;
   }
-  $("tab-issues").innerHTML = issuesHtml || '<div class="empty">발견된 이슈 없음</div>';
+  $("tab-issues").innerHTML = issuesHtml || `<div class="empty">${t("report.noIssues")}</div>`;
 
   $("inputForm").style.display = "none";
   $("report").className = "report visible";
@@ -842,10 +967,12 @@ function showReport(result: AnalysisResult) {
 
   const verdictEl = $("reportVerdict");
   verdictEl.textContent = result.verdict || "-";
+  const passStr = t("report.verdict.pass");
+  const partialStr = t("report.verdict.partial");
   const verdictClass =
-    result.verdict === "통과"
+    result.verdict === passStr || result.verdict === "Pass" || result.verdict === "合格"
       ? "verdict-pass"
-      : result.verdict === "부분 통과"
+      : result.verdict === partialStr || result.verdict === "Partial Pass" || result.verdict === "一部合格"
         ? "verdict-partial"
         : "verdict-fail";
   verdictEl.className = `verdict-badge ${verdictClass}`;
@@ -856,22 +983,24 @@ function showReport(result: AnalysisResult) {
     .map((s) => `<div class="strength-item">+ ${escapeHtml(s)}</div>`)
     .join("");
   $("reportStrengths").innerHTML =
-    strengthsHtml || '<div class="empty">강점 없음</div>';
+    strengthsHtml || `<div class="empty">${t("report.noStrengths")}</div>`;
 
   const thinkHtml = (result.thinkAloud || [])
     .map(
-      (t) => `
+      (th) => `
       <div class="think-wrap">
-        <div class="think-screen">${escapeHtml(t.screen)}</div>
-        <div class="think-aloud">&ldquo;${escapeHtml(t.thought)}&rdquo;</div>
+        <div class="think-screen">${escapeHtml(th.screen)}</div>
+        <div class="think-aloud">&ldquo;${escapeHtml(th.thought)}&rdquo;</div>
       </div>`
     )
     .join("");
   $("reportThinkAloud").innerHTML =
-    thinkHtml || '<div class="empty">Think Aloud 없음</div>';
+    thinkHtml || `<div class="empty">${t("report.noThinkAloud")}</div>`;
 
   const sevClass = (s: string) =>
-    s === "심각" ? "sev-critical" : s === "보통" ? "sev-medium" : "sev-low";
+    s === "심각" || s === "Critical" || s === "重大" ? "sev-critical"
+    : s === "보통" || s === "Medium" || s === "中" ? "sev-medium"
+    : "sev-low";
   const issuesHtml = (result.issues || [])
     .map(
       (issue) => `
@@ -884,7 +1013,7 @@ function showReport(result: AnalysisResult) {
     )
     .join("");
   $("reportIssues").innerHTML =
-    issuesHtml || '<div class="empty">발견된 이슈 없음</div>';
+    issuesHtml || `<div class="empty">${t("report.noIssues")}</div>`;
 
   $("inputForm").style.display = "none";
   $("report").className = "report visible";
@@ -953,7 +1082,7 @@ function runWritingCheck() {
 
   hideError();
   showLoading();
-  updateLoadingMsg("프레임 텍스트를 분석 중...");
+  updateLoadingMsg(t("loading.writingFrame"));
   parent.postMessage({ pluginMessage: { type: "get-selection-for-writing" } }, "*");
 }
 
@@ -1101,7 +1230,9 @@ CTA는 누른 뒤 무엇이 일어날지 직접 말한다.
     const allResults: WritingCheckResult[] = [];
 
     for (let i = 0; i < frames.length; i++) {
-      updateLoadingMsg(`프레임 ${i + 1}/${frames.length} 분석 중${freeMode ? " (무료 모드)" : ""}...`);
+      updateLoadingMsg(freeMode
+        ? t("writing.frameAnalyzingFree", { i: i + 1, n: frames.length })
+        : t("writing.frameAnalyzing", { i: i + 1, n: frames.length }));
 
       const userContent = [
         {
@@ -1152,7 +1283,7 @@ CTA는 누른 뒤 무엇이 일어날지 직접 말한다.
             });
           } else {
             const err = await response.json().catch(() => ({}));
-            throw new Error(err?.error?.message || `API 오류 ${status}`);
+            throw new Error(err?.error?.message || t("error.apiFail", { status }));
           }
         } else {
           const data = await response.json();
@@ -1169,7 +1300,7 @@ CTA는 누른 뒤 무엇이 일어날지 직접 말한다.
   } catch (error) {
     hideLoading();
     const msg = error instanceof Error ? error.message : String(error);
-    showError(`분석 실패: ${msg}`);
+    showError(t("error.analysisFail", { msg }));
   }
 }
 
@@ -1202,17 +1333,17 @@ function showWritingReport(results: WritingCheckResult[]) {
 
     // "전체 적용" button per frame
     if (hasNodeId && hasIssues) {
-      html += `<button class="fix-all-btn" data-fix-all="${fi}">전체 수정 적용 (복제 프레임 생성)</button>`;
+      html += `<button class="fix-all-btn" data-fix-all="${fi}">${t("writing.applyAllFixes")}</button>`;
     }
 
     // Screen-level checks
     if (result.screenLevel) {
       const sl = result.screenLevel;
-      html += `<div class="section-label">화면 단위 체크</div>`;
+      html += `<div class="section-label">${t("writing.screenCheck")}</div>`;
       html += `<div style="display:flex;flex-wrap:wrap;gap:6px;margin-bottom:12px;">`;
-      html += `<span class="issue-severity ${sl.hasOneKeyMessage ? "sev-low" : "sev-critical"}" style="font-size:10px">${sl.hasOneKeyMessage ? "✓ 핵심 메시지 1개" : "✗ 핵심 메시지 복수"}</span>`;
-      html += `<span class="issue-severity ${!sl.hasWordRepetition ? "sev-low" : "sev-medium"}" style="font-size:10px">${!sl.hasWordRepetition ? "✓ 단어 반복 없음" : `✗ 반복: ${sl.repeatedWords.map(w => escapeHtml(w)).join(", ")}`}</span>`;
-      html += `<span class="issue-severity sev-low" style="font-size:10px">CTA ${sl.ctaCount}개</span>`;
+      html += `<span class="issue-severity ${sl.hasOneKeyMessage ? "sev-low" : "sev-critical"}" style="font-size:10px">${sl.hasOneKeyMessage ? t("writing.oneKey") : t("writing.multiKey")}</span>`;
+      html += `<span class="issue-severity ${!sl.hasWordRepetition ? "sev-low" : "sev-medium"}" style="font-size:10px">${!sl.hasWordRepetition ? t("writing.noRepeat") : t("writing.repeat", { words: sl.repeatedWords.map(w => escapeHtml(w)).join(", ") })}</span>`;
+      html += `<span class="issue-severity sev-low" style="font-size:10px">${t("writing.ctaCount", { n: sl.ctaCount })}</span>`;
       html += `</div>`;
       if (sl.ctaClarity) {
         html += `<div style="font-size:11px;color:#666;margin-bottom:12px">${escapeHtml(sl.ctaClarity)}</div>`;
@@ -1221,7 +1352,7 @@ function showWritingReport(results: WritingCheckResult[]) {
 
     // Strengths
     if (result.strengths && result.strengths.length > 0) {
-      html += `<div class="section-label">잘 된 점</div>`;
+      html += `<div class="section-label">${t("writing.goodPoints")}</div>`;
       for (const s of result.strengths) {
         html += `<div class="strength-item">✓ ${escapeHtml(s)}</div>`;
       }
@@ -1229,25 +1360,26 @@ function showWritingReport(results: WritingCheckResult[]) {
 
     // Issues
     if (hasIssues) {
-      html += `<div class="section-label" style="margin-top:12px">개선 사항 (${result.issues.length})</div>`;
+      html += `<div class="section-label" style="margin-top:12px">${t("writing.improvements", { n: result.issues.length })}</div>`;
       for (let ii = 0; ii < result.issues.length; ii++) {
         const issue = result.issues[ii];
         const sevClass = issue.severity === "critical" ? "sev-critical" : issue.severity === "warning" ? "sev-medium" : "sev-low";
+        const sevLabel = issue.severity === "critical" ? t("writing.sev.critical") : issue.severity === "warning" ? t("writing.sev.warning") : t("writing.sev.info");
         html += `
           <div class="writing-issue">
             <div class="writing-issue-header">
-              <span class="issue-severity ${sevClass}">${escapeHtml(issue.severity === "critical" ? "심각" : issue.severity === "warning" ? "주의" : "참고")}</span>
+              <span class="issue-severity ${sevClass}">${escapeHtml(sevLabel)}</span>
               <span class="issue-screen">${escapeHtml(issue.location)}</span>
               <span class="writing-principle">${escapeHtml(issue.principle)}</span>
-              ${hasNodeId ? `<span class="fix-badge" data-fix-badge="${fi}-${ii}">수정 대기</span>` : ""}
+              ${hasNodeId ? `<span class="fix-badge" data-fix-badge="${fi}-${ii}">${t("writing.pending")}</span>` : ""}
             </div>
             <div class="writing-compare">
               <div class="writing-before">
-                <span class="writing-label">현재</span>
+                <span class="writing-label">${t("writing.current")}</span>
                 <span class="writing-text-del">${escapeHtml(issue.original)}</span>
               </div>
               <div class="writing-after">
-                <span class="writing-label writing-label-good">제안</span>
+                <span class="writing-label writing-label-good">${t("writing.suggestion")}</span>
                 <span class="writing-text-new">${escapeHtml(issue.suggestion)}</span>
               </div>
             </div>
@@ -1396,7 +1528,7 @@ function exportToSimulo() {
   parent.postMessage({ pluginMessage: { type: "open-external", url } }, "*");
 
   // 알림
-  updateLoadingMsg("Simulo 페이지를 여는 중...");
+  updateLoadingMsg(t("loading.simuloExport"));
   $("loading").className = "loading visible";
   setTimeout(() => { $("loading").className = "loading"; }, 1500);
 }
@@ -1426,7 +1558,7 @@ function applyFixesForFrame(frameIdx: number) {
   const btn = document.querySelector(`[data-fix-all="${frameIdx}"]`) as HTMLButtonElement | null;
   if (btn) {
     btn.disabled = true;
-    btn.textContent = "적용 중...";
+    btn.textContent = t("writing.applying");
   }
 
   parent.postMessage({
@@ -1446,7 +1578,7 @@ function updateFixButtons(frameIdx: number) {
   const allBtn = document.querySelector(`[data-fix-all="${frameIdx}"]`) as HTMLButtonElement | null;
   if (allBtn) {
     allBtn.disabled = true;
-    allBtn.textContent = "✓ 적용 완료";
+    allBtn.textContent = t("writing.applyComplete");
     allBtn.classList.add("fix-applied");
   }
 
@@ -1454,7 +1586,7 @@ function updateFixButtons(frameIdx: number) {
   for (let i = 0; i < result.issues.length; i++) {
     const badge = document.querySelector(`[data-fix-badge="${frameIdx}-${i}"]`);
     if (badge) {
-      badge.textContent = "적용됨";
+      badge.textContent = t("writing.applied");
       badge.className = "fix-badge fix-applied";
     }
   }
@@ -1466,7 +1598,7 @@ async function runVariantGeneration() {
   const goal = $<HTMLSelectElement>("variantGoal")?.value;
 
   if (!original) {
-    showError("원본 텍스트를 입력하세요");
+    showError(t("error.noVariantText"));
     return;
   }
 
@@ -1474,7 +1606,9 @@ async function runVariantGeneration() {
   const simuloUrl = ($<HTMLInputElement>("simuloUrl")?.value?.trim()) || "https://simulo.vercel.app";
 
   hideError();
-  $("variantsLoading").style.display = "block";
+  const variantsLoadingEl = $("variantsLoading");
+  variantsLoadingEl.textContent = t("loading.variantsGen");
+  variantsLoadingEl.style.display = "block";
   $("variantsResult").style.display = "none";
   $<HTMLButtonElement>("runVariantsBtn").disabled = true;
 
@@ -1498,7 +1632,7 @@ async function runVariantGeneration() {
 
     renderVariants(data.original, data.goalLabel, data.variants);
   } catch (e) {
-    showError(e instanceof Error ? e.message : "변형 생성 실패");
+    showError(e instanceof Error ? e.message : t("error.variantFail"));
   } finally {
     $("variantsLoading").style.display = "none";
     $<HTMLButtonElement>("runVariantsBtn").disabled = false;
@@ -1511,14 +1645,14 @@ function renderVariants(
   variants: { text: string; reason: string }[],
 ) {
   const container = $("variantsResult");
-  let html = `<div style="font-size:11px;color:#666;margin-bottom:10px;">목표: <span style="color:#93c5fd">${goalLabel}</span></div>`;
+  let html = `<div style="font-size:11px;color:#666;margin-bottom:10px;">${t("variants.goalPrefix")}<span style="color:#93c5fd">${goalLabel}</span></div>`;
 
   for (const v of variants) {
     html += `
       <div class="variant-card" data-text="${v.text.replace(/"/g, "&quot;")}">
         <div class="variant-text">${v.text}</div>
         <div class="variant-reason">${v.reason}</div>
-        <button class="variant-apply-btn" data-text="${v.text.replace(/"/g, "&quot;")}">Figma에 적용</button>
+        <button class="variant-apply-btn" data-text="${v.text.replace(/"/g, "&quot;")}">${t("btn.applyToFigma")}</button>
       </div>`;
   }
 
@@ -1529,11 +1663,11 @@ function renderVariants(
     btn.addEventListener("click", () => {
       const replacement = (btn as HTMLElement).dataset.text || "";
       if (!pendingVariantNodeId) {
-        showError("적용할 텍스트 노드를 Figma에서 선택해주세요");
+        showError(t("error.variantApplyFail"));
         return;
       }
       (btn as HTMLButtonElement).disabled = true;
-      (btn as HTMLButtonElement).textContent = "적용 중...";
+      (btn as HTMLButtonElement).textContent = t("btn.applying");
       parent.postMessage({
         pluginMessage: {
           type: "apply-variant",
@@ -1543,7 +1677,7 @@ function renderVariants(
         },
       }, "*");
       setTimeout(() => {
-        (btn as HTMLButtonElement).textContent = "✓ 적용됨";
+        (btn as HTMLButtonElement).textContent = t("btn.applied");
       }, 800);
     });
   });
@@ -1563,16 +1697,16 @@ function renderFeedbackBar(
   const bar = document.createElement("div");
   bar.className = "feedback-bar";
   bar.innerHTML = `
-    <div class="feedback-prompt">분석 결과가 도움이 되었나요?</div>
+    <div class="feedback-prompt">${t("feedback.prompt")}</div>
     <div class="feedback-btns">
-      <button class="feedback-btn" data-rating="good">👍 좋아요</button>
-      <button class="feedback-btn" data-rating="bad">👎 아쉬워요</button>
+      <button class="feedback-btn" data-rating="good">${t("feedback.good")}</button>
+      <button class="feedback-btn" data-rating="bad">${t("feedback.bad")}</button>
     </div>
     <div class="feedback-comment" id="feedbackComment-${mode}">
-      <textarea placeholder="어떤 점이 아쉬웠나요? (예: 기획 의도와 맞지 않는 제안, 불필요한 수정 등)"></textarea>
-      <button class="feedback-submit">피드백 보내기</button>
+      <textarea placeholder="${t("feedback.placeholder")}"></textarea>
+      <button class="feedback-submit">${t("feedback.submit")}</button>
     </div>
-    <div class="feedback-done" style="display:none">피드백이 전송되었습니다. 감사합니다!</div>
+    <div class="feedback-done" style="display:none">${t("feedback.done")}</div>
   `;
   container.appendChild(bar);
 
@@ -1659,7 +1793,7 @@ async function callFreeMode(
 
   if (!response.ok) {
     const err = await response.json().catch(() => ({}));
-    throw new Error(err?.error || `무료 분석 실패 (${response.status})`);
+    throw new Error(err?.error || t("error.freeFail", { status: response.status }));
   }
 
   const data = await response.json();
@@ -1671,7 +1805,7 @@ async function callFreeMode(
 function updateSheetsButtonState() {
   const btn = $<HTMLButtonElement>("exportSheetsBtn");
   if (!btn) return;
-  btn.textContent = googleTokens ? "구글 시트 내보내기" : "구글 연동 후 내보내기";
+  btn.textContent = googleTokens ? t("export.sheets") : t("export.sheetsConnect");
 }
 
 function generateSessionId(): string {
@@ -1689,7 +1823,7 @@ async function startGoogleAuth(): Promise<boolean> {
     pluginMessage: { type: "open-external", url: `${baseUrl}/api/google/auth?plugin_session=${sessionId}` },
   }, "*");
 
-  showFixToast("브라우저에서 Google 계정을 연동해주세요.", "success");
+  showFixToast(t("google.connectHint"), "success");
 
   // Poll for tokens
   return new Promise<boolean>((resolve) => {
@@ -1703,7 +1837,7 @@ async function startGoogleAuth(): Promise<boolean> {
       if (attempts > maxAttempts) {
         if (googleAuthPollTimer) clearInterval(googleAuthPollTimer);
         googleAuthPollTimer = null;
-        showFixToast("Google 인증 시간 초과. 다시 시도해주세요.", "error");
+        showFixToast(t("google.timeout"), "error");
         resolve(false);
         return;
       }
@@ -1720,7 +1854,7 @@ async function startGoogleAuth(): Promise<boolean> {
             pluginMessage: { type: "save-google-tokens", tokens: JSON.stringify(googleTokens) },
           }, "*");
           updateSheetsButtonState();
-          showFixToast("Google 연동 완료!", "success");
+          showFixToast(t("google.connected"), "success");
           resolve(true);
         }
       } catch {
@@ -1741,7 +1875,7 @@ async function exportToGoogleSheets() {
 
   const btn = $<HTMLButtonElement>("exportSheetsBtn");
   btn.disabled = true;
-  btn.textContent = "내보내는 중...";
+  btn.textContent = t("loading.sheetsExport");
 
   const baseUrl = getSimuloBaseUrl();
 
@@ -1780,9 +1914,9 @@ async function exportToGoogleSheets() {
       googleTokens = null;
       parent.postMessage({ pluginMessage: { type: "save-google-tokens", tokens: "" } }, "*");
       updateSheetsButtonState();
-      showFixToast("Google 인증이 만료되었습니다. 다시 연동해주세요.", "error");
+      showFixToast(t("google.expired"), "error");
       btn.disabled = false;
-      btn.textContent = "구글 연동 후 내보내기";
+      btn.textContent = t("export.sheetsConnect");
       return;
     }
 
@@ -1803,14 +1937,14 @@ async function exportToGoogleSheets() {
       parent.postMessage({ pluginMessage: { type: "open-external", url: data.url } }, "*");
     }
 
-    const label = data.appended ? "기존 시트에 추가됨" : "새 시트 생성됨";
-    showFixToast(`${label} — Google 시트가 열립니다.`, "success");
+    const label = data.appended ? t("export.sheetsAppended") : t("export.sheetsCreated");
+    showFixToast(t("export.sheetsSuccess", { label }), "success");
   } catch (err) {
-    const msg = err instanceof Error ? err.message : "내보내기 실패";
-    showFixToast(`구글 시트 내보내기 실패: ${msg}`, "error");
+    const msg = err instanceof Error ? err.message : t("loading.sheetsExport");
+    showFixToast(t("export.sheetsFail", { msg }), "error");
   } finally {
     btn.disabled = false;
-    btn.textContent = googleTokens ? "구글 시트 내보내기" : "구글 연동 후 내보내기";
+    btn.textContent = googleTokens ? t("export.sheets") : t("export.sheetsConnect");
   }
 }
 

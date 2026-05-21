@@ -94,6 +94,8 @@ type PluginMessage =
   | { type: "load-google-tokens" }
   | { type: "save-spreadsheet-id"; spreadsheetId: string }
   | { type: "load-spreadsheet-id" }
+  | { type: "save-language"; lang: string }
+  | { type: "load-language" }
   | { type: "close" };
 
 figma.ui.onmessage = async (msg: PluginMessage) => {
@@ -297,6 +299,15 @@ figma.ui.onmessage = async (msg: PluginMessage) => {
   if (msg.type === "load-spreadsheet-id") {
     const id = await figma.clientStorage.getAsync("simulo_spreadsheet_id");
     figma.ui.postMessage({ type: "spreadsheet-id-loaded", spreadsheetId: id || "" });
+  }
+
+  if (msg.type === "save-language") {
+    await figma.clientStorage.setAsync("simulo_language", msg.lang);
+  }
+
+  if (msg.type === "load-language") {
+    const lang = await figma.clientStorage.getAsync("simulo_language");
+    figma.ui.postMessage({ type: "language-loaded", lang: lang || "ko" });
   }
 
   if (msg.type === "open-external") {

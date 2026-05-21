@@ -635,9 +635,15 @@
         <option value="sonnet">Sonnet (정밀 분석)</option>
       </select>
       <div class="settings-hint">Haiku: 90% 비용 절감. Sonnet: 복잡한 화면 정밀 분석 시 추천</div>
-      <label style="margin-top:12px">Simulo URL (선택)</label>
+      <label style="margin-top:12px" id="labelSimuloUrl">Simulo URL (선택)</label>
       <input type="url" id="simuloUrl" placeholder="https://simulo.vercel.app" />
-      <div class="settings-hint">로컬 테스트 시 http://localhost:3000 입력</div>
+      <div class="settings-hint" id="hintSimuloUrl">로컬 테스트 시 http://localhost:3000 입력</div>
+      <label style="margin-top:12px" id="labelLang">언어</label>
+      <select id="langSelect" style="width:100%;background:#111;border:1px solid #222;border-radius:6px;color:#e5e5e5;font-size:13px;padding:8px 10px;font-family:inherit;outline:none;">
+        <option value="ko">한국어</option>
+        <option value="en">English</option>
+        <option value="ja">日本語</option>
+      </select>
     </div>
   </div>
 
