@@ -2,6 +2,7 @@ import { prisma } from "@/lib/db";
 import { analyzeCalibrationTrend } from "@/lib/prompt-calibration";
 import type { CalibrationRecord, SeverityLevel } from "@/lib/calibration";
 
+export const dynamic = "force-dynamic";
 export const metadata = { title: "개선 효과 추적 | Simulo" };
 
 async function getCalibrationData() {
