@@ -53,6 +53,7 @@ interface AnalyzeParams {
   productMode?: "yafit" | "general";
   domain?: string;
   domainFocuses?: string[];
+  focusKeyword?: string; // 사용성 분석 중점 키워드 (예: "손실회피", "온보딩")
 }
 
 interface FlowAnalyzeParams {
@@ -209,10 +210,16 @@ export async function analyzeWithClaude(params: AnalyzeParams) {
   const sdl = screenDescLine(params.screenDescription, isKo);
   const ocl = ocrContextLine(params.ocrContext);
 
+  const focusLine = params.focusKeyword?.trim()
+    ? (isKo
+        ? `\n⚑ 분석 중점 키워드: "${params.focusKeyword}"\n이 키워드 관점을 최우선으로 반영하여 분석하고, 관련 발견(이슈·강점·개선안)에 반드시 명시하세요. 키워드가 해당되지 않는 영역도 일반 사용성 평가를 병행하세요.\n`
+        : `\n⚑ Analysis focus keyword: "${params.focusKeyword}"\nPrioritize this perspective throughout your analysis. Explicitly call out related findings in issues, strengths, and recommendations. Also cover general usability outside the keyword scope.\n`)
+    : "";
+
   const userPrompt = isUsability
     ? (isKo
-        ? `${tul}\n${sdl}${ocl}${params.images.length}개 화면의 사용성을 가설 없이 종합 평가하고 JSON 반환.`
-        : `${tul}\n${sdl}${ocl}Evaluate overall usability of ${params.images.length} screen(s) without a hypothesis. Return JSON.`)
+        ? `${tul}\n${sdl}${ocl}${focusLine}${params.images.length}개 화면의 사용성을 가설 없이 종합 평가하고 JSON 반환.`
+        : `${tul}\n${sdl}${ocl}${focusLine}Evaluate overall usability of ${params.images.length} screen(s) without a hypothesis. Return JSON.`)
     : (isKo
         ? `가설: ${params.hypothesis}\n${tul}\n${params.task ? `태스크: ${params.task}` : "태스크: 가설에서 추론"}\n${sdl}${ocl}${params.images.length}개 화면 분석 후 JSON 반환.`
         : `Hypothesis: ${params.hypothesis}\n${tul}\n${params.task ? `Task: ${params.task}` : "Task: Infer from hypothesis"}\n${sdl}${ocl}Analyze ${params.images.length} screen(s), return JSON.`);

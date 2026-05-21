@@ -143,6 +143,7 @@ async function runAnalysisPipeline(request: NextRequest, onProgress: ProgressCal
       domain: rawDomain,
       domainFocuses: rawDomainFocuses,
       frameworks: rawFrameworks,
+      focusKeyword: rawFocusKeyword,
     } = body;
 
     const productMode: "yafit" | "general" = rawProductMode === "general" ? "general" : "yafit";
@@ -255,6 +256,7 @@ async function runAnalysisPipeline(request: NextRequest, onProgress: ProgressCal
       productMode,
       domain,
       domainFocuses,
+      focusKeyword: typeof rawFocusKeyword === "string" && rawFocusKeyword.trim() ? rawFocusKeyword.trim() : undefined,
     };
 
     // ── Route to input-type handler via plugin registry ──

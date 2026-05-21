@@ -51,6 +51,9 @@ const STRINGS: Record<Lang, Record<string, string>> = {
     "form.targetUser": "타깃 유저",
     "form.targetUserPlaceholder": "예: 야핏무브 신규 설치 유저, 30대 직장인",
     "form.defaultTargetUser": "일반 사용자",
+    "form.focusKeyword": "분석 관점 키워드",
+    "form.focusKeywordPlaceholder": "예: 손실회피, 온보딩, 첫인상, CTA 전환",
+    "form.focusKeywordHint": "입력 시 해당 관점을 중점으로 분석합니다",
 
     // Buttons
     "btn.noSelection": "선택된 항목 없음",
@@ -232,6 +235,9 @@ const STRINGS: Record<Lang, Record<string, string>> = {
     "form.targetUser": "Target User",
     "form.targetUserPlaceholder": "e.g. New YafitMove user, office worker in 30s",
     "form.defaultTargetUser": "General user",
+    "form.focusKeyword": "Analysis Focus Keyword",
+    "form.focusKeywordPlaceholder": "e.g. loss aversion, onboarding, first impression, CTA conversion",
+    "form.focusKeywordHint": "When set, analysis will prioritize this perspective",
 
     // Buttons
     "btn.noSelection": "No selection",
@@ -413,6 +419,9 @@ const STRINGS: Record<Lang, Record<string, string>> = {
     "form.targetUser": "ターゲットユーザー",
     "form.targetUserPlaceholder": "例: YafitMove新規インストールユーザー、30代会社員",
     "form.defaultTargetUser": "一般ユーザー",
+    "form.focusKeyword": "分析重点キーワード",
+    "form.focusKeywordPlaceholder": "例: 損失回避、オンボーディング、第一印象、CTA転換",
+    "form.focusKeywordHint": "入力すると、その観点を中心に分析します",
 
     // Buttons
     "btn.noSelection": "未選択",

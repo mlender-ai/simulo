@@ -154,6 +154,14 @@ function applyI18n() {
   const targetUserInput = $<HTMLInputElement>("targetUser");
   if (targetUserInput) targetUserInput.placeholder = t("form.targetUserPlaceholder");
 
+  // Focus keyword field
+  const labelFocusKeyword = $("labelFocusKeyword");
+  if (labelFocusKeyword) labelFocusKeyword.textContent = t("form.focusKeyword");
+  const focusKeywordInput = $<HTMLInputElement>("focusKeyword");
+  if (focusKeywordInput) focusKeywordInput.placeholder = t("form.focusKeywordPlaceholder");
+  const hintFocusKeyword = $("hintFocusKeyword");
+  if (hintFocusKeyword) hintFocusKeyword.textContent = t("form.focusKeywordHint");
+
   // Flow button
   $("runFlowBtn").textContent = t("btn.flow");
 
@@ -479,10 +487,13 @@ function switchAnalysisMode(mode: "hypothesis" | "usability") {
   });
 
   const hypothesisField = $("hypothesisField");
+  const focusKeywordField = $("focusKeywordField");
   if (mode === "usability") {
     hypothesisField.style.display = "none";
+    focusKeywordField.style.display = "block";
   } else {
     hypothesisField.style.display = "block";
+    focusKeywordField.style.display = "none";
   }
 }
 
@@ -562,6 +573,7 @@ async function analyzeSingleFrameViaBackend(img: ImageItem): Promise<AnalysisRes
       locale: getLang(),
       mode: analysisMode,
       apiKey: apiKey || undefined,
+      focusKeyword: analysisMode === "usability" ? (getFocusKeyword() || undefined) : undefined,
     }),
   });
 
@@ -832,6 +844,10 @@ async function startAnalysisWithImages() {
 }
 
 // -------- Usability analysis (via backend API) --------
+function getFocusKeyword(): string {
+  return $<HTMLInputElement>("focusKeyword")?.value?.trim() || "";
+}
+
 async function startUsabilityAnalysis(targetUser: string) {
   const apiKey = getApiKey();
   const baseUrl = getSimuloBaseUrl();
@@ -860,6 +876,7 @@ async function startUsabilityAnalysis(targetUser: string) {
         model: freeMode ? "haiku" : (getSelectedModel().includes("sonnet") ? "sonnet" : "haiku"),
         apiKey: apiKey || undefined,
         screenDescription: screenDescription || undefined,
+        focusKeyword: getFocusKeyword() || undefined,
       }),
     });
 

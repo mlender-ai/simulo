@@ -39,4 +39,5 @@ export interface BaseHandlerParams {
   productMode?: "yafit" | "general";
   domain?: string;
   domainFocuses?: string[];
+  focusKeyword?: string;
 }

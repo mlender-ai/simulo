@@ -43,6 +43,7 @@ export async function handleUrlAnalysis(params: UrlHandlerParams): Promise<Handl
     productMode: params.productMode,
     domain,
     domainFocuses,
+    focusKeyword: params.focusKeyword,
   });
 
   return {
