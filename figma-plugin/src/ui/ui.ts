@@ -654,7 +654,7 @@ function showUsabilityReport(data: Record<string, unknown>) {
   const strengths = (data.strengths as string[]) ?? [];
   const issues = (data.issues as Array<Record<string, string>>) ?? [];
   const quickWins = (data.quickWins as Array<Record<string, string>>) ?? [];
-  const scoreBreakdown = data.scoreBreakdown as Record<string, number> | undefined;
+  const scoreBreakdown = data.scoreBreakdown as Record<string, { score: number; reason: string } | number> | undefined;
 
   $("reportScore").textContent = String(score);
 
@@ -671,7 +671,8 @@ function showUsabilityReport(data: Record<string, unknown>) {
   if (scoreBreakdown && typeof scoreBreakdown === "object") {
     overviewHtml += `<div class="section-label">점수 세부</div><div class="score-breakdown">`;
     for (const [key, val] of Object.entries(scoreBreakdown)) {
-      overviewHtml += `<div class="score-breakdown-item"><span class="score-breakdown-label">${escapeHtml(key)}</span><span class="score-breakdown-value">${val}</span></div>`;
+      const score = typeof val === "object" && val !== null ? val.score : val;
+      overviewHtml += `<div class="score-breakdown-item"><span class="score-breakdown-label">${escapeHtml(key)}</span><span class="score-breakdown-value">${score}</span></div>`;
     }
     overviewHtml += `</div>`;
   }
