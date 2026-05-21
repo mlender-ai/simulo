@@ -914,14 +914,15 @@ function showUsabilityReport(data: Record<string, unknown>) {
 
   $("reportSummary").textContent = summary;
 
-  // Overview tab — scoreBreakdown + quickWins
+  // Overview tab — scoreBreakdown + strengths
   let overviewHtml = "";
 
   if (scoreBreakdown && typeof scoreBreakdown === "object") {
     overviewHtml += `<div class="section-label">${t("report.scoreBreakdown")}</div><div class="score-breakdown">`;
     for (const [key, val] of Object.entries(scoreBreakdown)) {
-      const score = typeof val === "object" && val !== null ? val.score : val;
-      overviewHtml += `<div class="score-breakdown-item"><span class="score-breakdown-label">${escapeHtml(key)}</span><span class="score-breakdown-value">${score}</span></div>`;
+      const scoreVal = typeof val === "object" && val !== null ? (val as { score: number; reason?: string }).score : val;
+      const reason = typeof val === "object" && val !== null ? (val as { score: number; reason?: string }).reason : undefined;
+      overviewHtml += `<div class="score-breakdown-item" title="${reason ? escapeHtml(reason) : ""}"><span class="score-breakdown-label">${escapeHtml(key)}</span><span class="score-breakdown-value">${scoreVal}</span></div>`;
     }
     overviewHtml += `</div>`;
   }
@@ -933,22 +934,67 @@ function showUsabilityReport(data: Record<string, unknown>) {
     }
   }
 
-  if (quickWins.length > 0) {
-    overviewHtml += `<div class="section-label" style="margin-top:12px">${t("report.quickWins")}</div><div class="quick-wins">`;
-    for (const qw of quickWins) {
-      overviewHtml += `<div class="quick-win-item"><div class="qw-title">${escapeHtml(qw.title || qw.issue || "")}</div><div class="qw-detail">${escapeHtml(qw.description || qw.recommendation || "")}</div></div>`;
-    }
-    overviewHtml += `</div>`;
-  }
-
   $("tab-overview").innerHTML = overviewHtml || `<div class="empty">${t("report.noStrengths")}</div>`;
 
-  // Think aloud — usability 모드에서는 비워둠
-  $("tab-think").innerHTML = `<div class="empty">${t("report.usabilityNoThinkAloud")}</div>`;
+  // 개선안 탭 (Think Aloud 탭 재활용)
+  const effortLabel = (e: string) => {
+    if (e === "낮음" || e === "Low" || e === "低" || e === "低い") return `<span class="effort-badge effort-low">${escapeHtml(e)}</span>`;
+    if (e === "높음" || e === "High" || e === "高" || e === "高い") return `<span class="effort-badge effort-high">${escapeHtml(e)}</span>`;
+    return `<span class="effort-badge effort-mid">${escapeHtml(e)}</span>`;
+  };
+  const impactLabel = (e: string) => {
+    if (e === "높음" || e === "High" || e === "高" || e === "高い") return `<span class="impact-badge impact-high">${escapeHtml(e)}</span>`;
+    if (e === "낮음" || e === "Low" || e === "低" || e === "低い") return `<span class="impact-badge impact-low">${escapeHtml(e)}</span>`;
+    return `<span class="impact-badge impact-mid">${escapeHtml(e)}</span>`;
+  };
 
-  // Issues tab
+  let improvementsHtml = "";
+
+  if (quickWins.length > 0) {
+    improvementsHtml += `<div class="section-label">${t("report.improvements.quickWins")}</div>`;
+    for (const qw of quickWins) {
+      const fix = qw.fix || qw.description || qw.recommendation || "";
+      const effort = qw.effort || "";
+      const impact = qw.impact || "";
+      improvementsHtml += `
+        <div class="improvement-item">
+          <div class="improvement-problem">${escapeHtml(qw.issue || qw.title || "")}</div>
+          <div class="improvement-fix">→ ${escapeHtml(fix)}</div>
+          ${(effort || impact) ? `<div class="improvement-badges">${effort ? `<span class="badge-label">${t("report.effort")}: </span>${effortLabel(effort)}` : ""}${impact ? `&nbsp;&nbsp;<span class="badge-label">${t("report.impact")}: </span>${impactLabel(impact)}` : ""}</div>` : ""}
+        </div>`;
+    }
+  }
+
+  const issuesWithRec = issues.filter((i) => i.recommendation);
+  if (issuesWithRec.length > 0) {
+    improvementsHtml += `<div class="section-label" style="margin-top:14px">${t("report.improvements.recommendations")}</div>`;
+    for (const issue of issuesWithRec) {
+      const sev = issue.severity ?? "낮음";
+      const sevCls = sev === "심각" || sev === "Critical" || sev === "重大" ? "sev-critical"
+        : sev === "보통" || sev === "Medium" || sev === "中" ? "sev-medium" : "sev-low";
+      improvementsHtml += `
+        <div class="improvement-item">
+          <div class="improvement-problem-row">
+            <span class="issue-severity ${sevCls}" style="font-size:9px;padding:1px 5px">${escapeHtml(sev)}</span>
+            ${issue.screen ? `<span class="issue-screen">${escapeHtml(issue.screen)}</span>` : ""}
+          </div>
+          <div class="improvement-problem">${escapeHtml(issue.issue || "")}</div>
+          <div class="improvement-fix">→ ${escapeHtml(issue.recommendation)}</div>
+        </div>`;
+    }
+  }
+
+  $("tab-think").innerHTML = improvementsHtml || `<div class="empty">${t("report.improvements.noData")}</div>`;
+
+  // 개선안 탭 레이블 변경
+  document.querySelectorAll(".tab").forEach((el) => {
+    if ((el as HTMLElement).dataset.tab === "think") el.textContent = t("tab.improvements");
+  });
+
+  // Issues tab — 이슈 목록만 (recommendation 요약 포함)
   const sevClass = (s: string) =>
-    s === "심각" || s === "Critical" ? "sev-critical" : s === "보통" || s === "Medium" ? "sev-medium" : "sev-low";
+    s === "심각" || s === "Critical" || s === "重大" ? "sev-critical"
+    : s === "보통" || s === "Medium" || s === "中" ? "sev-medium" : "sev-low";
   let issuesHtml = "";
   for (const issue of issues) {
     const sev = issue.severity ?? "낮음";
@@ -956,14 +1002,15 @@ function showUsabilityReport(data: Record<string, unknown>) {
       <span class="issue-severity ${sevClass(sev)}">${escapeHtml(sev)}</span>
       <span class="issue-screen">${escapeHtml(issue.screen || "")}</span>
       <div class="issue-text">${escapeHtml(issue.issue || "")}</div>
-      <div class="issue-rec">→ ${escapeHtml(issue.recommendation || "")}</div>
+      ${issue.recommendation ? `<div class="issue-rec">→ ${escapeHtml(issue.recommendation)}</div>` : ""}
     </div>`;
   }
   $("tab-issues").innerHTML = issuesHtml || `<div class="empty">${t("report.noIssues")}</div>`;
 
   $("inputForm").style.display = "none";
   $("report").className = "report visible";
-  switchTab("overview");
+  // 개선안이 있으면 개선안 탭으로, 없으면 overview
+  switchTab(quickWins.length > 0 || issues.some((i) => i.recommendation) ? "think" : "overview");
 
   renderFeedbackBar($("report"), "analysis", {
     frameName: selectedImages.map((img) => img.name).join(", "),
@@ -1031,6 +1078,11 @@ function showReport(result: AnalysisResult) {
     .join("");
   $("reportIssues").innerHTML =
     issuesHtml || `<div class="empty">${t("report.noIssues")}</div>`;
+
+  // 가설 검증 모드: Think Aloud 탭 레이블 복원
+  document.querySelectorAll(".tab").forEach((el) => {
+    if ((el as HTMLElement).dataset.tab === "think") el.textContent = t("tab.thinkAloud");
+  });
 
   $("inputForm").style.display = "none";
   $("report").className = "report visible";
