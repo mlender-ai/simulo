@@ -157,6 +157,8 @@ type PluginMessage =
   | { type: "save-language"; lang: string }
   | { type: "load-language" }
   | { type: "post-figma-comment"; nodeId: string; comment: string }
+  | { type: "scan-empty-texts" }
+  | { type: "jump-to-node"; nodeId: string }
   | { type: "close" };
 
 figma.ui.onmessage = async (msg: PluginMessage) => {
@@ -484,6 +486,43 @@ figma.ui.onmessage = async (msg: PluginMessage) => {
       figma.ui.postMessage({ type: "figma-comment-posted", nodeId: msg.nodeId });
     } catch (e) {
       figma.ui.postMessage({ type: "figma-comment-error", message: String(e) });
+    }
+  }
+
+  if (msg.type === "scan-empty-texts") {
+    const selection = figma.currentPage.selection;
+    if (selection.length === 0) {
+      figma.ui.postMessage({ type: "empty-texts-result", error: "분석할 프레임이나 레이어를 선택해주세요." });
+      return;
+    }
+    const emptyNodes: { id: string; name: string; parentPath: string }[] = [];
+    for (const node of selection) {
+      const allText = findAllTextNodes(node);
+      for (const textNode of allText) {
+        if (textNode.characters.trim() === "") {
+          const pathParts: string[] = [];
+          let cur: BaseNode | null = textNode.parent;
+          while (cur && cur.id !== node.id) {
+            pathParts.unshift(cur.name);
+            cur = cur.parent;
+          }
+          pathParts.unshift(node.name);
+          emptyNodes.push({
+            id: textNode.id,
+            name: textNode.name,
+            parentPath: pathParts.join(" › "),
+          });
+        }
+      }
+    }
+    figma.ui.postMessage({ type: "empty-texts-result", nodes: emptyNodes });
+  }
+
+  if (msg.type === "jump-to-node") {
+    const node = figma.getNodeById(msg.nodeId) as SceneNode | null;
+    if (node) {
+      figma.currentPage.selection = [node];
+      figma.viewport.scrollAndZoomIntoView([node]);
     }
   }
 
