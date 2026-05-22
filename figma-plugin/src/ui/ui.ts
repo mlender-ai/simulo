@@ -88,7 +88,7 @@ interface ChatMessage {
   labels?: { id: string; name: string }[];
   followUps?: { id: string; label: string; contextValue: string }[];
   miniReport?: LiveMiniReport | null;
-  actions?: { id: string; label: string }[];
+  actions?: { id: string; label: string; primary?: boolean }[];
   streaming?: boolean;
 }
 
@@ -2239,7 +2239,7 @@ function renderMsgHTML(msg: ChatMessage): string {
 
   if (msg.actions && msg.actions.length > 0) {
     inner += `<div class="chat-actions">${msg.actions.map((a) =>
-      `<button class="chat-action-btn" data-action="${a.id}">${escapeHtml(a.label)}</button>`
+      `<button class="chat-action-btn${a.primary ? " primary" : ""}" data-action="${a.id}">${escapeHtml(a.label)}</button>`
     ).join("")}</div>`;
   }
 
@@ -2269,6 +2269,11 @@ function renderMiniReportHTML(report: LiveMiniReport): string {
 
 function handleFramesSelected(frames: FrameInfo[]) {
   chatAbortController?.abort();
+
+  // Capture previous session state before reset
+  const hadPreviousResult = contextStack.results.length > 0;
+  const previousIntent = contextStack.intent;
+
   chatMessages = [];
   contextStack = {
     frames,
@@ -2284,7 +2289,18 @@ function handleFramesSelected(frames: FrameInfo[]) {
 
   if (frames.length === 1) {
     addMsg({ id: chatId(), role: "system", content: `"${frames[0].nodeName}" 선택됨` });
-    addMsg({ id: chatId(), role: "bot", content: "이 화면에서 뭘 해볼까요?", labels: initialLabels });
+    if (hadPreviousResult && previousIntent) {
+      addMsg({
+        id: chatId(), role: "bot",
+        content: "새 프레임이에요. 이전 분석을 이어갈까요?",
+        labels: [
+          { id: `__continue-${previousIntent}`, name: "이어서 분석" },
+          { id: "__new-start", name: "새로 시작" },
+        ],
+      });
+    } else {
+      addMsg({ id: chatId(), role: "bot", content: "이 화면에서 뭘 해볼까요?", labels: initialLabels });
+    }
   } else if (frames.length === 2) {
     const names = frames.map((f) => f.nodeName).join(", ");
     addMsg({ id: chatId(), role: "system", content: `${frames.length}개 프레임 선택됨: ${names}` });
@@ -2334,6 +2350,29 @@ function handleIntentLabel(labelId: string) {
   // "다른 프레임 보기" special label
   if (labelId === "__new-frame") {
     addMsg({ id: chatId(), role: "bot", content: "Figma에서 다른 프레임을 선택해주세요.", labels: [] });
+    return;
+  }
+
+  // 이전 분석 이어서 / 새로 시작
+  if (labelId.startsWith("__continue-")) {
+    const prevIntent = labelId.replace("__continue-", "");
+    contextStack.intent = prevIntent;
+    contextStack.selectedCategory = INTENT_TO_CATEGORY[prevIntent] ?? "scan";
+    contextStack.pipeline = [prevIntent];
+    document.querySelectorAll(".chat-label-chip").forEach((c) => c.classList.add("disabled"));
+    addMsg({ id: chatId(), role: "user", content: "이어서 분석" });
+    startChatAnalysis(contextStack.selectedCategory, "");
+    return;
+  }
+
+  if (labelId === "__new-start") {
+    document.querySelectorAll(".chat-label-chip").forEach((c) => c.classList.add("disabled"));
+    addMsg({ id: chatId(), role: "user", content: "새로 시작" });
+    addMsg({
+      id: chatId(), role: "bot",
+      content: "이 화면에서 뭘 해볼까요?",
+      labels: getLabelsForState(contextStack),
+    });
     return;
   }
 
@@ -2390,6 +2429,20 @@ function handleFollowUpClick(catId: string, option: { id: string; label: string;
   startChatAnalysis(category, option.contextValue);
 }
 
+function compactConversationHistory(
+  history: Array<{ role: "user" | "assistant"; content: string }>
+): typeof history {
+  if (history.length <= 10) return history;
+  const firstTwo = history.slice(0, 2);
+  const recent = history.slice(-8);
+  const omitted = Math.floor((history.length - 10) / 2);
+  return [
+    ...firstTwo,
+    { role: "user", content: `[이전 대화 요약: ${omitted}번의 분석 생략됨]` },
+    ...recent,
+  ];
+}
+
 async function startChatAnalysis(_categoryId: string, followUpContext: string) {
   if (!contextStack.frames.length) return;
   chatAnalyzing = true;
@@ -2427,7 +2480,7 @@ async function startChatAnalysis(_categoryId: string, followUpContext: string) {
         })),
         intent: contextStack.intent ?? "full-scan",
         subContext: resolvedSubCtx,
-        conversationHistory: contextStack.conversationHistory,
+        conversationHistory: compactConversationHistory(contextStack.conversationHistory),
         userMessage: followUpContext || "",
         apiKey: apiKey || undefined,
         ocrContext: figmaOcrCtx,
@@ -2483,8 +2536,8 @@ async function startChatAnalysis(_categoryId: string, followUpContext: string) {
       streaming: false,
       miniReport,
       actions: [
+        { id: "comment", label: "📋 결과 복사", primary: true },
         { id: "rescan",  label: "↩ 다시 분석" },
-        { id: "comment", label: "📋 결과 복사" },
       ],
       labels: getLabelsForState(contextStack),
     });
