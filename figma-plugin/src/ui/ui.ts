@@ -111,6 +111,7 @@ interface ContextStack {
   subContext: string | null;
   persona: { id: string; label: string; promptContext: string } | null;
   pipeline: string[];
+  results: TurnResult[];
   conversationHistory: Array<{ role: "user" | "assistant"; content: string }>;
   lastReport: LiveMiniReport | null;
   selectedCategory: string | null;
@@ -121,19 +122,170 @@ let contextStack: ContextStack = {
   frames: [], frameMode: null,
   intent: null, subContext: null,
   persona: null, pipeline: [],
+  results: [],
   conversationHistory: [], lastReport: null,
   selectedCategory: null,
 };
 let chatAnalyzing = false;
 let chatAbortController: AbortController | null = null;
 
-const INTENT_LABELS = [
-  { id: "scan",       name: "전체 스캔" },
-  { id: "usability",  name: "사용성" },
-  { id: "writing",    name: "UX 라이팅" },
-  { id: "visual",     name: "시각 위계" },
-  { id: "cta",        name: "전환/CTA" },
+// ── Phase B: Intent Router ──
+
+interface IntentDetectionResult {
+  intent: string;
+  axis?: string;
+  subContext?: string;
+  confidence: number;
+  source: "keyword" | "haiku";
+}
+
+interface TurnResult {
+  intent: string;
+  pipeline: string[];
+  output: LiveMiniReport | null;
+  timestamp: number;
+}
+
+const KEYWORD_INTENT_MAP: Array<{ keywords: string[]; intent: string; axis?: string }> = [
+  { keywords: ["전체", "전반", "봐줘", "검토", "분석해", "뭐가 문제", "어때", "어떤지", "살펴", "전반적"], intent: "full-scan" },
+  { keywords: ["광고", "배너", "리워드 광고"], intent: "analyze-axis", axis: "ad-buffer" },
+  { keywords: ["적립", "포인트", "체감", "쌓이", "마일리지 체감"], intent: "analyze-axis", axis: "earning-motivation" },
+  { keywords: ["재방문", "리텐션", "스트릭", "푸시", "재접속", "다시 와"], intent: "analyze-axis", axis: "retention-trigger" },
+  { keywords: ["교환", "출금", "기프티콘", "환전", "마일리지샵"], intent: "analyze-axis", axis: "exchange-trust" },
+  { keywords: ["카피", "문구", "워딩", "다듬", "텍스트 고쳐", "바꿔줘", "라이팅", "문장 고쳐"], intent: "copy-rewrite" },
+  { keywords: ["A/B", "a/b", "ab", "변형", "테스트", "실험안"], intent: "ab-variant" },
+  { keywords: ["비교", "경쟁사", "머니워크", "돈이돼지", "타사", "competitor"], intent: "competitor-compare" },
+  { keywords: ["개선안", "개선해줘", "어떻게 고치", "솔루션", "제안해줘"], intent: "suggestion" },
 ];
+
+const INTENT_TO_CATEGORY: Record<string, string> = {
+  "full-scan":          "scan",
+  "analyze-axis":       "scan",
+  "copy-rewrite":       "writing",
+  "ab-variant":         "scan",
+  "competitor-compare": "scan",
+  "suggestion":         "scan",
+  "flow-analysis":      "scan",
+  "compound":           "scan",
+  "usability":          "usability",
+  "visual":             "visual",
+  "cta":                "cta",
+};
+
+const DIRECTION_CHANGE_KEYWORDS = ["잠깐", "아니", "아 그게 아니라", "다시 봐줘", "다른 걸로", "바꿔서", "쪽으로 봐줘", "말고", "대신에"];
+
+function detectIntentByKeyword(text: string): IntentDetectionResult | null {
+  const lower = text.toLowerCase();
+  for (const entry of KEYWORD_INTENT_MAP) {
+    if (entry.keywords.some((kw) => lower.includes(kw.toLowerCase()))) {
+      return { intent: entry.intent, axis: entry.axis, confidence: 0.9, source: "keyword" };
+    }
+  }
+  return null;
+}
+
+async function detectIntentByHaiku(text: string): Promise<IntentDetectionResult> {
+  const apiKey = getApiKey();
+  const baseUrl = getSimuloBaseUrl();
+  const convSummary = contextStack.conversationHistory
+    .slice(-4)
+    .map((m) => `${m.role}: ${m.content.slice(0, 80)}`)
+    .join("\n");
+
+  const prompt = `사용자가 Figma 플러그인에서 디자인 프레임을 선택한 뒤 다음과 같이 말했습니다:
+"${text}"
+
+이전 대화:
+${convSummary || "(없음)"}
+
+아래 intent 중 가장 적합한 것 1개를 선택하세요.
+- full-scan: 화면 전체 종합 분석
+- analyze-axis: 특정 관점(광고, 적립, 재방문, 교환) 분석
+- copy-rewrite: 화면 텍스트/카피 개선
+- ab-variant: A/B 테스트 변형 생성
+- competitor-compare: 경쟁사 비교
+- suggestion: 구체적 개선안 요청
+- flow-analysis: 여러 화면 흐름 분석
+
+JSON만 응답:
+{"intent":"...","axis":"ad-buffer|earning-motivation|retention-trigger|exchange-trust|null","subContext":"추출된 맥락 또는 null","confidence":0.0}`;
+
+  try {
+    let raw: string;
+    if (apiKey) {
+      const res = await fetch("https://api.anthropic.com/v1/messages", {
+        method: "POST",
+        headers: {
+          "Content-Type": "application/json",
+          "x-api-key": apiKey,
+          "anthropic-version": "2023-06-01",
+          "anthropic-dangerous-direct-browser-access": "true",
+        },
+        body: JSON.stringify({
+          model: MODEL_MAP.haiku,
+          max_tokens: 200,
+          messages: [{ role: "user", content: prompt }],
+        }),
+      });
+      const data = await res.json() as { content: Array<{ text: string }> };
+      raw = data.content?.[0]?.text ?? "{}";
+    } else {
+      const res = await fetch(`${baseUrl}/api/intent`, {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ userText: text, conversationSummary: convSummary }),
+      });
+      const data = await res.json() as Record<string, unknown>;
+      raw = JSON.stringify(data);
+    }
+    const cleaned = raw.replace(/```json\n?/g, "").replace(/```\n?/g, "").trim();
+    const parsed = JSON.parse(cleaned) as { intent?: string; axis?: string; subContext?: string; confidence?: number };
+    return {
+      intent: parsed.intent || "full-scan",
+      axis: parsed.axis && parsed.axis !== "null" ? parsed.axis : undefined,
+      subContext: parsed.subContext && parsed.subContext !== "null" ? parsed.subContext : undefined,
+      confidence: parsed.confidence ?? 0.5,
+      source: "haiku",
+    };
+  } catch {
+    return { intent: "full-scan", confidence: 0.3, source: "haiku" };
+  }
+}
+
+function isDirectionChange(text: string): boolean {
+  return DIRECTION_CHANGE_KEYWORDS.some((kw) => text.includes(kw));
+}
+
+function getLabelsForState(ctx: ContextStack): { id: string; name: string }[] {
+  // No intent → initial labels
+  if (!ctx.intent) {
+    return [
+      { id: "full-scan",          name: "전체 스캔" },
+      { id: "usability",          name: "사용성 검증" },
+      { id: "copy-rewrite",       name: "카피 다듬기" },
+      { id: "ab-variant",         name: "A/B 변형" },
+      { id: "competitor-compare", name: "경쟁사 비교" },
+    ];
+  }
+
+  // After results → post-result labels
+  if (ctx.results && ctx.results.length > 0) {
+    return getPostResultLabels(ctx);
+  }
+
+  return [];
+}
+
+function getPostResultLabels(ctx: ContextStack): { id: string; name: string }[] {
+  const labels: { id: string; name: string }[] = [];
+  const lastIntent = ctx.results?.[ctx.results.length - 1]?.intent;
+
+  if (lastIntent !== "copy-rewrite")       labels.push({ id: "copy-rewrite",       name: "카피도 바꿔줘" });
+  if (lastIntent !== "ab-variant")         labels.push({ id: "ab-variant",         name: "A/B안 만들어줘" });
+  if (lastIntent !== "competitor-compare") labels.push({ id: "competitor-compare", name: "경쟁사는?" });
+  labels.push({ id: "__new-frame", name: "다른 프레임 보기" });
+  return labels;
+}
 
 const FOLLOW_UP_TREE: Record<string, { question: string; options: { id: string; label: string; contextValue: string }[] }> = {
   usability: {
@@ -2121,14 +2273,18 @@ function handleFramesSelected(frames: FrameInfo[]) {
   contextStack = {
     frames,
     frameMode: frames.length > 1 ? null : "single",
-    intent: null, subContext: null, persona: null, pipeline: [],
+    intent: null, subContext: null,
+    persona: null, pipeline: [],
+    results: [],
     conversationHistory: [], lastReport: null, selectedCategory: null,
   };
   chatAnalyzing = false;
 
+  const initialLabels = getLabelsForState(contextStack);
+
   if (frames.length === 1) {
     addMsg({ id: chatId(), role: "system", content: `"${frames[0].nodeName}" 선택됨` });
-    addMsg({ id: chatId(), role: "bot", content: "이 화면에서 뭘 해볼까요?", labels: INTENT_LABELS });
+    addMsg({ id: chatId(), role: "bot", content: "이 화면에서 뭘 해볼까요?", labels: initialLabels });
   } else if (frames.length === 2) {
     const names = frames.map((f) => f.nodeName).join(", ");
     addMsg({ id: chatId(), role: "system", content: `${frames.length}개 프레임 선택됨: ${names}` });
@@ -2136,8 +2292,8 @@ function handleFramesSelected(frames: FrameInfo[]) {
       id: chatId(), role: "bot",
       content: `${frames.length}개 화면을 선택했네요.`,
       labels: [
-        { id: "mode-compare", name: "Before/After 비교" },
-        { id: "mode-flow",    name: "플로우로 분석" },
+        { id: "mode-compare",  name: "Before/After 비교" },
+        { id: "mode-flow",     name: "플로우로 분석" },
         { id: "mode-separate", name: "각각 따로 분석" },
       ],
     });
@@ -2148,7 +2304,7 @@ function handleFramesSelected(frames: FrameInfo[]) {
       id: chatId(), role: "bot",
       content: `${frames.length}개 화면을 선택했네요. 어떻게 볼까요?`,
       labels: [
-        { id: "mode-flow",    name: "플로우로 분석" },
+        { id: "mode-flow",     name: "플로우로 분석" },
         { id: "mode-separate", name: "각각 따로 분석" },
       ],
     });
@@ -2175,7 +2331,13 @@ function handleTooManyFrames(count: number) {
 function handleIntentLabel(labelId: string) {
   if (chatAnalyzing) return;
 
-  // 프레임 모드 선택 처리
+  // "다른 프레임 보기" special label
+  if (labelId === "__new-frame") {
+    addMsg({ id: chatId(), role: "bot", content: "Figma에서 다른 프레임을 선택해주세요.", labels: [] });
+    return;
+  }
+
+  // Frame mode selection
   if (labelId.startsWith("mode-")) {
     const mode = labelId.replace("mode-", "") as "compare" | "flow" | "separate";
     contextStack.frameMode = mode;
@@ -2186,33 +2348,46 @@ function handleIntentLabel(labelId: string) {
       separate: "각각 따로 분석",
     };
     addMsg({ id: chatId(), role: "user", content: modeNames[mode] ?? mode });
-    addMsg({ id: chatId(), role: "bot", content: "어떤 부분을 집중적으로 볼까요?", labels: INTENT_LABELS });
+    addMsg({ id: chatId(), role: "bot", content: "어떤 부분을 집중적으로 볼까요?", labels: getLabelsForState(contextStack) });
     return;
   }
 
   if (!contextStack.frames.length) return;
   document.querySelectorAll(".chat-label-chip").forEach((c) => c.classList.add("disabled"));
-  contextStack.selectedCategory = labelId;
-  const name = INTENT_LABELS.find((l) => l.id === labelId)?.name ?? labelId;
+
+  // Set intent
+  contextStack.intent = labelId;
+  contextStack.selectedCategory = INTENT_TO_CATEGORY[labelId] ?? labelId;
+  contextStack.pipeline = [labelId];
+
+  // Get label display name
+  const allLabels = getLabelsForState({ ...contextStack, intent: null, results: [] });
+  const name = allLabels.find((l) => l.id === labelId)?.name ?? labelId;
   addMsg({ id: chatId(), role: "user", content: name });
 
-  if (labelId === "scan") {
-    startChatAnalysis("scan", "");
-    return;
-  }
-  const tree = FOLLOW_UP_TREE[labelId];
-  if (tree) {
+  // Check for follow-up tree
+  const followUpKey = labelId === "copy-rewrite" ? "writing"
+    : labelId === "usability" ? "usability"
+    : labelId === "visual" ? "visual"
+    : labelId === "cta" ? "cta"
+    : null;
+
+  if (followUpKey && FOLLOW_UP_TREE[followUpKey]) {
+    const tree = FOLLOW_UP_TREE[followUpKey];
     addMsg({ id: chatId(), role: "bot", content: tree.question, followUps: tree.options });
   } else {
-    startChatAnalysis(labelId, "");
+    startChatAnalysis(contextStack.selectedCategory ?? "scan", "");
   }
 }
 
 function handleFollowUpClick(catId: string, option: { id: string; label: string; contextValue: string }) {
   if (chatAnalyzing) return;
   document.querySelectorAll(".chat-followup-btn").forEach((b) => b.classList.add("disabled"));
+  contextStack.subContext = option.contextValue;
   addMsg({ id: chatId(), role: "user", content: option.label });
-  startChatAnalysis(catId, option.contextValue);
+  // catId is the follow-up tree key; map to category
+  const category = INTENT_TO_CATEGORY[contextStack.intent ?? catId] ?? catId;
+  startChatAnalysis(category, option.contextValue);
 }
 
 async function startChatAnalysis(categoryId: string, followUpContext: string) {
@@ -2282,6 +2457,14 @@ async function startChatAnalysis(categoryId: string, followUpContext: string) {
       if (m) miniReport = JSON.parse(m[0]) as LiveMiniReport;
     } catch { /* ignore parse error */ }
 
+    contextStack.lastReport = miniReport;
+    contextStack.results.push({
+      intent: contextStack.intent ?? "full-scan",
+      pipeline: contextStack.pipeline,
+      output: miniReport,
+      timestamp: Date.now(),
+    });
+
     updateMsg(msgId, {
       content: miniReport?.quickSummary ?? accumulated.slice(0, 60),
       streaming: false,
@@ -2290,9 +2473,8 @@ async function startChatAnalysis(categoryId: string, followUpContext: string) {
         { id: "rescan",  label: "↩ 다시 분석" },
         { id: "comment", label: "📋 결과 복사" },
       ],
+      labels: getLabelsForState(contextStack),
     });
-
-    contextStack.lastReport = miniReport;
     contextStack.conversationHistory = [
       ...contextStack.conversationHistory,
       { role: "user", content: `${frame.nodeName} — ${categoryId} 분석` },
@@ -2310,11 +2492,14 @@ function handleChatAction(action: string) {
   if (action === "rescan") {
     if (!contextStack.frames.length) return;
     chatMessages = chatMessages.slice(0, 1);
+    contextStack.intent = null;
     contextStack.selectedCategory = null;
     contextStack.conversationHistory = [];
     contextStack.lastReport = null;
+    contextStack.pipeline = [];
+    contextStack.results = [];
     chatAnalyzing = false;
-    addMsg({ id: chatId(), role: "bot", content: "이 화면에서 뭘 해볼까요?", labels: INTENT_LABELS });
+    addMsg({ id: chatId(), role: "bot", content: "이 화면에서 뭘 해볼까요?", labels: getLabelsForState(contextStack) });
   } else if (action === "comment") {
     if (!contextStack.lastReport) return;
     const sevEmoji = ["✅", "💡", "⚠️", "🔴", "🚨"];
@@ -2328,14 +2513,51 @@ function handleChatAction(action: string) {
   }
 }
 
-function handleChatInput(text: string) {
+async function handleChatInput(text: string) {
   if (!text.trim() || chatAnalyzing) return;
+
   if (!contextStack.frames.length) {
     addMsg({ id: chatId(), role: "bot", content: "먼저 Figma에서 프레임을 선택해주세요." });
     return;
   }
+
   addMsg({ id: chatId(), role: "user", content: text });
-  startChatAnalysis(contextStack.selectedCategory ?? "scan", text);
+
+  // Direction change: reset intent, keep frame + history
+  if (isDirectionChange(text)) {
+    contextStack.intent = null;
+    contextStack.subContext = null;
+    contextStack.pipeline = [];
+  }
+
+  // 1단계: keyword 즉시 감지
+  const kwResult = detectIntentByKeyword(text);
+  if (kwResult) {
+    applyIntentAndAnalyze(kwResult, text);
+    return;
+  }
+
+  // 2단계: Haiku 폴백 (로딩 표시)
+  const thinkingId = chatId();
+  addMsg({ id: thinkingId, role: "bot", content: "...", streaming: true });
+
+  const haikuResult = await detectIntentByHaiku(text);
+  chatMessages = chatMessages.filter((m) => m.id !== thinkingId);
+  renderMessages();
+
+  applyIntentAndAnalyze(haikuResult, text);
+}
+
+function applyIntentAndAnalyze(result: IntentDetectionResult, originalText: string) {
+  contextStack.intent = result.intent;
+  if (result.axis) contextStack.subContext = `axis:${result.axis}${result.subContext ? ` ${result.subContext}` : ""}`;
+  else if (result.subContext) contextStack.subContext = result.subContext;
+
+  const category = INTENT_TO_CATEGORY[result.intent] ?? "scan";
+  contextStack.selectedCategory = category;
+  contextStack.pipeline = [result.intent];
+
+  startChatAnalysis(category, originalText);
 }
 
 function resetChat() {
@@ -2347,11 +2569,16 @@ function resetChat() {
   contextStack.conversationHistory = [];
   contextStack.lastReport = null;
   contextStack.pipeline = [];
+  contextStack.results = [];
   renderMessages();
 
   if (contextStack.frames.length > 0) {
     addMsg({ id: chatId(), role: "system", content: "대화를 새로 시작합니다." });
-    addMsg({ id: chatId(), role: "bot", content: "이 화면에서 뭘 해볼까요?", labels: INTENT_LABELS });
+    addMsg({
+      id: chatId(), role: "bot",
+      content: "이 화면에서 뭘 해볼까요?",
+      labels: getLabelsForState(contextStack),
+    });
   }
 }
 
