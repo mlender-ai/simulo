@@ -2445,7 +2445,8 @@ async function startLiveAnalysis(categoryId: string, followUpContext: string) {
           if (parsed.error) throw new Error(parsed.error);
           if (parsed.text) {
             accumulated += parsed.text;
-            updateLiveMsg(msgId, { content: accumulated, streaming: true });
+            // 스트리밍 중에는 raw JSON 노출 없이 로딩 메시지만 표시
+            updateLiveMsg(msgId, { content: "라이브 분석 중...", streaming: true });
           }
         } catch { /* partial JSON ok */ }
       }
@@ -2463,7 +2464,7 @@ async function startLiveAnalysis(categoryId: string, followUpContext: string) {
       miniReport,
       actions: [
         { id: "rescan",  label: "↩ 다시 분석" },
-        { id: "comment", label: "💬 Figma 코멘트" },
+        { id: "comment", label: "📋 결과 복사" },
       ],
     });
 
@@ -2491,19 +2492,16 @@ function handleLiveAction(action: string) {
     liveAnalyzing = false;
     addLiveMsg({ id: liveId(), role: "bot", content: "어떤 부분을 분석할까요?", labels: LIVE_CATEGORIES_LIST });
   } else if (action === "comment") {
-    if (!liveContext.frameNodeId || !liveContext.lastReport) return;
+    if (!liveContext.lastReport) return;
     const sevEmoji = ["✅", "💡", "⚠️", "🔴", "🚨"];
     const commentText = liveContext.lastReport.findings
       .map((f) => `${sevEmoji[Math.min(4, f.severity)]} [${f.criterion}] ${f.oneLineFinding}\n→ ${f.fix}`)
       .join("\n\n");
-    parent.postMessage({
-      pluginMessage: {
-        type: "post-figma-comment",
-        nodeId: liveContext.frameNodeId,
-        comment: `📊 Simulo 분석\n${liveContext.lastReport.quickSummary}\n\n${commentText}`,
-      },
-    }, "*");
-    addLiveMsg({ id: liveId(), role: "bot", content: `"${liveContext.frameName}"에 분석 결과를 저장했습니다.` });
+    const fullComment = `📊 Simulo 분석 — ${liveContext.frameName ?? "선택된 프레임"}\n${liveContext.lastReport.quickSummary}\n\n${commentText}`;
+    // 클립보드에 복사
+    navigator.clipboard.writeText(fullComment).catch(() => {});
+    // 팝업 표시
+    showLiveCommentPopup(fullComment);
   }
 }
 
@@ -2515,4 +2513,28 @@ function handleLiveFreeTextInput(text: string) {
   }
   addLiveMsg({ id: liveId(), role: "user", content: text });
   startLiveAnalysis(liveContext.selectedCategory ?? "scan", text);
+}
+
+function showLiveCommentPopup(text: string) {
+  const existing = document.getElementById("liveCommentPopup");
+  if (existing) existing.remove();
+
+  const overlay = document.createElement("div");
+  overlay.id = "liveCommentPopup";
+  overlay.className = "live-comment-overlay";
+
+  const box = document.createElement("div");
+  box.className = "live-comment-box";
+  box.innerHTML = `
+    <div class="live-comment-title">📋 분석 결과 복사됨</div>
+    <div class="live-comment-desc">아래 내용이 클립보드에 복사되었습니다.<br>Figma 프레임에 <strong>직접 붙여넣기</strong>하거나 팀에 공유하세요.</div>
+    <textarea class="live-comment-text" readonly>${escapeHtml(text)}</textarea>
+    <button class="live-comment-close btn-primary" style="margin-top:10px;">확인</button>
+  `;
+  overlay.appendChild(box);
+  document.body.appendChild(overlay);
+
+  const close = () => { overlay.classList.add("live-comment-hide"); setTimeout(() => overlay.remove(), 200); };
+  overlay.querySelector(".live-comment-close")?.addEventListener("click", close);
+  overlay.addEventListener("click", (e) => { if (e.target === overlay) close(); });
 }
