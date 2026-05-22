@@ -3,43 +3,54 @@
 
 figma.showUI(__html__, { width: 380, height: 640, title: "Simulo" });
 
-let liveModeActive = false;
+interface FramePayload {
+  nodeId: string;
+  nodeName: string;
+  imageBase64: string;
+  width: number;
+  height: number;
+  parentName: string;
+  order: number;
+  texts: ExtractedText[];
+}
 
 figma.on("selectionchange", async () => {
-  if (!liveModeActive) return;
-  const selection = figma.currentPage.selection;
-  if (selection.length !== 1) {
-    figma.ui.postMessage({ type: "live-frame-deselected" });
+  const selection = figma.currentPage.selection.filter(
+    (n) => n.type === "FRAME" || n.type === "COMPONENT" || n.type === "INSTANCE"
+  );
+  if (selection.length === 0) {
+    figma.ui.postMessage({ type: "frames-deselected" });
     return;
   }
-  const node = selection[0];
-  if (node.type !== "FRAME" && node.type !== "COMPONENT" && node.type !== "INSTANCE") {
-    figma.ui.postMessage({ type: "live-frame-deselected" });
+  if (selection.length > 5) {
+    figma.ui.postMessage({ type: "frames-too-many", count: selection.length });
     return;
   }
-  figma.ui.postMessage({ type: "live-frame-capturing", nodeName: node.name });
-  try {
-    let bytes: Uint8Array;
+  const frames: FramePayload[] = [];
+  for (let i = 0; i < selection.length; i++) {
+    const node = selection[i];
     try {
-      bytes = await (node as FrameNode & ExportMixin).exportAsync({ format: "PNG", constraint: { type: "SCALE", value: 2 } });
-    } catch {
-      bytes = await (node as FrameNode & ExportMixin).exportAsync({ format: "PNG", constraint: { type: "SCALE", value: 1 } });
-    }
-    const texts = extractTextNodes(node);
-    figma.ui.postMessage({
-      type: "live-frame-selected",
-      payload: {
+      const bytes = await (node as ExportMixin).exportAsync({ format: "PNG", constraint: { type: "SCALE", value: 2 } });
+      const texts = extractTextNodes(node);
+      frames.push({
         nodeId: node.id,
         nodeName: node.name,
+        imageBase64: uint8ToBase64(bytes),
         width: (node as FrameNode).width ?? 0,
         height: (node as FrameNode).height ?? 0,
-        imageBase64: uint8ToBase64(bytes),
+        parentName: node.parent?.name ?? "",
+        order: i,
         texts,
-      },
-    });
-  } catch (e) {
-    figma.ui.postMessage({ type: "live-frame-error", message: String(e) });
+      });
+    } catch (e) {
+      console.error("frame capture failed:", node.name, e);
+    }
   }
+  if (frames.length === 0) {
+    figma.ui.postMessage({ type: "frames-deselected" });
+    return;
+  }
+  figma.ui.postMessage({ type: "frames-selected", payload: { frames } });
 });
 
 // Helper — Uint8Array → base64 (no Buffer available in Figma sandbox)
@@ -145,8 +156,6 @@ type PluginMessage =
   | { type: "load-spreadsheet-id" }
   | { type: "save-language"; lang: string }
   | { type: "load-language" }
-  | { type: "enable-live-mode" }
-  | { type: "disable-live-mode" }
   | { type: "post-figma-comment"; nodeId: string; comment: string }
   | { type: "close" };
 
@@ -469,36 +478,6 @@ figma.ui.onmessage = async (msg: PluginMessage) => {
     }
   }
 
-  if (msg.type === "enable-live-mode") {
-    liveModeActive = true;
-    const selection = figma.currentPage.selection;
-    if (selection.length === 1) {
-      const node = selection[0];
-      if (node.type === "FRAME" || node.type === "COMPONENT" || node.type === "INSTANCE") {
-        figma.ui.postMessage({ type: "live-frame-capturing", nodeName: node.name });
-        try {
-          const bytes = await (node as FrameNode & ExportMixin).exportAsync({ format: "PNG", constraint: { type: "SCALE", value: 2 } });
-          const texts = extractTextNodes(node);
-          figma.ui.postMessage({
-            type: "live-frame-selected",
-            payload: {
-              nodeId: node.id,
-              nodeName: node.name,
-              width: (node as FrameNode).width ?? 0,
-              height: (node as FrameNode).height ?? 0,
-              imageBase64: uint8ToBase64(bytes),
-              texts,
-            },
-          });
-        } catch {}
-      }
-    }
-  }
-
-  if (msg.type === "disable-live-mode") {
-    liveModeActive = false;
-  }
-
   if (msg.type === "post-figma-comment") {
     try {
       await figma.clientStorage.setAsync("last_comment_" + msg.nodeId, msg.comment);
@@ -513,10 +492,3 @@ figma.ui.onmessage = async (msg: PluginMessage) => {
   }
 };
 
-figma.on("selectionchange", () => {
-  figma.ui.postMessage({
-    type: "selection-changed",
-    count: figma.currentPage.selection.length,
-    names: figma.currentPage.selection.map((n) => n.name),
-  });
-});

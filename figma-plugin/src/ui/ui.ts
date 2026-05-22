@@ -59,7 +59,6 @@ interface WritingCheckResult {
 }
 
 let selectedImages: ImageItem[] = [];
-let currentMode: "analysis" | "writing" | "variants" = "analysis";
 let pendingVariantNodeId: string | null = null;
 let multiResults: (AnalysisResult & { _frameName?: string })[] = [];
 let currentResultIndex = 0;
@@ -70,8 +69,19 @@ let lastFileKey = "";
 let appliedFixes = new Set<string>(); // "frameIdx-issueIdx" tracking
 let freeMode = false; // API 키 없거나 초과 시 true
 
-// ── Live analysis mode types ──
-interface LiveMessage {
+// ── Chat interface types ──
+interface FrameInfo {
+  nodeId: string;
+  nodeName: string;
+  imageBase64: string;
+  width: number;
+  height: number;
+  parentName: string;
+  order: number;
+  texts: ExtractedText[];
+}
+
+interface ChatMessage {
   id: string;
   role: "bot" | "user" | "system";
   content: string;
@@ -94,33 +104,38 @@ interface LiveMiniReport {
   nextQuestion: string | null;
 }
 
-interface LiveContext {
-  frameNodeId: string | null;
-  frameName: string | null;
-  frameImage: string | null;
-  frameTexts: ExtractedText[];
-  selectedCategory: string | null;
-  conversationHistory: Array<{ role: string; content: string }>;
+interface ContextStack {
+  frames: FrameInfo[];
+  frameMode: "single" | "compare" | "flow" | "separate" | null;
+  intent: string | null;
+  subContext: string | null;
+  persona: { id: string; label: string; promptContext: string } | null;
+  pipeline: string[];
+  conversationHistory: Array<{ role: "user" | "assistant"; content: string }>;
   lastReport: LiveMiniReport | null;
+  selectedCategory: string | null;
 }
 
-let liveMessages: LiveMessage[] = [];
-let liveContext: LiveContext = {
-  frameNodeId: null, frameName: null, frameImage: null, frameTexts: [],
-  selectedCategory: null, conversationHistory: [], lastReport: null,
+let chatMessages: ChatMessage[] = [];
+let contextStack: ContextStack = {
+  frames: [], frameMode: null,
+  intent: null, subContext: null,
+  persona: null, pipeline: [],
+  conversationHistory: [], lastReport: null,
+  selectedCategory: null,
 };
-let liveAnalyzing = false;
-let liveAbortController: AbortController | null = null;
+let chatAnalyzing = false;
+let chatAbortController: AbortController | null = null;
 
-const LIVE_CATEGORIES_LIST = [
-  { id: "scan",      name: "전체 스캔" },
-  { id: "usability", name: "사용성" },
-  { id: "writing",   name: "UX 라이팅" },
-  { id: "visual",    name: "시각 위계" },
-  { id: "cta",       name: "전환/CTA" },
+const INTENT_LABELS = [
+  { id: "scan",       name: "전체 스캔" },
+  { id: "usability",  name: "사용성" },
+  { id: "writing",    name: "UX 라이팅" },
+  { id: "visual",     name: "시각 위계" },
+  { id: "cta",        name: "전환/CTA" },
 ];
 
-const LIVE_FOLLOW_UP_TREE: Record<string, { question: string; options: { id: string; label: string; contextValue: string }[] }> = {
+const FOLLOW_UP_TREE: Record<string, { question: string; options: { id: string; label: string; contextValue: string }[] }> = {
   usability: {
     question: "어떤 사용 맥락에서 이 화면을 보나요?",
     options: [
@@ -233,147 +248,59 @@ function escapeHtml(s: string): string {
 // -------- Initialization --------
 // -------- i18n helpers --------
 function applyI18n() {
-  // Settings panel
-  $("settingsToggle").textContent = t("settings.toggle");
-  const apiKeyLabel = document.querySelector("#settingsPanel label:first-of-type") as HTMLElement | null;
-  if (apiKeyLabel) apiKeyLabel.textContent = t("settings.apiKeyLabel");
-  const apiKeyHint = document.querySelector("#settingsPanel .settings-hint:first-of-type") as HTMLElement | null;
-  if (apiKeyHint) apiKeyHint.textContent = t("settings.apiKeyHint");
-
-  const modelLabel = document.querySelector("#settingsPanel label[for='modelSelect'], #settingsPanel label:nth-of-type(2)") as HTMLElement | null;
+  // Settings panel labels
   const allLabels = document.querySelectorAll("#settingsPanel label");
+  if (allLabels[0]) allLabels[0].textContent = t("settings.apiKeyLabel");
   if (allLabels[1]) allLabels[1].textContent = t("settings.modelLabel");
-  const haikuOpt = $<HTMLSelectElement>("modelSelect").options[0];
-  if (haikuOpt) haikuOpt.text = t("settings.modelHaiku");
-  const sonnetOpt = $<HTMLSelectElement>("modelSelect").options[1];
-  if (sonnetOpt) sonnetOpt.text = t("settings.modelSonnet");
-  const hints = document.querySelectorAll("#settingsPanel .settings-hint");
-  if (hints[1]) hints[1].textContent = t("settings.modelHint");
   if (allLabels[2]) allLabels[2].textContent = t("settings.simuloUrlLabel");
-  const labelSimuloUrl = $("labelSimuloUrl");
-  if (labelSimuloUrl) labelSimuloUrl.textContent = t("settings.simuloUrlLabel");
-  const hintSimuloUrl = $("hintSimuloUrl");
-  if (hintSimuloUrl) hintSimuloUrl.textContent = t("settings.simuloUrlHint");
-  const labelLang = $("labelLang");
-  if (labelLang) labelLang.textContent = t("settings.langLabel");
+  if (allLabels[3]) allLabels[3].textContent = t("settings.langLabel");
+
+  const hints = document.querySelectorAll("#settingsPanel .settings-hint");
+  if (hints[0]) hints[0].textContent = t("settings.apiKeyHint");
+  if (hints[1]) hints[1].textContent = t("settings.modelHint");
+  if (hints[2]) hints[2].textContent = t("settings.simuloUrlHint");
+
+  const haikuOpt = $<HTMLSelectElement>("modelSelect")?.options[0];
+  if (haikuOpt) haikuOpt.text = t("settings.modelHaiku");
+  const sonnetOpt = $<HTMLSelectElement>("modelSelect")?.options[1];
+  if (sonnetOpt) sonnetOpt.text = t("settings.modelSonnet");
 
   // Free mode banner
-  $("freeModeBanner").textContent = t("freeMode.banner");
+  const freeModeBanner = $("freeModeBanner");
+  if (freeModeBanner) freeModeBanner.textContent = t("freeMode.banner");
 
-  // Mode tabs
-  document.querySelectorAll(".mode-tab").forEach((el) => {
-    const mode = (el as HTMLElement).dataset.mode;
-    if (mode === "analysis") el.textContent = t("mode.analysis");
-    else if (mode === "writing") el.textContent = t("mode.writing");
-    else if (mode === "variants") el.textContent = t("mode.variants");
-  });
-
-  // Analysis mode sub-tabs
-  document.querySelectorAll(".analysis-mode-tab").forEach((el) => {
-    const mode = (el as HTMLElement).dataset.analysisMode;
-    if (mode === "hypothesis") el.textContent = t("analysisMode.hypothesis");
-    else if (mode === "usability") el.textContent = t("analysisMode.usability");
-  });
-
-  // Form labels & placeholders
-  const hypothesisLabels = document.querySelectorAll("#hypothesisField label");
-  if (hypothesisLabels[0]) hypothesisLabels[0].textContent = t("form.hypothesis");
-  const hypothesisTA = $<HTMLTextAreaElement>("hypothesis");
-  if (hypothesisTA) hypothesisTA.placeholder = t("form.hypothesisPlaceholder");
-  const targetUserLabels = document.querySelectorAll("#inputForm > div:last-of-type label");
-  if (targetUserLabels[0]) targetUserLabels[0].textContent = t("form.targetUser");
-  const targetUserInput = $<HTMLInputElement>("targetUser");
-  if (targetUserInput) targetUserInput.placeholder = t("form.targetUserPlaceholder");
-
-  // Focus keyword field
-  const labelFocusKeyword = $("labelFocusKeyword");
-  if (labelFocusKeyword) labelFocusKeyword.textContent = t("form.focusKeyword");
-  const focusKeywordInput = $<HTMLInputElement>("focusKeyword");
-  if (focusKeywordInput) focusKeywordInput.placeholder = t("form.focusKeywordPlaceholder");
-  const hintFocusKeyword = $("hintFocusKeyword");
-  if (hintFocusKeyword) hintFocusKeyword.textContent = t("form.focusKeywordHint");
-
-  // Flow button
-  $("runFlowBtn").textContent = t("btn.flow");
-
-  // Report back button
-  $("resetBtn").textContent = t("btn.reset");
-  $("writingResetBtn").textContent = t("btn.writingReset");
-
-  // Report tabs
-  document.querySelectorAll(".tab").forEach((el) => {
-    const tab = (el as HTMLElement).dataset.tab;
-    if (tab === "overview") el.textContent = t("tab.overview");
-    else if (tab === "think") el.textContent = t("tab.thinkAloud");
-    else if (tab === "issues") el.textContent = t("tab.issues");
-  });
-
-  // Loading default msg
-  $("loadingMsg").textContent = t("loading.default");
-
-  // Writing hint
-  const writingHint = document.querySelector(".writing-hint") as HTMLElement | null;
-  if (writingHint) writingHint.textContent = t("writing.hint");
-
-  // Variants form
-  const variantsHint = document.querySelector("#variantsForm .writing-hint") as HTMLElement | null;
-  if (variantsHint) variantsHint.textContent = t("variants.hint");
-  const variantLabels = document.querySelectorAll("#variantsForm label");
-  if (variantLabels[0]) variantLabels[0].textContent = t("variants.original");
-  if (variantLabels[1]) variantLabels[1].textContent = t("variants.goal");
-  const variantOriginal = $<HTMLInputElement>("variantOriginal");
-  if (variantOriginal) variantOriginal.placeholder = t("variants.originalPlaceholder");
-  $("runVariantsBtn").textContent = t("btn.generateVariants");
-
-  // Variant goal options
-  const variantGoalSel = $<HTMLSelectElement>("variantGoal");
-  if (variantGoalSel) {
-    const vals = ["conversion", "trust", "concise", "friendly", "urgency", "clarity"];
-    for (const opt of Array.from(variantGoalSel.options)) {
-      if (vals.includes(opt.value)) opt.text = t(`variants.goal.${opt.value}`);
-    }
-  }
-
-  // Export buttons
-  $("exportCsvBtn").textContent = t("export.csv");
-  $("exportSimuloBtn").textContent = t("export.simulo");
-
-  // Re-apply dynamic state (selection bar + sheets button)
-  const bar = $("selectionBar");
-  const count = parseInt(bar.dataset.count || "0");
-  const names = (bar.dataset.names || "").split(",").filter(Boolean);
-  updateSelectionBar(count, names);
   updateSheetsButtonState();
 }
 
 window.addEventListener("DOMContentLoaded", () => {
-  // Request saved API key, Simulo URL, language from plugin sandbox
+  // Load settings from plugin storage
   parent.postMessage({ pluginMessage: { type: "load-api-key" } }, "*");
   parent.postMessage({ pluginMessage: { type: "load-simulo-url" } }, "*");
   parent.postMessage({ pluginMessage: { type: "load-language" } }, "*");
+  parent.postMessage({ pluginMessage: { type: "load-model" } }, "*");
+  parent.postMessage({ pluginMessage: { type: "load-google-tokens" } }, "*");
+  parent.postMessage({ pluginMessage: { type: "load-spreadsheet-id" } }, "*");
 
-  // Save API key on change + recheck free mode
+  // Settings toggle
+  $("settingsBtn").addEventListener("click", () => {
+    const panel = $("settingsPanel");
+    const btn = $("settingsBtn");
+    const isVisible = panel.classList.toggle("visible");
+    btn.classList.toggle("active", isVisible);
+  });
+
+  // Settings changes
   $("apiKey").addEventListener("change", (e) => {
     const val = (e.target as HTMLInputElement).value.trim();
-    if (val) {
-      parent.postMessage({ pluginMessage: { type: "save-api-key", key: val } }, "*");
-    }
+    if (val) parent.postMessage({ pluginMessage: { type: "save-api-key", key: val } }, "*");
     checkFreeMode();
   });
-
-  // Save model selection
   $("modelSelect").addEventListener("change", (e) => {
-    const val = (e.target as HTMLSelectElement).value;
-    parent.postMessage({ pluginMessage: { type: "save-model", model: val } }, "*");
+    parent.postMessage({ pluginMessage: { type: "save-model", model: (e.target as HTMLSelectElement).value } }, "*");
   });
-
-  // Save Simulo URL on change
   $("simuloUrl").addEventListener("change", (e) => {
-    const val = (e.target as HTMLInputElement).value.trim();
-    parent.postMessage({ pluginMessage: { type: "save-simulo-url", url: val } }, "*");
+    parent.postMessage({ pluginMessage: { type: "save-simulo-url", url: (e.target as HTMLInputElement).value.trim() } }, "*");
   });
-
-  // Language selector
   $("langSelect").addEventListener("change", (e) => {
     const lang = (e.target as HTMLSelectElement).value as Lang;
     setLang(lang);
@@ -381,73 +308,25 @@ window.addEventListener("DOMContentLoaded", () => {
     applyI18n();
   });
 
-  $("settingsToggle").addEventListener("click", () => {
-    $("settingsPanel").classList.toggle("visible");
-  });
-
-  $("runBtn").addEventListener("click", runAnalysis);
-  $("runFlowBtn").addEventListener("click", runFlowAnalysis);
-  $("runMultiBtn").addEventListener("click", runMultiAnalysis);
-  $("runWritingBtn").addEventListener("click", runWritingCheck);
-  $("runVariantsBtn").addEventListener("click", runVariantGeneration);
-  $("resetBtn").addEventListener("click", () => { multiResults = []; currentResultIndex = 0; resetToInput(); });
-  $("paginationPrev").addEventListener("click", () => { if (currentResultIndex > 0) showMultiReport(currentResultIndex - 1); });
-  $("paginationNext").addEventListener("click", () => { if (currentResultIndex < multiResults.length - 1) showMultiReport(currentResultIndex + 1); });
-  $("writingResetBtn").addEventListener("click", resetToInput);
-  $("exportCsvBtn").addEventListener("click", exportWritingCSV);
-  $("exportSimuloBtn").addEventListener("click", exportToSimulo);
-  $("exportSheetsBtn").addEventListener("click", exportToGoogleSheets);
-
-  // Load Google tokens from clientStorage
-  parent.postMessage({ pluginMessage: { type: "load-google-tokens" } }, "*");
-  parent.postMessage({ pluginMessage: { type: "load-spreadsheet-id" } }, "*");
-
-  // Mode toggle
-  document.querySelectorAll(".mode-tab").forEach((tab) => {
-    tab.addEventListener("click", () => {
-      const mode = (tab as HTMLElement).dataset.mode as "analysis" | "writing" | "variants" | "live";
-      if (mode) switchMode(mode);
-    });
-  });
-
-  document.querySelectorAll(".tab").forEach((tab) => {
-    tab.addEventListener("click", () => {
-      const name = (tab as HTMLElement).dataset.tab;
-      if (name) switchTab(name);
-    });
-  });
-
-  // Analysis mode sub-tabs (가설 검증 / 사용성 분석)
-  document.querySelectorAll(".analysis-mode-tab").forEach((tab) => {
-    tab.addEventListener("click", () => {
-      const mode = (tab as HTMLElement).dataset.analysisMode as "hypothesis" | "usability";
-      if (mode) switchAnalysisMode(mode);
-    });
-  });
-
-  // Chat input bindings for live mode
+  // Chat input
   const chatInputEl = $<HTMLInputElement>("chatInput");
   const chatSendBtnEl = $<HTMLButtonElement>("chatSendBtn");
-  if (chatInputEl && chatSendBtnEl) {
-    chatInputEl.addEventListener("keydown", (e) => {
-      if (e.key === "Enter" && chatInputEl.value.trim()) {
-        handleLiveFreeTextInput(chatInputEl.value.trim());
-        chatInputEl.value = "";
-      }
-    });
-    chatSendBtnEl.addEventListener("click", () => {
-      if (chatInputEl.value.trim()) {
-        handleLiveFreeTextInput(chatInputEl.value.trim());
-        chatInputEl.value = "";
-      }
-    });
-  }
+  chatInputEl.addEventListener("keydown", (e) => {
+    if (e.key === "Enter" && chatInputEl.value.trim()) {
+      handleChatInput(chatInputEl.value.trim());
+      chatInputEl.value = "";
+    }
+  });
+  chatSendBtnEl.addEventListener("click", () => {
+    if (chatInputEl.value.trim()) {
+      handleChatInput(chatInputEl.value.trim());
+      chatInputEl.value = "";
+    }
+  });
 
-  // Request initial file info + model
-  parent.postMessage({ pluginMessage: { type: "get-file-info" } }, "*");
-  parent.postMessage({ pluginMessage: { type: "load-model" } }, "*");
+  // Reset button
+  $("chatResetBtn").addEventListener("click", resetChat);
 
-  // Initial free mode check (after API key loads)
   setTimeout(checkFreeMode, 500);
 });
 
@@ -478,19 +357,6 @@ window.onmessage = (event) => {
     applyI18n();
   }
 
-  if (msg.type === "live-frame-capturing") {
-    // optional: show capturing status
-  }
-  if (msg.type === "live-frame-selected") {
-    handleLiveFrameSelected(msg.payload as { nodeId: string; nodeName: string; imageBase64: string; texts: ExtractedText[] });
-  }
-  if (msg.type === "live-frame-deselected") {
-    // frame deselected — keep existing conversation
-  }
-  if (msg.type === "live-frame-error") {
-    addLiveMsg({ id: liveId(), role: "bot", content: `프레임 캡처 실패: ${(msg as { message: string }).message}` });
-  }
-
   if (msg.type === "model-loaded") {
     const model = msg.model as string;
     if (model) {
@@ -498,18 +364,19 @@ window.onmessage = (event) => {
     }
   }
 
-  if (msg.type === "selection-changed") {
-    updateSelectionBar(msg.count, msg.names);
-    // A/B 변형 모드: 단일 텍스트 노드 선택 시 자동으로 원본 텍스트 채우기
-    if (currentMode === "variants" && msg.count === 1) {
-      parent.postMessage({ pluginMessage: { type: "get-selected-text-node" } }, "*");
-    }
+  // New frame selection messages
+  if (msg.type === "frames-selected") {
+    handleFramesSelected((msg.payload as { frames: FrameInfo[] }).frames);
+  }
+  if (msg.type === "frames-deselected") {
+    handleFramesDeselected();
+  }
+  if (msg.type === "frames-too-many") {
+    handleTooManyFrames(msg.count as number);
   }
 
   if (msg.type === "variant-result") {
-    if (msg.success) {
-      // 적용 성공 피드백은 버튼 상태로만 표시
-    } else {
+    if (!msg.success) {
       showError(msg.error || t("error.variantFail"));
     }
   }
@@ -520,10 +387,6 @@ window.onmessage = (event) => {
       inp.value = msg.text as string;
       pendingVariantNodeId = (msg.nodeId as string) || null;
     }
-  }
-
-  if (msg.type === "file-info") {
-    updateSelectionBar(msg.selectionCount, msg.names || []);
   }
 
   if (msg.type === "selection-ready") {
@@ -556,11 +419,9 @@ window.onmessage = (event) => {
     if (fixLoading) fixLoading.remove();
 
     if (msg.success) {
-      // Mark all fixes for this frame as applied
       const appliedCount = msg.appliedCount as number;
       const totalFixes = msg.totalFixes as number;
 
-      // Find the frame index from pending fix context
       const pendingFrameIdx = (window as unknown as Record<string, number>).__pendingFixFrameIdx;
       if (pendingFrameIdx !== undefined) {
         const result = lastWritingResults[pendingFrameIdx];
@@ -568,7 +429,6 @@ window.onmessage = (event) => {
           for (let i = 0; i < result.issues.length; i++) {
             appliedFixes.add(`${pendingFrameIdx}-${i}`);
           }
-          // Update all buttons for this frame
           updateFixButtons(pendingFrameIdx);
         }
       }
@@ -592,71 +452,18 @@ window.onmessage = (event) => {
   }
 
   if (msg.type === "error") {
-    hideLoading();
     showError(msg.message);
   }
 };
 
-// -------- Selection state --------
-function updateSelectionBar(count: number, names: string[]) {
-  const bar = $("selectionBar");
-  bar.dataset.count = String(count);
-  bar.dataset.names = names.join(",");
-
-  const analysisBtn = $<HTMLButtonElement>("runBtn");
-  const flowBtn = $<HTMLButtonElement>("runFlowBtn");
-  const writingBtn = $<HTMLButtonElement>("runWritingBtn");
-  const multiBtn = $<HTMLButtonElement>("runMultiBtn");
-
-  if (count === 0) {
-    bar.textContent = t("selection.empty");
-    bar.className = "selection-bar";
-    analysisBtn.disabled = true;
-    analysisBtn.textContent = t("btn.noSelection");
-    flowBtn.disabled = true;
-    writingBtn.disabled = true;
-    writingBtn.textContent = t("btn.noSelection");
-    multiBtn.disabled = true;
-    multiBtn.style.display = "none";
-  } else {
-    const preview = names.slice(0, 2).join(", ");
-    const suffix = names.length > 2 ? t("selection.countSuffix") : "";
-    bar.textContent = t("selection.count", { n: count, names: preview + suffix });
-    bar.className = "selection-bar active";
-    const n = Math.min(count, 8);
-    analysisBtn.disabled = false;
-    analysisBtn.textContent = count === 1 ? t("btn.analyze") : t("btn.analyzeMulti", { n });
-    flowBtn.disabled = count < 2;
-    writingBtn.disabled = false;
-    writingBtn.textContent = t("btn.writingCheck", { n });
-    if (count >= 2) {
-      multiBtn.disabled = false;
-      multiBtn.style.display = "block";
-      multiBtn.textContent = t("btn.multiIndividual", { n });
-    } else {
-      multiBtn.disabled = true;
-      multiBtn.style.display = "none";
-    }
-  }
+// -------- Selection state (stub — UI elements removed) --------
+function updateSelectionBar(_count: number, _names: string[]) {
+  // No-op: selection bar removed from UI
 }
 
-// -------- Analysis mode switching --------
+// -------- Analysis mode switching (stub) --------
 function switchAnalysisMode(mode: "hypothesis" | "usability") {
   analysisMode = mode;
-  document.querySelectorAll(".analysis-mode-tab").forEach((el) => {
-    const m = (el as HTMLElement).dataset.analysisMode;
-    el.className = "analysis-mode-tab" + (m === mode ? " active" : "");
-  });
-
-  const hypothesisField = $("hypothesisField");
-  const focusKeywordField = $("focusKeywordField");
-  if (mode === "usability") {
-    hypothesisField.style.display = "none";
-    focusKeywordField.style.display = "block";
-  } else {
-    hypothesisField.style.display = "block";
-    focusKeywordField.style.display = "none";
-  }
 }
 
 // -------- Run analysis --------
@@ -664,7 +471,7 @@ function runAnalysis() {
   checkFreeMode();
 
   if (analysisMode === "hypothesis") {
-    const hypothesis = $<HTMLTextAreaElement>("hypothesis").value.trim();
+    const hypothesis = $<HTMLTextAreaElement>("hypothesis")?.value?.trim();
     if (!hypothesis) {
       showError(t("error.noHypothesis"));
       return;
@@ -680,7 +487,7 @@ function runAnalysis() {
 function runMultiAnalysis() {
   checkFreeMode();
   if (analysisMode === "hypothesis") {
-    const hypothesis = $<HTMLTextAreaElement>("hypothesis").value.trim();
+    const hypothesis = $<HTMLTextAreaElement>("hypothesis")?.value?.trim();
     if (!hypothesis) { showError(t("error.noHypothesis")); return; }
   }
   hideError();
@@ -1310,49 +1117,14 @@ function switchTab(tab: string) {
 }
 
 function resetToInput() {
-  $("report").className = "report";
-  $("writingReport").className = "writing-report";
-  $("writingActions").style.display = "none";
   selectedImages = [];
   lastWritingResults = [];
-
-  if (currentMode === "analysis") {
-    $("inputForm").style.display = "flex";
-    $("writingForm").style.display = "none";
-  } else {
-    $("inputForm").style.display = "none";
-    $("writingForm").style.display = "flex";
-  }
+  // Legacy UI elements removed — no-op for DOM manipulation
 }
 
-// -------- Mode switching --------
-function switchMode(mode: "analysis" | "writing" | "variants" | "live") {
-  if (mode !== "live") currentMode = mode;
-  document.querySelectorAll(".mode-tab").forEach((el) => {
-    const m = (el as HTMLElement).dataset.mode;
-    el.className = "mode-tab" + (m === mode ? " active" : "");
-  });
-
-  // Show/hide form sections
-  $("inputForm").style.display = mode === "analysis" ? "flex" : "none";
-  $("writingForm").style.display = mode === "writing" ? "flex" : "none";
-  $("variantsForm").style.display = mode === "variants" ? "flex" : "none";
-  $("report").className = "report";
-  $("writingReport").className = "writing-report";
-
-  const liveModeEl = $("liveMode");
-  if (liveModeEl) liveModeEl.style.display = mode === "live" ? "flex" : "none";
-  if (mode === "live") {
-    parent.postMessage({ pluginMessage: { type: "enable-live-mode" } }, "*");
-  } else {
-    parent.postMessage({ pluginMessage: { type: "disable-live-mode" } }, "*");
-  }
-
-  // Update button text
-  updateSelectionBar(
-    parseInt($("selectionBar").dataset.count || "0"),
-    ($("selectionBar").dataset.names || "").split(",").filter(Boolean),
-  );
+// -------- Mode switching (stub — mode bar removed) --------
+function switchMode(_mode: "analysis" | "writing" | "variants" | "live") {
+  // No-op: mode bar removed from UI
 }
 
 // -------- UX Writing Check --------
@@ -1702,20 +1474,13 @@ function showWritingReport(results: WritingCheckResult[]) {
 
 // -------- Loading / error helpers --------
 function showLoading() {
-  $("inputForm").style.display = "none";
-  $("writingForm").style.display = "none";
-  $("loading").className = "loading visible";
+  // No-op: loading indicator removed — chat streaming shows progress
 }
 function hideLoading() {
-  $("loading").className = "loading";
-  if (currentMode === "analysis") {
-    $("inputForm").style.display = "flex";
-  } else {
-    $("writingForm").style.display = "flex";
-  }
+  // No-op
 }
-function updateLoadingMsg(msg: string) {
-  $("loadingMsg").textContent = msg;
+function updateLoadingMsg(_msg: string) {
+  // No-op
 }
 function showError(msg: string) {
   const el = $("errorMsg");
@@ -2243,63 +2008,65 @@ function showFixToast(message: string, type: "success" | "error") {
   }, 3000);
 }
 
-// ──────────────── 라이브 분석 모드 함수 ────────────────
+// ──────────────── 채팅 인터페이스 함수 ────────────────
 
-function liveId(): string {
+function chatId(): string {
   return Math.random().toString(36).slice(2, 9);
 }
 
-function addLiveMsg(msg: LiveMessage) {
-  liveMessages.push(msg);
-  renderLiveMessages();
+function addMsg(msg: ChatMessage) {
+  chatMessages.push(msg);
+  renderMessages();
 }
 
-function updateLiveMsg(id: string, patch: Partial<LiveMessage>) {
-  const idx = liveMessages.findIndex((m) => m.id === id);
-  if (idx !== -1) liveMessages[idx] = { ...liveMessages[idx], ...patch };
-  renderLiveMessages();
+function updateMsg(id: string, patch: Partial<ChatMessage>) {
+  const idx = chatMessages.findIndex((m) => m.id === id);
+  if (idx !== -1) chatMessages[idx] = { ...chatMessages[idx], ...patch };
+  renderMessages();
 }
 
-function renderLiveMessages() {
-  const el = $("chatMessages");
-  if (!el) return;
-  const hint = $("liveHint");
+function renderMessages() {
+  const container = $("chatMessages");
+  const emptyState = $("emptyState");
+  if (!container) return;
 
-  if (liveMessages.length === 0) {
-    if (hint) (hint as HTMLElement).style.display = "flex";
-    el.innerHTML = "";
+  if (chatMessages.length === 0) {
+    if (emptyState) emptyState.classList.remove("hidden");
+    container.classList.add("hidden");
+    container.innerHTML = "";
     return;
   }
-  if (hint) (hint as HTMLElement).style.display = "none";
+  if (emptyState) emptyState.classList.add("hidden");
+  container.classList.remove("hidden");
+  container.innerHTML = chatMessages.map(renderMsgHTML).join("");
 
-  el.innerHTML = liveMessages.map((msg) => renderLiveMsgHTML(msg)).join("");
-
-  el.querySelectorAll(".chat-label-chip:not(.disabled)").forEach((chip) => {
+  // Attach event listeners
+  container.querySelectorAll(".chat-label-chip:not(.disabled)").forEach((chip) => {
     (chip as HTMLElement).addEventListener("click", () => {
-      handleLiveLabelClick((chip as HTMLElement).dataset.cat!);
+      handleIntentLabel((chip as HTMLElement).dataset.cat!);
     });
   });
-  el.querySelectorAll(".chat-followup-btn:not(.disabled)").forEach((btn) => {
+  container.querySelectorAll(".chat-followup-btn:not(.disabled)").forEach((btn) => {
     (btn as HTMLElement).addEventListener("click", () => {
       const catId = (btn as HTMLElement).dataset.cat!;
       const idx = parseInt((btn as HTMLElement).dataset.idx!);
-      const tree = LIVE_FOLLOW_UP_TREE[catId];
-      if (tree) handleLiveFollowUpClick(catId, tree.options[idx]);
+      const tree = FOLLOW_UP_TREE[catId];
+      if (tree) handleFollowUpClick(catId, tree.options[idx]);
     });
   });
-  el.querySelectorAll(".chat-action-btn").forEach((btn) => {
+  container.querySelectorAll(".chat-action-btn").forEach((btn) => {
     (btn as HTMLElement).addEventListener("click", () => {
-      handleLiveAction((btn as HTMLElement).dataset.action!);
+      handleChatAction((btn as HTMLElement).dataset.action!);
     });
   });
-  el.querySelectorAll(".mini-finding").forEach((finding) => {
+  container.querySelectorAll(".mini-finding").forEach((finding) => {
     finding.addEventListener("click", () => finding.classList.toggle("mini-finding-collapsed"));
   });
 
-  el.scrollTop = el.scrollHeight;
+  container.scrollTop = container.scrollHeight;
 }
 
-function renderLiveMsgHTML(msg: LiveMessage): string {
+function renderMsgHTML(msg: ChatMessage): string {
   const cls = msg.role === "user" ? "chat-msg-user" : msg.role === "system" ? "chat-msg-system" : "chat-msg-bot";
   let inner = `<div class="chat-bubble${msg.streaming ? " streaming-cursor" : ""}">${escapeHtml(msg.content)}</div>`;
 
@@ -2310,7 +2077,7 @@ function renderLiveMsgHTML(msg: LiveMessage): string {
   }
 
   if (msg.followUps && msg.followUps.length > 0) {
-    const catId = liveContext.selectedCategory ?? "";
+    const catId = contextStack.selectedCategory ?? "";
     inner += `<div class="chat-followups">${msg.followUps.map((o, i) =>
       `<button class="chat-followup-btn" data-idx="${i}" data-cat="${catId}">${escapeHtml(o.label)}</button>`
     ).join("")}</div>`;
@@ -2348,74 +2115,132 @@ function renderMiniReportHTML(report: LiveMiniReport): string {
   </div>`;
 }
 
-function handleLiveFrameSelected(payload: { nodeId: string; nodeName: string; imageBase64: string; texts: ExtractedText[] }) {
-  liveAbortController?.abort();
-  liveMessages = [];
-  liveContext = {
-    frameNodeId: payload.nodeId,
-    frameName: payload.nodeName,
-    frameImage: payload.imageBase64,
-    frameTexts: payload.texts,
-    selectedCategory: null,
-    conversationHistory: [],
-    lastReport: null,
+function handleFramesSelected(frames: FrameInfo[]) {
+  chatAbortController?.abort();
+  chatMessages = [];
+  contextStack = {
+    frames,
+    frameMode: frames.length > 1 ? null : "single",
+    intent: null, subContext: null, persona: null, pipeline: [],
+    conversationHistory: [], lastReport: null, selectedCategory: null,
   };
-  liveAnalyzing = false;
-  addLiveMsg({ id: liveId(), role: "system", content: `"${payload.nodeName}" 프레임 선택됨` });
-  addLiveMsg({ id: liveId(), role: "bot", content: "어떤 부분을 분석할까요?", labels: LIVE_CATEGORIES_LIST });
+  chatAnalyzing = false;
+
+  if (frames.length === 1) {
+    addMsg({ id: chatId(), role: "system", content: `"${frames[0].nodeName}" 선택됨` });
+    addMsg({ id: chatId(), role: "bot", content: "이 화면에서 뭘 해볼까요?", labels: INTENT_LABELS });
+  } else if (frames.length === 2) {
+    const names = frames.map((f) => f.nodeName).join(", ");
+    addMsg({ id: chatId(), role: "system", content: `${frames.length}개 프레임 선택됨: ${names}` });
+    addMsg({
+      id: chatId(), role: "bot",
+      content: `${frames.length}개 화면을 선택했네요.`,
+      labels: [
+        { id: "mode-compare", name: "Before/After 비교" },
+        { id: "mode-flow",    name: "플로우로 분석" },
+        { id: "mode-separate", name: "각각 따로 분석" },
+      ],
+    });
+  } else {
+    const names = frames.map((f) => f.nodeName).join(", ");
+    addMsg({ id: chatId(), role: "system", content: `${frames.length}개 프레임 선택됨: ${names}` });
+    addMsg({
+      id: chatId(), role: "bot",
+      content: `${frames.length}개 화면을 선택했네요. 어떻게 볼까요?`,
+      labels: [
+        { id: "mode-flow",    name: "플로우로 분석" },
+        { id: "mode-separate", name: "각각 따로 분석" },
+      ],
+    });
+  }
 }
 
-function handleLiveLabelClick(catId: string) {
-  if (liveAnalyzing || !liveContext.frameImage) return;
-  document.querySelectorAll(".chat-label-chip").forEach((c) => c.classList.add("disabled"));
-  liveContext.selectedCategory = catId;
-  const catName = LIVE_CATEGORIES_LIST.find((c) => c.id === catId)?.name ?? catId;
-  addLiveMsg({ id: liveId(), role: "user", content: catName });
+function handleFramesDeselected() {
+  if (contextStack.frames.length > 0) {
+    contextStack.frames = [];
+  }
+}
 
-  if (catId === "scan") {
-    startLiveAnalysis("scan", "");
+function handleTooManyFrames(count: number) {
+  chatMessages = [];
+  contextStack.frames = [];
+  renderMessages();
+  addMsg({
+    id: chatId(), role: "bot",
+    content: `${count}개는 너무 많아요. 핵심 프레임 1~5개를 선택해주세요.`,
+    labels: [],
+  });
+}
+
+function handleIntentLabel(labelId: string) {
+  if (chatAnalyzing) return;
+
+  // 프레임 모드 선택 처리
+  if (labelId.startsWith("mode-")) {
+    const mode = labelId.replace("mode-", "") as "compare" | "flow" | "separate";
+    contextStack.frameMode = mode;
+    document.querySelectorAll(".chat-label-chip").forEach((c) => c.classList.add("disabled"));
+    const modeNames: Record<string, string> = {
+      compare: "Before/After 비교",
+      flow: "플로우로 분석",
+      separate: "각각 따로 분석",
+    };
+    addMsg({ id: chatId(), role: "user", content: modeNames[mode] ?? mode });
+    addMsg({ id: chatId(), role: "bot", content: "어떤 부분을 집중적으로 볼까요?", labels: INTENT_LABELS });
     return;
   }
-  const tree = LIVE_FOLLOW_UP_TREE[catId];
+
+  if (!contextStack.frames.length) return;
+  document.querySelectorAll(".chat-label-chip").forEach((c) => c.classList.add("disabled"));
+  contextStack.selectedCategory = labelId;
+  const name = INTENT_LABELS.find((l) => l.id === labelId)?.name ?? labelId;
+  addMsg({ id: chatId(), role: "user", content: name });
+
+  if (labelId === "scan") {
+    startChatAnalysis("scan", "");
+    return;
+  }
+  const tree = FOLLOW_UP_TREE[labelId];
   if (tree) {
-    addLiveMsg({ id: liveId(), role: "bot", content: tree.question, followUps: tree.options });
+    addMsg({ id: chatId(), role: "bot", content: tree.question, followUps: tree.options });
   } else {
-    startLiveAnalysis(catId, "");
+    startChatAnalysis(labelId, "");
   }
 }
 
-function handleLiveFollowUpClick(catId: string, option: { id: string; label: string; contextValue: string }) {
-  if (liveAnalyzing) return;
+function handleFollowUpClick(catId: string, option: { id: string; label: string; contextValue: string }) {
+  if (chatAnalyzing) return;
   document.querySelectorAll(".chat-followup-btn").forEach((b) => b.classList.add("disabled"));
-  addLiveMsg({ id: liveId(), role: "user", content: option.label });
-  startLiveAnalysis(catId, option.contextValue);
+  addMsg({ id: chatId(), role: "user", content: option.label });
+  startChatAnalysis(catId, option.contextValue);
 }
 
-async function startLiveAnalysis(categoryId: string, followUpContext: string) {
-  if (!liveContext.frameImage) return;
-  liveAnalyzing = true;
+async function startChatAnalysis(categoryId: string, followUpContext: string) {
+  if (!contextStack.frames.length) return;
+  chatAnalyzing = true;
 
-  const msgId = liveId();
-  addLiveMsg({ id: msgId, role: "bot", content: "", streaming: true });
+  const frame = contextStack.frames[0];
+  const msgId = chatId();
+  addMsg({ id: msgId, role: "bot", content: "", streaming: true });
 
-  liveAbortController = new AbortController();
+  chatAbortController = new AbortController();
   const apiKey = getApiKey();
   const baseUrl = getSimuloBaseUrl();
-  const figmaOcrCtx = liveContext.frameTexts.length > 0
-    ? buildFigmaOcrContext([{ name: liveContext.frameName ?? "", base64: liveContext.frameImage, texts: liveContext.frameTexts }])
+  const figmaOcrCtx = (frame.texts?.length ?? 0) > 0
+    ? buildFigmaOcrContext([{ name: frame.nodeName, base64: frame.imageBase64, texts: frame.texts }])
     : undefined;
 
   try {
     const res = await fetch(`${baseUrl}/api/analyze/chat`, {
       method: "POST",
       headers: { "Content-Type": "application/json" },
-      signal: liveAbortController.signal,
+      signal: chatAbortController.signal,
       body: JSON.stringify({
-        image: liveContext.frameImage,
+        image: frame.imageBase64,
         categoryId,
         followUpContext,
-        conversationHistory: liveContext.conversationHistory,
-        frameName: liveContext.frameName,
+        conversationHistory: contextStack.conversationHistory,
+        frameName: frame.nodeName,
         apiKey: apiKey || undefined,
         ocrContext: figmaOcrCtx,
       }),
@@ -2423,8 +2248,8 @@ async function startLiveAnalysis(categoryId: string, followUpContext: string) {
 
     if (!res.ok) {
       const err = await res.json().catch(() => ({})) as { error?: string };
-      updateLiveMsg(msgId, { content: err?.error ?? "분석 중 오류가 발생했습니다.", streaming: false });
-      liveAnalyzing = false;
+      updateMsg(msgId, { content: err?.error ?? "분석 중 오류가 발생했습니다.", streaming: false });
+      chatAnalyzing = false;
       return;
     }
 
@@ -2445,8 +2270,7 @@ async function startLiveAnalysis(categoryId: string, followUpContext: string) {
           if (parsed.error) throw new Error(parsed.error);
           if (parsed.text) {
             accumulated += parsed.text;
-            // 스트리밍 중에는 raw JSON 노출 없이 로딩 메시지만 표시
-            updateLiveMsg(msgId, { content: "라이브 분석 중...", streaming: true });
+            updateMsg(msgId, { content: "분석 중...", streaming: true });
           }
         } catch { /* partial JSON ok */ }
       }
@@ -2458,7 +2282,7 @@ async function startLiveAnalysis(categoryId: string, followUpContext: string) {
       if (m) miniReport = JSON.parse(m[0]) as LiveMiniReport;
     } catch { /* ignore parse error */ }
 
-    updateLiveMsg(msgId, {
+    updateMsg(msgId, {
       content: miniReport?.quickSummary ?? accumulated.slice(0, 60),
       streaming: false,
       miniReport,
@@ -2468,51 +2292,67 @@ async function startLiveAnalysis(categoryId: string, followUpContext: string) {
       ],
     });
 
-    liveContext.lastReport = miniReport;
-    liveContext.conversationHistory = [
-      ...liveContext.conversationHistory,
-      { role: "user", content: `${liveContext.frameName} — ${categoryId} 분석` },
+    contextStack.lastReport = miniReport;
+    contextStack.conversationHistory = [
+      ...contextStack.conversationHistory,
+      { role: "user", content: `${frame.nodeName} — ${categoryId} 분석` },
       { role: "assistant", content: accumulated },
     ];
   } catch (err) {
     if ((err as Error)?.name === "AbortError") return;
-    updateLiveMsg(msgId, { content: "오류: " + String(err), streaming: false });
+    updateMsg(msgId, { content: "오류: " + String(err), streaming: false });
   } finally {
-    liveAnalyzing = false;
+    chatAnalyzing = false;
   }
 }
 
-function handleLiveAction(action: string) {
+function handleChatAction(action: string) {
   if (action === "rescan") {
-    if (!liveContext.frameImage) return;
-    liveMessages = liveMessages.slice(0, 1);
-    liveContext.selectedCategory = null;
-    liveContext.conversationHistory = [];
-    liveContext.lastReport = null;
-    liveAnalyzing = false;
-    addLiveMsg({ id: liveId(), role: "bot", content: "어떤 부분을 분석할까요?", labels: LIVE_CATEGORIES_LIST });
+    if (!contextStack.frames.length) return;
+    chatMessages = chatMessages.slice(0, 1);
+    contextStack.selectedCategory = null;
+    contextStack.conversationHistory = [];
+    contextStack.lastReport = null;
+    chatAnalyzing = false;
+    addMsg({ id: chatId(), role: "bot", content: "이 화면에서 뭘 해볼까요?", labels: INTENT_LABELS });
   } else if (action === "comment") {
-    if (!liveContext.lastReport) return;
+    if (!contextStack.lastReport) return;
     const sevEmoji = ["✅", "💡", "⚠️", "🔴", "🚨"];
-    const commentText = liveContext.lastReport.findings
+    const commentText = contextStack.lastReport.findings
       .map((f) => `${sevEmoji[Math.min(4, f.severity)]} [${f.criterion}] ${f.oneLineFinding}\n→ ${f.fix}`)
       .join("\n\n");
-    const fullComment = `📊 Simulo 분석 — ${liveContext.frameName ?? "선택된 프레임"}\n${liveContext.lastReport.quickSummary}\n\n${commentText}`;
-    // 클립보드에 복사
+    const frameName = contextStack.frames[0]?.nodeName ?? "선택된 프레임";
+    const fullComment = `📊 Simulo 분석 — ${frameName}\n${contextStack.lastReport.quickSummary}\n\n${commentText}`;
     navigator.clipboard.writeText(fullComment).catch(() => {});
-    // 팝업 표시
     showLiveCommentPopup(fullComment);
   }
 }
 
-function handleLiveFreeTextInput(text: string) {
-  if (!text.trim() || liveAnalyzing) return;
-  if (!liveContext.frameImage) {
-    addLiveMsg({ id: liveId(), role: "bot", content: "먼저 Figma에서 프레임을 선택해주세요." });
+function handleChatInput(text: string) {
+  if (!text.trim() || chatAnalyzing) return;
+  if (!contextStack.frames.length) {
+    addMsg({ id: chatId(), role: "bot", content: "먼저 Figma에서 프레임을 선택해주세요." });
     return;
   }
-  addLiveMsg({ id: liveId(), role: "user", content: text });
-  startLiveAnalysis(liveContext.selectedCategory ?? "scan", text);
+  addMsg({ id: chatId(), role: "user", content: text });
+  startChatAnalysis(contextStack.selectedCategory ?? "scan", text);
+}
+
+function resetChat() {
+  chatAbortController?.abort();
+  chatMessages = [];
+  contextStack.intent = null;
+  contextStack.subContext = null;
+  contextStack.selectedCategory = null;
+  contextStack.conversationHistory = [];
+  contextStack.lastReport = null;
+  contextStack.pipeline = [];
+  renderMessages();
+
+  if (contextStack.frames.length > 0) {
+    addMsg({ id: chatId(), role: "system", content: "대화를 새로 시작합니다." });
+    addMsg({ id: chatId(), role: "bot", content: "이 화면에서 뭘 해볼까요?", labels: INTENT_LABELS });
+  }
 }
 
 function showLiveCommentPopup(text: string) {
