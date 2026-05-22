@@ -2390,32 +2390,45 @@ function handleFollowUpClick(catId: string, option: { id: string; label: string;
   startChatAnalysis(category, option.contextValue);
 }
 
-async function startChatAnalysis(categoryId: string, followUpContext: string) {
+async function startChatAnalysis(_categoryId: string, followUpContext: string) {
   if (!contextStack.frames.length) return;
   chatAnalyzing = true;
 
-  const frame = contextStack.frames[0];
   const msgId = chatId();
   addMsg({ id: msgId, role: "bot", content: "", streaming: true });
 
   chatAbortController = new AbortController();
   const apiKey = getApiKey();
   const baseUrl = getSimuloBaseUrl();
-  const figmaOcrCtx = (frame.texts?.length ?? 0) > 0
-    ? buildFigmaOcrContext([{ name: frame.nodeName, base64: frame.imageBase64, texts: frame.texts }])
+
+  // Build OCR context from all selected frames
+  const framesWithText = contextStack.frames.filter((f) => f.texts?.length > 0);
+  const figmaOcrCtx = framesWithText.length > 0
+    ? buildFigmaOcrContext(
+        framesWithText.map((f) => ({ name: f.nodeName, base64: f.imageBase64, texts: f.texts }))
+      )
     : undefined;
 
+  // Resolve subContext: combine stored subContext + followUpContext
+  const resolvedSubCtx = [contextStack.subContext, followUpContext]
+    .filter(Boolean)
+    .join(" ");
+
   try {
-    const res = await fetch(`${baseUrl}/api/analyze/chat`, {
+    const res = await fetch(`${baseUrl}/api/chat`, {
       method: "POST",
       headers: { "Content-Type": "application/json" },
       signal: chatAbortController.signal,
       body: JSON.stringify({
-        image: frame.imageBase64,
-        categoryId,
-        followUpContext,
+        frames: contextStack.frames.map((f) => ({
+          nodeId: f.nodeId,
+          nodeName: f.nodeName,
+          imageBase64: f.imageBase64,
+        })),
+        intent: contextStack.intent ?? "full-scan",
+        subContext: resolvedSubCtx,
         conversationHistory: contextStack.conversationHistory,
-        frameName: frame.nodeName,
+        userMessage: followUpContext || "",
         apiKey: apiKey || undefined,
         ocrContext: figmaOcrCtx,
       }),
@@ -2477,7 +2490,7 @@ async function startChatAnalysis(categoryId: string, followUpContext: string) {
     });
     contextStack.conversationHistory = [
       ...contextStack.conversationHistory,
-      { role: "user", content: `${frame.nodeName} — ${categoryId} 분석` },
+      { role: "user", content: `${contextStack.frames[0]?.nodeName ?? "프레임"} — ${contextStack.intent ?? "scan"} 분석` },
       { role: "assistant", content: accumulated },
     ];
   } catch (err) {
