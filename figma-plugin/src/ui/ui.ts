@@ -240,7 +240,6 @@ function applyI18n() {
   const apiKeyHint = document.querySelector("#settingsPanel .settings-hint:first-of-type") as HTMLElement | null;
   if (apiKeyHint) apiKeyHint.textContent = t("settings.apiKeyHint");
 
-  const modelLabel = document.querySelector("#settingsPanel label[for='modelSelect'], #settingsPanel label:nth-of-type(2)") as HTMLElement | null;
   const allLabels = document.querySelectorAll("#settingsPanel label");
   if (allLabels[1]) allLabels[1].textContent = t("settings.modelLabel");
   const haikuOpt = $<HTMLSelectElement>("modelSelect").options[0];
@@ -390,6 +389,12 @@ window.addEventListener("DOMContentLoaded", () => {
   $("runMultiBtn").addEventListener("click", runMultiAnalysis);
   $("runWritingBtn").addEventListener("click", runWritingCheck);
   $("runVariantsBtn").addEventListener("click", runVariantGeneration);
+  $("scanEmptyTextsBtn").addEventListener("click", () => {
+    parent.postMessage({ pluginMessage: { type: "scan-empty-texts" } }, "*");
+    const resultEl = $("emptyTextsResult");
+    resultEl.style.display = "block";
+    resultEl.innerHTML = `<div style="color:#666;font-size:12px;padding:8px 0;">스캔 중...</div>`;
+  });
   $("resetBtn").addEventListener("click", () => { multiResults = []; currentResultIndex = 0; resetToInput(); });
   $("paginationPrev").addEventListener("click", () => { if (currentResultIndex > 0) showMultiReport(currentResultIndex - 1); });
   $("paginationNext").addEventListener("click", () => { if (currentResultIndex < multiResults.length - 1) showMultiReport(currentResultIndex + 1); });
@@ -591,6 +596,32 @@ window.onmessage = (event) => {
     savedSpreadsheetId = (msg.spreadsheetId as string) || "";
   }
 
+  if (msg.type === "empty-texts-result") {
+    const resultEl = $("emptyTextsResult");
+    if (!resultEl) return;
+    resultEl.style.display = "block";
+    if (msg.error) {
+      resultEl.innerHTML = `<div style="color:#fca5a5;font-size:12px;padding:8px 0;">${escapeHtml(msg.error as string)}</div>`;
+      return;
+    }
+    const nodes = (msg.nodes as Array<{ id: string; name: string; parentPath: string }>) || [];
+    if (nodes.length === 0) {
+      resultEl.innerHTML = `<div style="padding:10px 12px;background:#0f1f0f;border:1px solid #1a2e1a;border-radius:6px;font-size:12px;color:#86efac;">✓ 빈 텍스트 없음 — 핸드오프 준비 완료</div>`;
+      return;
+    }
+    let html = `<div style="font-size:11px;color:#fdba74;margin-bottom:8px;">빈 텍스트 ${nodes.length}개 발견</div>`;
+    for (const node of nodes) {
+      html += `<div class="issue-item" style="margin-bottom:6px;">
+        <div style="font-size:11px;color:#555;margin-bottom:3px;word-break:break-all;">${escapeHtml(node.parentPath)}</div>
+        <div style="display:flex;align-items:center;justify-content:space-between;gap:8px;">
+          <span style="font-size:12px;color:#aaa;flex:1;min-width:0;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;">${escapeHtml(node.name || "(이름 없음)")}</span>
+          <button onclick="parent.postMessage({pluginMessage:{type:'jump-to-node',nodeId:'${escapeHtml(node.id)}'}}, '*')" style="flex-shrink:0;padding:3px 9px;background:transparent;border:1px solid #333;border-radius:4px;color:#93c5fd;font-size:11px;cursor:pointer;font-family:inherit;">선택</button>
+        </div>
+      </div>`;
+    }
+    resultEl.innerHTML = html;
+  }
+
   if (msg.type === "error") {
     hideLoading();
     showError(msg.message);
@@ -607,6 +638,7 @@ function updateSelectionBar(count: number, names: string[]) {
   const flowBtn = $<HTMLButtonElement>("runFlowBtn");
   const writingBtn = $<HTMLButtonElement>("runWritingBtn");
   const multiBtn = $<HTMLButtonElement>("runMultiBtn");
+  const scanEmptyBtn = $<HTMLButtonElement>("scanEmptyTextsBtn");
 
   if (count === 0) {
     bar.textContent = t("selection.empty");
@@ -618,6 +650,7 @@ function updateSelectionBar(count: number, names: string[]) {
     writingBtn.textContent = t("btn.noSelection");
     multiBtn.disabled = true;
     multiBtn.style.display = "none";
+    if (scanEmptyBtn) scanEmptyBtn.disabled = true;
   } else {
     const preview = names.slice(0, 2).join(", ");
     const suffix = names.length > 2 ? t("selection.countSuffix") : "";
@@ -629,6 +662,7 @@ function updateSelectionBar(count: number, names: string[]) {
     flowBtn.disabled = count < 2;
     writingBtn.disabled = false;
     writingBtn.textContent = t("btn.writingCheck", { n });
+    if (scanEmptyBtn) scanEmptyBtn.disabled = false;
     if (count >= 2) {
       multiBtn.disabled = false;
       multiBtn.style.display = "block";
@@ -2276,20 +2310,21 @@ function renderLiveMessages() {
 
   el.querySelectorAll(".chat-label-chip:not(.disabled)").forEach((chip) => {
     (chip as HTMLElement).addEventListener("click", () => {
-      handleLiveLabelClick((chip as HTMLElement).dataset.cat!);
+      const cat = (chip as HTMLElement).dataset.cat ?? "";
+      handleLiveLabelClick(cat);
     });
   });
   el.querySelectorAll(".chat-followup-btn:not(.disabled)").forEach((btn) => {
     (btn as HTMLElement).addEventListener("click", () => {
-      const catId = (btn as HTMLElement).dataset.cat!;
-      const idx = parseInt((btn as HTMLElement).dataset.idx!);
+      const catId = (btn as HTMLElement).dataset.cat ?? "";
+      const idx = parseInt((btn as HTMLElement).dataset.idx ?? "0");
       const tree = LIVE_FOLLOW_UP_TREE[catId];
       if (tree) handleLiveFollowUpClick(catId, tree.options[idx]);
     });
   });
   el.querySelectorAll(".chat-action-btn").forEach((btn) => {
     (btn as HTMLElement).addEventListener("click", () => {
-      handleLiveAction((btn as HTMLElement).dataset.action!);
+      handleLiveAction((btn as HTMLElement).dataset.action ?? "");
     });
   });
   el.querySelectorAll(".mini-finding").forEach((finding) => {
