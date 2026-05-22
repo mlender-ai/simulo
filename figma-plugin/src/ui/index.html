@@ -565,6 +565,177 @@
       vertical-align: middle;
       letter-spacing: 0.03em;
     }
+    /* ── 라이브 분석 모드 ── */
+    #liveMode { overflow: hidden; }
+    .live-hint {
+      flex: 1;
+      display: flex;
+      flex-direction: column;
+      align-items: center;
+      justify-content: center;
+      gap: 10px;
+      color: #555;
+      font-size: 13px;
+      text-align: center;
+      padding: 20px;
+      line-height: 1.6;
+    }
+    .live-hint strong { color: #888; }
+    .live-hint-icon { font-size: 28px; opacity: 0.3; }
+    @keyframes pulse { 0%,100%{opacity:1} 50%{opacity:0.3} }
+    .chat-messages {
+      flex: 1;
+      overflow-y: auto;
+      padding: 12px 14px;
+      display: flex;
+      flex-direction: column;
+      gap: 10px;
+    }
+    .chat-msg { display: flex; flex-direction: column; gap: 4px; }
+    .chat-msg-bot .chat-bubble {
+      background: #141414;
+      border: 1px solid #1f1f1f;
+      border-radius: 0 10px 10px 10px;
+      padding: 10px 12px;
+      font-size: 12px;
+      color: #ccc;
+      line-height: 1.55;
+      max-width: 100%;
+    }
+    .chat-msg-user { align-items: flex-end; }
+    .chat-msg-user .chat-bubble {
+      background: #1a2a1a;
+      border: 1px solid #2a3a2a;
+      border-radius: 10px 10px 0 10px;
+      padding: 8px 12px;
+      font-size: 12px;
+      color: #a3e635;
+      max-width: 85%;
+    }
+    .chat-msg-system .chat-bubble {
+      background: transparent;
+      border: none;
+      padding: 4px 0;
+      font-size: 11px;
+      color: #444;
+      text-align: center;
+    }
+    .chat-labels {
+      display: flex;
+      flex-wrap: wrap;
+      gap: 6px;
+      padding-top: 6px;
+    }
+    .chat-label-chip {
+      padding: 5px 11px;
+      background: #111;
+      border: 1px solid #2a2a2a;
+      border-radius: 20px;
+      font-size: 11px;
+      color: #bbb;
+      cursor: pointer;
+      transition: all 0.12s;
+      user-select: none;
+    }
+    .chat-label-chip:hover { border-color: #555; color: #e5e5e5; }
+    .chat-label-chip.disabled { opacity: 0.35; cursor: default; pointer-events: none; }
+    .chat-followups {
+      display: flex;
+      flex-direction: column;
+      gap: 5px;
+      padding-top: 6px;
+    }
+    .chat-followup-btn {
+      padding: 7px 11px;
+      background: #111;
+      border: 1px solid #222;
+      border-radius: 6px;
+      font-size: 11px;
+      color: #aaa;
+      cursor: pointer;
+      text-align: left;
+      transition: all 0.12s;
+    }
+    .chat-followup-btn:hover { border-color: #444; color: #e5e5e5; }
+    .chat-followup-btn.disabled { opacity: 0.35; cursor: default; pointer-events: none; }
+    .streaming-cursor::after { content: "▋"; animation: blink 0.7s infinite; color: #a3e635; font-size: 10px; }
+    @keyframes blink { 0%,100%{opacity:1} 50%{opacity:0} }
+    .mini-report {
+      background: #0f1f0f;
+      border: 1px solid #1a2e1a;
+      border-radius: 8px;
+      padding: 12px;
+      margin-top: 6px;
+      display: flex;
+      flex-direction: column;
+      gap: 8px;
+    }
+    .mini-report-summary { font-size: 12px; font-weight: 600; color: #a3e635; }
+    .mini-finding {
+      padding: 8px;
+      background: #111;
+      border: 1px solid #1a1a1a;
+      border-radius: 6px;
+      cursor: pointer;
+    }
+    .mini-finding-header { display: flex; align-items: center; gap: 6px; margin-bottom: 4px; }
+    .sev-dot { width: 6px; height: 6px; border-radius: 50%; flex-shrink: 0; }
+    .sev-0 { background: #4ade80; }
+    .sev-1 { background: #93c5fd; }
+    .sev-2 { background: #fbbf24; }
+    .sev-3 { background: #f97316; }
+    .sev-4 { background: #f87171; }
+    .mini-finding-criterion { font-size: 10px; color: #888; }
+    .mini-finding-oneliner { font-size: 11px; color: #ccc; font-weight: 500; }
+    .mini-finding-detail { font-size: 11px; color: #888; margin-top: 4px; line-height: 1.5; }
+    .mini-finding-fix { font-size: 11px; color: #86efac; margin-top: 3px; line-height: 1.5; }
+    .mini-finding-fix-label { font-size: 9px; font-weight: 700; color: #4ade80; background: rgba(74,222,128,0.12); border: 1px solid rgba(74,222,128,0.25); border-radius: 3px; padding: 1px 5px; margin-right: 5px; }
+    .mini-finding-collapsed .mini-finding-detail,
+    .mini-finding-collapsed .mini-finding-fix { display: none; }
+    .chat-actions { display: flex; flex-wrap: wrap; gap: 5px; padding-top: 6px; }
+    .chat-action-btn {
+      padding: 5px 10px;
+      background: #111;
+      border: 1px solid #2a2a2a;
+      border-radius: 5px;
+      font-size: 11px;
+      color: #aaa;
+      cursor: pointer;
+      transition: all 0.12s;
+    }
+    .chat-action-btn:hover { border-color: #555; color: #e5e5e5; }
+    .chat-input-bar {
+      display: flex;
+      align-items: center;
+      gap: 6px;
+      padding: 8px 12px;
+      border-top: 1px solid #1a1a1a;
+      background: #0d0d0d;
+      flex-shrink: 0;
+    }
+    .chat-input-bar input {
+      flex: 1;
+      background: #111;
+      border: 1px solid #222;
+      border-radius: 6px;
+      color: #e5e5e5;
+      font-size: 12px;
+      padding: 7px 10px;
+      height: auto;
+    }
+    .chat-input-bar input:focus { border-color: #333; }
+    #chatSendBtn {
+      width: 30px; height: 30px;
+      background: #1a2a1a;
+      border: 1px solid #2a4a2a;
+      border-radius: 6px;
+      color: #a3e635;
+      font-size: 14px;
+      cursor: pointer;
+      flex-shrink: 0;
+    }
+    #chatSendBtn:disabled { opacity: 0.3; cursor: not-allowed; }
+
     .improvement-badges {
       margin-top: 6px;
       font-size: 11px;
@@ -684,6 +855,7 @@
     <div class="mode-tab active" data-mode="analysis">UX 분석</div>
     <div class="mode-tab" data-mode="writing">UX 라이팅</div>
     <div class="mode-tab" data-mode="variants">A/B 변형</div>
+    <div class="mode-tab" data-mode="live">라이브</div>
   </div>
 
   <div class="selection-bar" id="selectionBar" data-count="0" data-names="">
@@ -789,6 +961,19 @@
     </div>
 
     <button class="btn-secondary" id="resetBtn">← 다시 분석</button>
+  </div>
+
+  <!-- 라이브 분석 모드 -->
+  <div id="liveMode" style="display:none;flex-direction:column;height:calc(100vh - 118px);">
+    <div class="live-hint" id="liveHint">
+      <div class="live-hint-icon">⬡</div>
+      <div>Figma에서 <strong>프레임</strong>을 선택하면<br>바로 분석이 시작됩니다</div>
+    </div>
+    <div class="chat-messages" id="chatMessages"></div>
+    <div class="chat-input-bar">
+      <input type="text" id="chatInput" placeholder="추가 질문을 입력하세요..." />
+      <button id="chatSendBtn">↑</button>
+    </div>
   </div>
 
   <!-- A/B 변형 생성 섹션 -->

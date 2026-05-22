@@ -69,6 +69,91 @@ let lastWritingResults: WritingCheckResult[] = [];
 let lastFileKey = "";
 let appliedFixes = new Set<string>(); // "frameIdx-issueIdx" tracking
 let freeMode = false; // API 키 없거나 초과 시 true
+
+// ── Live analysis mode types ──
+interface LiveMessage {
+  id: string;
+  role: "bot" | "user" | "system";
+  content: string;
+  labels?: { id: string; name: string }[];
+  followUps?: { id: string; label: string; contextValue: string }[];
+  miniReport?: LiveMiniReport | null;
+  actions?: { id: string; label: string }[];
+  streaming?: boolean;
+}
+
+interface LiveMiniReport {
+  quickSummary: string;
+  findings: Array<{
+    criterion: string;
+    severity: number;
+    oneLineFinding: string;
+    detail: string;
+    fix: string;
+  }>;
+  nextQuestion: string | null;
+}
+
+interface LiveContext {
+  frameNodeId: string | null;
+  frameName: string | null;
+  frameImage: string | null;
+  frameTexts: ExtractedText[];
+  selectedCategory: string | null;
+  conversationHistory: Array<{ role: string; content: string }>;
+  lastReport: LiveMiniReport | null;
+}
+
+let liveMessages: LiveMessage[] = [];
+let liveContext: LiveContext = {
+  frameNodeId: null, frameName: null, frameImage: null, frameTexts: [],
+  selectedCategory: null, conversationHistory: [], lastReport: null,
+};
+let liveAnalyzing = false;
+let liveAbortController: AbortController | null = null;
+
+const LIVE_CATEGORIES_LIST = [
+  { id: "scan",      name: "전체 스캔" },
+  { id: "usability", name: "사용성" },
+  { id: "writing",   name: "UX 라이팅" },
+  { id: "visual",    name: "시각 위계" },
+  { id: "cta",       name: "전환/CTA" },
+];
+
+const LIVE_FOLLOW_UP_TREE: Record<string, { question: string; options: { id: string; label: string; contextValue: string }[] }> = {
+  usability: {
+    question: "어떤 사용 맥락에서 이 화면을 보나요?",
+    options: [
+      { id: "onboarding", label: "신규 사용자 첫 경험", contextValue: "신규 사용자가 처음 보는 화면입니다. 학습 없이도 다음 행동이 명확한지, 혼란 요소가 없는지 집중 평가하세요." },
+      { id: "core",       label: "반복 사용자 핵심 기능", contextValue: "이미 앱에 익숙한 반복 사용자가 핵심 기능을 사용하는 화면입니다. 효율성과 피로도에 집중하세요." },
+      { id: "conversion", label: "전환/완료 직전 단계",  contextValue: "사용자가 구매, 가입, 미션 완료 등 핵심 전환 직전의 화면입니다. 마지막 장벽과 불안 요소를 집중 분석하세요." },
+    ],
+  },
+  writing: {
+    question: "어떤 텍스트 요소를 집중 검토할까요?",
+    options: [
+      { id: "headline",  label: "헤드라인·제목",    contextValue: "화면의 헤드라인과 주요 제목 텍스트를 집중 분석합니다. 명확성, 감정, 행동 유도 여부를 평가하세요." },
+      { id: "cta-label", label: "버튼·CTA 레이블",  contextValue: "버튼과 CTA 레이블의 명확성을 집중 분석합니다. 클릭 후 어떤 일이 일어날지 예측 가능한지 평가하세요." },
+      { id: "guide",     label: "안내문·도움말",     contextValue: "안내 문구, 설명 텍스트, 마이크로카피를 집중 분석합니다. 필요한 정보를 최소 언어로 전달하는지 평가하세요." },
+    ],
+  },
+  visual: {
+    question: "시각 요소 중 어디를 집중 검토할까요?",
+    options: [
+      { id: "hierarchy", label: "정보 계층·레이아웃", contextValue: "화면의 정보 계층과 레이아웃을 집중 분석합니다. 사용자 시선이 중요도 순서대로 이동하는지 평가하세요." },
+      { id: "contrast",  label: "색상·대비·가독성",  contextValue: "색상 사용과 대비, 텍스트 가독성을 집중 분석합니다. WCAG 대비 기준 충족 여부와 접근성을 확인하세요." },
+      { id: "density",   label: "여백·밀도·집중도",  contextValue: "여백 사용과 정보 밀도를 집중 분석합니다. 과부하 없이 핵심에 집중하게 만드는지 평가하세요." },
+    ],
+  },
+  cta: {
+    question: "전환 흐름의 어느 부분을 검토할까요?",
+    options: [
+      { id: "button", label: "CTA 버튼 명확성",  contextValue: "CTA 버튼의 명확성과 시각적 우선순위를 집중 분석합니다. 가장 중요한 행동이 즉시 눈에 띄는지 확인하세요." },
+      { id: "form",   label: "폼/입력 흐름",     contextValue: "입력 폼의 흐름과 마찰 요소를 집중 분석합니다. 완료까지의 인지 부하와 입력 오류 가능성을 평가하세요." },
+      { id: "trust",  label: "신뢰·불안 요소",   contextValue: "전환을 방해하는 불안 요소와 신뢰를 높이는 요소를 분석합니다. 사용자가 주저하게 만드는 모든 마찰을 찾으세요." },
+    ],
+  },
+};
 let googleTokens: { access_token: string; refresh_token: string; expiry_date?: number } | null = null;
 let savedSpreadsheetId = "";
 let googleAuthPollTimer: ReturnType<typeof setInterval> | null = null;
@@ -320,7 +405,7 @@ window.addEventListener("DOMContentLoaded", () => {
   // Mode toggle
   document.querySelectorAll(".mode-tab").forEach((tab) => {
     tab.addEventListener("click", () => {
-      const mode = (tab as HTMLElement).dataset.mode as "analysis" | "writing" | "variants";
+      const mode = (tab as HTMLElement).dataset.mode as "analysis" | "writing" | "variants" | "live";
       if (mode) switchMode(mode);
     });
   });
@@ -339,6 +424,24 @@ window.addEventListener("DOMContentLoaded", () => {
       if (mode) switchAnalysisMode(mode);
     });
   });
+
+  // Chat input bindings for live mode
+  const chatInputEl = $<HTMLInputElement>("chatInput");
+  const chatSendBtnEl = $<HTMLButtonElement>("chatSendBtn");
+  if (chatInputEl && chatSendBtnEl) {
+    chatInputEl.addEventListener("keydown", (e) => {
+      if (e.key === "Enter" && chatInputEl.value.trim()) {
+        handleLiveFreeTextInput(chatInputEl.value.trim());
+        chatInputEl.value = "";
+      }
+    });
+    chatSendBtnEl.addEventListener("click", () => {
+      if (chatInputEl.value.trim()) {
+        handleLiveFreeTextInput(chatInputEl.value.trim());
+        chatInputEl.value = "";
+      }
+    });
+  }
 
   // Request initial file info + model
   parent.postMessage({ pluginMessage: { type: "get-file-info" } }, "*");
@@ -373,6 +476,19 @@ window.onmessage = (event) => {
     setLang(lang);
     $<HTMLSelectElement>("langSelect").value = lang;
     applyI18n();
+  }
+
+  if (msg.type === "live-frame-capturing") {
+    // optional: show capturing status
+  }
+  if (msg.type === "live-frame-selected") {
+    handleLiveFrameSelected(msg.payload as { nodeId: string; nodeName: string; imageBase64: string; texts: ExtractedText[] });
+  }
+  if (msg.type === "live-frame-deselected") {
+    // frame deselected — keep existing conversation
+  }
+  if (msg.type === "live-frame-error") {
+    addLiveMsg({ id: liveId(), role: "bot", content: `프레임 캡처 실패: ${(msg as { message: string }).message}` });
   }
 
   if (msg.type === "model-loaded") {
@@ -1210,8 +1326,8 @@ function resetToInput() {
 }
 
 // -------- Mode switching --------
-function switchMode(mode: "analysis" | "writing" | "variants") {
-  currentMode = mode;
+function switchMode(mode: "analysis" | "writing" | "variants" | "live") {
+  if (mode !== "live") currentMode = mode;
   document.querySelectorAll(".mode-tab").forEach((el) => {
     const m = (el as HTMLElement).dataset.mode;
     el.className = "mode-tab" + (m === mode ? " active" : "");
@@ -1223,6 +1339,14 @@ function switchMode(mode: "analysis" | "writing" | "variants") {
   $("variantsForm").style.display = mode === "variants" ? "flex" : "none";
   $("report").className = "report";
   $("writingReport").className = "writing-report";
+
+  const liveModeEl = $("liveMode");
+  if (liveModeEl) liveModeEl.style.display = mode === "live" ? "flex" : "none";
+  if (mode === "live") {
+    parent.postMessage({ pluginMessage: { type: "enable-live-mode" } }, "*");
+  } else {
+    parent.postMessage({ pluginMessage: { type: "disable-live-mode" } }, "*");
+  }
 
   // Update button text
   updateSelectionBar(
@@ -2117,4 +2241,278 @@ function showFixToast(message: string, type: "success" | "error") {
     toast.classList.add("fix-toast-hide");
     setTimeout(() => toast.remove(), 300);
   }, 3000);
+}
+
+// ──────────────── 라이브 분석 모드 함수 ────────────────
+
+function liveId(): string {
+  return Math.random().toString(36).slice(2, 9);
+}
+
+function addLiveMsg(msg: LiveMessage) {
+  liveMessages.push(msg);
+  renderLiveMessages();
+}
+
+function updateLiveMsg(id: string, patch: Partial<LiveMessage>) {
+  const idx = liveMessages.findIndex((m) => m.id === id);
+  if (idx !== -1) liveMessages[idx] = { ...liveMessages[idx], ...patch };
+  renderLiveMessages();
+}
+
+function renderLiveMessages() {
+  const el = $("chatMessages");
+  if (!el) return;
+  const hint = $("liveHint");
+
+  if (liveMessages.length === 0) {
+    if (hint) (hint as HTMLElement).style.display = "flex";
+    el.innerHTML = "";
+    return;
+  }
+  if (hint) (hint as HTMLElement).style.display = "none";
+
+  el.innerHTML = liveMessages.map((msg) => renderLiveMsgHTML(msg)).join("");
+
+  el.querySelectorAll(".chat-label-chip:not(.disabled)").forEach((chip) => {
+    (chip as HTMLElement).addEventListener("click", () => {
+      handleLiveLabelClick((chip as HTMLElement).dataset.cat!);
+    });
+  });
+  el.querySelectorAll(".chat-followup-btn:not(.disabled)").forEach((btn) => {
+    (btn as HTMLElement).addEventListener("click", () => {
+      const catId = (btn as HTMLElement).dataset.cat!;
+      const idx = parseInt((btn as HTMLElement).dataset.idx!);
+      const tree = LIVE_FOLLOW_UP_TREE[catId];
+      if (tree) handleLiveFollowUpClick(catId, tree.options[idx]);
+    });
+  });
+  el.querySelectorAll(".chat-action-btn").forEach((btn) => {
+    (btn as HTMLElement).addEventListener("click", () => {
+      handleLiveAction((btn as HTMLElement).dataset.action!);
+    });
+  });
+  el.querySelectorAll(".mini-finding").forEach((finding) => {
+    finding.addEventListener("click", () => finding.classList.toggle("mini-finding-collapsed"));
+  });
+
+  el.scrollTop = el.scrollHeight;
+}
+
+function renderLiveMsgHTML(msg: LiveMessage): string {
+  const cls = msg.role === "user" ? "chat-msg-user" : msg.role === "system" ? "chat-msg-system" : "chat-msg-bot";
+  let inner = `<div class="chat-bubble${msg.streaming ? " streaming-cursor" : ""}">${escapeHtml(msg.content)}</div>`;
+
+  if (msg.labels) {
+    inner += `<div class="chat-labels">${msg.labels.map((l) =>
+      `<button class="chat-label-chip" data-cat="${l.id}">${escapeHtml(l.name)}</button>`
+    ).join("")}</div>`;
+  }
+
+  if (msg.followUps && msg.followUps.length > 0) {
+    const catId = liveContext.selectedCategory ?? "";
+    inner += `<div class="chat-followups">${msg.followUps.map((o, i) =>
+      `<button class="chat-followup-btn" data-idx="${i}" data-cat="${catId}">${escapeHtml(o.label)}</button>`
+    ).join("")}</div>`;
+  }
+
+  if (msg.miniReport) inner += renderMiniReportHTML(msg.miniReport);
+
+  if (msg.actions && msg.actions.length > 0) {
+    inner += `<div class="chat-actions">${msg.actions.map((a) =>
+      `<button class="chat-action-btn" data-action="${a.id}">${escapeHtml(a.label)}</button>`
+    ).join("")}</div>`;
+  }
+
+  return `<div class="chat-msg ${cls}">${inner}</div>`;
+}
+
+function renderMiniReportHTML(report: LiveMiniReport): string {
+  const sevCls = ["sev-0", "sev-1", "sev-2", "sev-3", "sev-4"];
+  const findings = report.findings.map((f) => {
+    const s = Math.min(4, Math.max(0, f.severity));
+    return `<div class="mini-finding mini-finding-collapsed">
+      <div class="mini-finding-header">
+        <div class="sev-dot ${sevCls[s]}"></div>
+        <span class="mini-finding-criterion">${escapeHtml(f.criterion)}</span>
+        <span class="mini-finding-oneliner">${escapeHtml(f.oneLineFinding)}</span>
+      </div>
+      <div class="mini-finding-detail">${escapeHtml(f.detail)}</div>
+      <div class="mini-finding-fix"><span class="mini-finding-fix-label">수정</span>${escapeHtml(f.fix)}</div>
+    </div>`;
+  }).join("");
+  return `<div class="mini-report">
+    <div class="mini-report-summary">${escapeHtml(report.quickSummary)}</div>
+    ${findings}
+    ${report.nextQuestion ? `<div style="font-size:11px;color:#555;margin-top:2px;">💬 ${escapeHtml(report.nextQuestion)}</div>` : ""}
+  </div>`;
+}
+
+function handleLiveFrameSelected(payload: { nodeId: string; nodeName: string; imageBase64: string; texts: ExtractedText[] }) {
+  liveAbortController?.abort();
+  liveMessages = [];
+  liveContext = {
+    frameNodeId: payload.nodeId,
+    frameName: payload.nodeName,
+    frameImage: payload.imageBase64,
+    frameTexts: payload.texts,
+    selectedCategory: null,
+    conversationHistory: [],
+    lastReport: null,
+  };
+  liveAnalyzing = false;
+  addLiveMsg({ id: liveId(), role: "system", content: `"${payload.nodeName}" 프레임 선택됨` });
+  addLiveMsg({ id: liveId(), role: "bot", content: "어떤 부분을 분석할까요?", labels: LIVE_CATEGORIES_LIST });
+}
+
+function handleLiveLabelClick(catId: string) {
+  if (liveAnalyzing || !liveContext.frameImage) return;
+  document.querySelectorAll(".chat-label-chip").forEach((c) => c.classList.add("disabled"));
+  liveContext.selectedCategory = catId;
+  const catName = LIVE_CATEGORIES_LIST.find((c) => c.id === catId)?.name ?? catId;
+  addLiveMsg({ id: liveId(), role: "user", content: catName });
+
+  if (catId === "scan") {
+    startLiveAnalysis("scan", "");
+    return;
+  }
+  const tree = LIVE_FOLLOW_UP_TREE[catId];
+  if (tree) {
+    addLiveMsg({ id: liveId(), role: "bot", content: tree.question, followUps: tree.options });
+  } else {
+    startLiveAnalysis(catId, "");
+  }
+}
+
+function handleLiveFollowUpClick(catId: string, option: { id: string; label: string; contextValue: string }) {
+  if (liveAnalyzing) return;
+  document.querySelectorAll(".chat-followup-btn").forEach((b) => b.classList.add("disabled"));
+  addLiveMsg({ id: liveId(), role: "user", content: option.label });
+  startLiveAnalysis(catId, option.contextValue);
+}
+
+async function startLiveAnalysis(categoryId: string, followUpContext: string) {
+  if (!liveContext.frameImage) return;
+  liveAnalyzing = true;
+
+  const msgId = liveId();
+  addLiveMsg({ id: msgId, role: "bot", content: "", streaming: true });
+
+  liveAbortController = new AbortController();
+  const apiKey = getApiKey();
+  const baseUrl = getSimuloBaseUrl();
+  const figmaOcrCtx = liveContext.frameTexts.length > 0
+    ? buildFigmaOcrContext([{ name: liveContext.frameName ?? "", base64: liveContext.frameImage, texts: liveContext.frameTexts }])
+    : undefined;
+
+  try {
+    const res = await fetch(`${baseUrl}/api/analyze/chat`, {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      signal: liveAbortController.signal,
+      body: JSON.stringify({
+        image: liveContext.frameImage,
+        categoryId,
+        followUpContext,
+        conversationHistory: liveContext.conversationHistory,
+        frameName: liveContext.frameName,
+        apiKey: apiKey || undefined,
+        ocrContext: figmaOcrCtx,
+      }),
+    });
+
+    if (!res.ok) {
+      const err = await res.json().catch(() => ({})) as { error?: string };
+      updateLiveMsg(msgId, { content: err?.error ?? "분석 중 오류가 발생했습니다.", streaming: false });
+      liveAnalyzing = false;
+      return;
+    }
+
+    const reader = res.body?.getReader();
+    const decoder = new TextDecoder();
+    let accumulated = "";
+
+    while (reader) {
+      const { done, value } = await reader.read();
+      if (done) break;
+      const chunk = decoder.decode(value);
+      for (const line of chunk.split("\n")) {
+        if (!line.startsWith("data: ")) continue;
+        const data = line.slice(6);
+        if (data === "[DONE]") break;
+        try {
+          const parsed = JSON.parse(data) as { text?: string; error?: string };
+          if (parsed.error) throw new Error(parsed.error);
+          if (parsed.text) {
+            accumulated += parsed.text;
+            updateLiveMsg(msgId, { content: accumulated, streaming: true });
+          }
+        } catch { /* partial JSON ok */ }
+      }
+    }
+
+    let miniReport: LiveMiniReport | null = null;
+    try {
+      const m = accumulated.match(/\{[\s\S]*\}/);
+      if (m) miniReport = JSON.parse(m[0]) as LiveMiniReport;
+    } catch { /* ignore parse error */ }
+
+    updateLiveMsg(msgId, {
+      content: miniReport?.quickSummary ?? accumulated.slice(0, 60),
+      streaming: false,
+      miniReport,
+      actions: [
+        { id: "rescan",  label: "↩ 다시 분석" },
+        { id: "comment", label: "💬 Figma 코멘트" },
+      ],
+    });
+
+    liveContext.lastReport = miniReport;
+    liveContext.conversationHistory = [
+      ...liveContext.conversationHistory,
+      { role: "user", content: `${liveContext.frameName} — ${categoryId} 분석` },
+      { role: "assistant", content: accumulated },
+    ];
+  } catch (err) {
+    if ((err as Error)?.name === "AbortError") return;
+    updateLiveMsg(msgId, { content: "오류: " + String(err), streaming: false });
+  } finally {
+    liveAnalyzing = false;
+  }
+}
+
+function handleLiveAction(action: string) {
+  if (action === "rescan") {
+    if (!liveContext.frameImage) return;
+    liveMessages = liveMessages.slice(0, 1);
+    liveContext.selectedCategory = null;
+    liveContext.conversationHistory = [];
+    liveContext.lastReport = null;
+    liveAnalyzing = false;
+    addLiveMsg({ id: liveId(), role: "bot", content: "어떤 부분을 분석할까요?", labels: LIVE_CATEGORIES_LIST });
+  } else if (action === "comment") {
+    if (!liveContext.frameNodeId || !liveContext.lastReport) return;
+    const sevEmoji = ["✅", "💡", "⚠️", "🔴", "🚨"];
+    const commentText = liveContext.lastReport.findings
+      .map((f) => `${sevEmoji[Math.min(4, f.severity)]} [${f.criterion}] ${f.oneLineFinding}\n→ ${f.fix}`)
+      .join("\n\n");
+    parent.postMessage({
+      pluginMessage: {
+        type: "post-figma-comment",
+        nodeId: liveContext.frameNodeId,
+        comment: `📊 Simulo 분석\n${liveContext.lastReport.quickSummary}\n\n${commentText}`,
+      },
+    }, "*");
+    addLiveMsg({ id: liveId(), role: "bot", content: `"${liveContext.frameName}"에 분석 결과를 저장했습니다.` });
+  }
+}
+
+function handleLiveFreeTextInput(text: string) {
+  if (!text.trim() || liveAnalyzing) return;
+  if (!liveContext.frameImage) {
+    addLiveMsg({ id: liveId(), role: "bot", content: "먼저 Figma에서 프레임을 선택해주세요." });
+    return;
+  }
+  addLiveMsg({ id: liveId(), role: "user", content: text });
+  startLiveAnalysis(liveContext.selectedCategory ?? "scan", text);
 }
