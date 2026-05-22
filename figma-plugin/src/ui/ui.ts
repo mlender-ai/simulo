@@ -1020,7 +1020,7 @@ function showUsabilityReport(data: Record<string, unknown>) {
           improvementsHtml += `
             <div class="improvement-item">
               <div class="improvement-problem">${escapeHtml(qw.issue || qw.title || "")}</div>
-              <div class="improvement-fix">→ ${escapeHtml(fix)}</div>
+              <div class="improvement-fix"><span class="fix-label">${t("report.fix.label")}</span>${escapeHtml(fix)}</div>
               ${(effort || impact) ? `<div class="improvement-badges">${effort ? `<span class="badge-label">${t("report.effort")}: </span>${effortLabel(effort)}` : ""}${impact ? `&nbsp;&nbsp;<span class="badge-label">${t("report.impact")}: </span>${impactLabel(impact)}` : ""}</div>` : ""}
             </div>`;
         }
@@ -1065,7 +1065,7 @@ function showUsabilityReport(data: Record<string, unknown>) {
             ${issue.screen ? `<span class="issue-screen">${escapeHtml(issue.screen)}</span>` : ""}
           </div>
           <div class="improvement-problem">${escapeHtml(issue.issue || "")}</div>
-          <div class="improvement-fix">→ ${escapeHtml(issue.recommendation)}</div>
+          <div class="improvement-fix"><span class="fix-label">${t("report.fix.label")}</span>${escapeHtml(issue.recommendation)}</div>
         </div>`;
     }
   }

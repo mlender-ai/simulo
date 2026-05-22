@@ -443,7 +443,7 @@ JSON output schema:
   },
   "strengths": ["string with evidence"],
   "quickWins": [
-    { "category": "UX 라이팅" | "CTA / 버튼" | "정보 구조" | "비주얼" | "신뢰 / 권한" | "피드백 / 상태", "issue": "string", "fix": "string", "effort": "낮음" | "중간" | "높음", "impact": "낮음" | "중간" | "높음" }
+    { "category": "UX 라이팅" | "CTA / 버튼" | "정보 구조" | "비주얼" | "신뢰 / 권한" | "피드백 / 상태", "issue": "string", "fix": "SPECIFIC action: name the exact element + what to change + how. BAD: 'Improve button visibility'. GOOD: 'Change the gray #888 background of the \\'Start\\' button to brand blue #2563EB and increase font size from 14px to 16px'.", "effort": "낮음" | "중간" | "높음", "impact": "낮음" | "중간" | "높음" }
   ],
   "issues": [
     {
@@ -451,7 +451,7 @@ JSON output schema:
       "screenIndex": 0,
       "severity": "심각" | "보통" | "낮음",
       "issue": "string",
-      "recommendation": "string",
+      "recommendation": "SPECIFIC action: name the exact element + what to change + how. BAD: 'Restructure information hierarchy'. GOOD: 'Move the progress indicator from the bottom bar to the top of the screen, replace text \\'1/3\\' with a 3-dot progress bar'.",
       "heatZone": {"x": 0-100, "y": 0-100, "width": 0-100, "height": 0-100, "label": "short label"}
     }
   ]
@@ -496,7 +496,7 @@ JSON 키는 영문, 값은 한국어. 반드시 순수 JSON만 반환:
   },
   "strengths": ["근거 포함 한국어"],
   "quickWins": [
-    { "category": "UX 라이팅" | "CTA / 버튼" | "정보 구조" | "비주얼" | "신뢰 / 권한" | "피드백 / 상태", "issue": "한국어", "fix": "한국어", "effort": "낮음" | "중간" | "높음", "impact": "낮음" | "중간" | "높음" }
+    { "category": "UX 라이팅" | "CTA / 버튼" | "정보 구조" | "비주얼" | "신뢰 / 권한" | "피드백 / 상태", "issue": "한국어", "fix": "구체적 수정 지침: 어떤 요소를 어떻게 변경하는지 명시. 금지: '버튼 가시성 개선'. 필수: ''시작하기' 버튼 배경색을 현재 회색에서 브랜드 파란색(#2563EB)으로 변경하고 폰트 크기를 14px → 16px로 키움'.", "effort": "낮음" | "중간" | "높음", "impact": "낮음" | "중간" | "높음" }
   ],
   "issues": [
     {
@@ -504,7 +504,7 @@ JSON 키는 영문, 값은 한국어. 반드시 순수 JSON만 반환:
       "screenIndex": 0,
       "severity": "심각" | "보통" | "낮음",
       "issue": "한국어",
-      "recommendation": "한국어",
+      "recommendation": "구체적 수정 지침: 어떤 요소를 어떻게 바꾸는지 명시. 금지: '정보 계층 재정립'. 필수: '하단 바의 진행률 텍스트(\\'1/3\\')를 상단 프로그레스 바(점 3개)로 교체하고 하단 바 제거'.",
       "heatZone": {"x": 0-100, "y": 0-100, "width": 0-100, "height": 0-100, "label": "영역 설명"}
     }
   ]
