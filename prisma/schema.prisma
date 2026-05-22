@@ -122,3 +122,13 @@ model SlackConfig {
   isActive   Boolean  @default(true)
   createdAt  DateTime @default(now())
 }
+
+model ChatSession {
+  id         String   @id @default(cuid())
+  frameId    String
+  frameName  String
+  intent     String?
+  quickSummary String?
+  findings   Json?    // LiveMiniReport.findings array
+  createdAt  DateTime @default(now())
+}

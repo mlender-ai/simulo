@@ -2268,7 +2268,13 @@ function renderMiniReportHTML(report: LiveMiniReport): string {
 }
 
 function handleFramesSelected(frames: FrameInfo[]) {
-  chatAbortController?.abort();
+  // Abort any in-progress analysis and clean up streaming message
+  if (chatAbortController) {
+    chatAbortController.abort();
+    // Remove any dangling streaming message
+    chatMessages = chatMessages.filter((m) => !m.streaming);
+    chatAnalyzing = false;
+  }
 
   // Capture previous session state before reset
   const hadPreviousResult = contextStack.results.length > 0;
@@ -2443,6 +2449,8 @@ function compactConversationHistory(
   ];
 }
 
+const ANALYSIS_TIMEOUT_MS = 60_000; // 60s
+
 async function startChatAnalysis(_categoryId: string, followUpContext: string) {
   if (!contextStack.frames.length) return;
   chatAnalyzing = true;
@@ -2451,6 +2459,7 @@ async function startChatAnalysis(_categoryId: string, followUpContext: string) {
   addMsg({ id: msgId, role: "bot", content: "", streaming: true });
 
   chatAbortController = new AbortController();
+  const timeoutId = setTimeout(() => chatAbortController?.abort(), ANALYSIS_TIMEOUT_MS);
   const apiKey = getApiKey();
   const baseUrl = getSimuloBaseUrl();
 
@@ -2489,7 +2498,15 @@ async function startChatAnalysis(_categoryId: string, followUpContext: string) {
 
     if (!res.ok) {
       const err = await res.json().catch(() => ({})) as { error?: string };
-      updateMsg(msgId, { content: err?.error ?? "분석 중 오류가 발생했습니다.", streaming: false });
+      const errMsg = res.status === 401
+        ? "API 키가 유효하지 않아요. 설정에서 확인해주세요."
+        : res.status === 429
+        ? "요청이 너무 많아요. 잠시 후 다시 시도해주세요."
+        : err?.error ?? "분석 중 오류가 발생했습니다.";
+      updateMsg(msgId, {
+        content: errMsg, streaming: false,
+        actions: [{ id: "retry", label: "↺ 다시 시도" }],
+      });
       chatAnalyzing = false;
       return;
     }
@@ -2531,6 +2548,22 @@ async function startChatAnalysis(_categoryId: string, followUpContext: string) {
       timestamp: Date.now(),
     });
 
+    // Fire-and-forget: save session to DB
+    if (miniReport && contextStack.frames[0]) {
+      const sessionPayload = {
+        frameId:      contextStack.frames[0].nodeId || contextStack.frames[0].nodeName,
+        frameName:    contextStack.frames[0].nodeName,
+        intent:       contextStack.intent ?? "full-scan",
+        quickSummary: miniReport.quickSummary,
+        findings:     miniReport.findings,
+      };
+      fetch(`${baseUrl}/api/chat/sessions`, {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify(sessionPayload),
+      }).catch(() => { /* best-effort, ignore errors */ });
+    }
+
     updateMsg(msgId, {
       content: miniReport?.quickSummary ?? accumulated.slice(0, 60),
       streaming: false,
@@ -2547,14 +2580,46 @@ async function startChatAnalysis(_categoryId: string, followUpContext: string) {
       { role: "assistant", content: accumulated },
     ];
   } catch (err) {
-    if ((err as Error)?.name === "AbortError") return;
-    updateMsg(msgId, { content: "오류: " + String(err), streaming: false });
+    if ((err as Error)?.name === "AbortError") {
+      // Timeout vs user-triggered abort
+      const isTimeout = chatMessages.find((m) => m.id === msgId)?.streaming;
+      if (isTimeout) {
+        updateMsg(msgId, {
+          content: "응답이 너무 오래 걸려요. 다시 시도해주세요.",
+          streaming: false,
+          actions: [{ id: "retry", label: "↺ 다시 시도" }],
+        });
+      } else {
+        // User-triggered (frame change): silently remove the streaming msg
+        chatMessages = chatMessages.filter((m) => m.id !== msgId);
+        renderMessages();
+      }
+      return;
+    }
+    const isNetworkError = (err as Error)?.message?.includes("fetch") || (err as Error)?.message?.includes("network");
+    updateMsg(msgId, {
+      content: isNetworkError
+        ? "서버 연결 실패. 인터넷 연결을 확인해주세요."
+        : "오류: " + String(err),
+      streaming: false,
+      actions: [{ id: "retry", label: "↺ 다시 시도" }],
+    });
   } finally {
+    clearTimeout(timeoutId);
     chatAnalyzing = false;
   }
 }
 
 function handleChatAction(action: string) {
+  if (action === "retry") {
+    if (!contextStack.frames.length || !contextStack.intent) return;
+    // Remove the error message and retry
+    chatMessages = chatMessages.filter((m) => m.role !== "bot" || (!m.actions?.some((a) => a.id === "retry")));
+    renderMessages();
+    startChatAnalysis(contextStack.selectedCategory ?? "scan", contextStack.subContext ?? "");
+    return;
+  }
+
   if (action === "rescan") {
     if (!contextStack.frames.length) return;
     chatMessages = chatMessages.slice(0, 1);

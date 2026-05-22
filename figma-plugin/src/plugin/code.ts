@@ -14,6 +14,36 @@ interface FramePayload {
   texts: ExtractedText[];
 }
 
+// ── Frame image cache (TTL: 60s) ──────────────────────────────────────────────
+interface FrameCache {
+  base64: string;
+  texts: ExtractedText[];
+  width: number;
+  height: number;
+  ts: number;
+}
+const FRAME_CACHE_TTL = 60_000; // 60 seconds
+const frameCache = new Map<string, FrameCache>();
+
+function getCached(nodeId: string): FrameCache | null {
+  const entry = frameCache.get(nodeId);
+  if (!entry) return null;
+  if (Date.now() - entry.ts > FRAME_CACHE_TTL) {
+    frameCache.delete(nodeId);
+    return null;
+  }
+  return entry;
+}
+
+// Adaptive export scale — cap output at ~2000px on longest side
+function adaptiveScale(width: number, height: number): number {
+  const longest = Math.max(width, height, 1);
+  if (longest <= 800)  return 2.0;
+  if (longest <= 1400) return 1.5;
+  if (longest <= 2400) return 1.0;
+  return 0.75;
+}
+
 figma.on("selectionchange", async () => {
   const selection = figma.currentPage.selection.filter(
     (n) => n.type === "FRAME" || n.type === "COMPONENT" || n.type === "INSTANCE"
@@ -30,14 +60,42 @@ figma.on("selectionchange", async () => {
   for (let i = 0; i < selection.length; i++) {
     const node = selection[i];
     try {
-      const bytes = await (node as ExportMixin).exportAsync({ format: "PNG", constraint: { type: "SCALE", value: 2 } });
+      const w = (node as FrameNode).width ?? 0;
+      const h = (node as FrameNode).height ?? 0;
+
+      // Use cached version if available
+      const cached = getCached(node.id);
+      if (cached) {
+        frames.push({
+          nodeId: node.id,
+          nodeName: node.name,
+          imageBase64: cached.base64,
+          width: cached.width,
+          height: cached.height,
+          parentName: node.parent?.name ?? "",
+          order: i,
+          texts: cached.texts,
+        });
+        continue;
+      }
+
+      const scale = adaptiveScale(w, h);
+      const bytes = await (node as ExportMixin).exportAsync({
+        format: "PNG",
+        constraint: { type: "SCALE", value: scale },
+      });
       const texts = extractTextNodes(node);
+      const base64 = uint8ToBase64(bytes);
+
+      // Store in cache
+      frameCache.set(node.id, { base64, texts, width: w, height: h, ts: Date.now() });
+
       frames.push({
         nodeId: node.id,
         nodeName: node.name,
-        imageBase64: uint8ToBase64(bytes),
-        width: (node as FrameNode).width ?? 0,
-        height: (node as FrameNode).height ?? 0,
+        imageBase64: base64,
+        width: w,
+        height: h,
         parentName: node.parent?.name ?? "",
         order: i,
         texts,
