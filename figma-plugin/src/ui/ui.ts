@@ -2564,13 +2564,16 @@ async function startChatAnalysis(_categoryId: string, followUpContext: string) {
       }).catch(() => { /* best-effort, ignore errors */ });
     }
 
+    const completedResults = contextStack.results.filter(r => r.output).length;
     updateMsg(msgId, {
       content: miniReport?.quickSummary ?? accumulated.slice(0, 60),
       streaming: false,
       miniReport,
       actions: [
-        { id: "comment", label: "📋 결과 복사", primary: true },
-        { id: "rescan",  label: "↩ 다시 분석" },
+        completedResults >= 2
+          ? { id: "copy-all", label: "📋 전체 리포트 복사", primary: true }
+          : { id: "comment",  label: "📋 결과 복사", primary: true },
+        { id: "rescan", label: "↩ 다시 분석" },
       ],
       labels: getLabelsForState(contextStack),
     });
@@ -2641,6 +2644,37 @@ function handleChatAction(action: string) {
     const fullComment = `📊 Simulo 분석 — ${frameName}\n${contextStack.lastReport.quickSummary}\n\n${commentText}`;
     navigator.clipboard.writeText(fullComment).catch(() => {});
     showLiveCommentPopup(fullComment);
+  } else if (action === "copy-all") {
+    const sevEmoji = ["✅", "💡", "⚠️", "🔴", "🚨"];
+    const intentLabel: Record<string, string> = {
+      "full-scan": "🔍 전체 스캔",
+      "accessibility": "♿ 접근성",
+      "copy-rewrite": "✍️ 카피 리라이팅",
+      "ab-variant": "🔀 A/B 변형",
+      "analyze-axis": "📊 축 분석",
+      "competitor-compare": "🔎 경쟁사 비교",
+      "suggestion": "💡 개선 제안",
+    };
+    const frameName = contextStack.frames[0]?.nodeName ?? "선택된 프레임";
+    const lines: string[] = [
+      `# Simulo 분석 리포트 — ${frameName}`,
+      `생성: ${new Date().toLocaleString("ko-KR")}`,
+      "",
+    ];
+    for (const turn of contextStack.results) {
+      if (!turn.output) continue;
+      lines.push(`## ${intentLabel[turn.intent] ?? turn.intent}`);
+      lines.push(turn.output.quickSummary);
+      lines.push("");
+      for (const f of turn.output.findings) {
+        const e = sevEmoji[Math.min(4, f.severity)];
+        lines.push(`${e} **[${f.criterion}]** ${f.oneLineFinding}`);
+        lines.push(`→ ${f.fix}`);
+      }
+      lines.push("");
+    }
+    navigator.clipboard.writeText(lines.join("\n")).catch(() => {});
+    showFixToast("📋 리포트 복사됨", "success");
   }
 }
 
