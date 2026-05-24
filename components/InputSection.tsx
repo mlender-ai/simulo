@@ -216,6 +216,30 @@ export function InputSection({
     }
   }, []);
 
+  const recentTargetUsers = useMemo(() => {
+    try {
+      return Array.from(new Set(
+        storage.getAll().map((a) => a.targetUser).filter(Boolean)
+      )).slice(0, 20) as string[];
+    } catch { return []; }
+  }, []);
+
+  const recentTasks = useMemo(() => {
+    try {
+      return Array.from(new Set(
+        storage.getAll().map((a) => a.task).filter(Boolean)
+      )).slice(0, 20) as string[];
+    } catch { return []; }
+  }, []);
+
+  const recentHypotheses = useMemo(() => {
+    try {
+      return Array.from(new Set(
+        storage.getAll().map((a) => a.hypothesis).filter(Boolean)
+      )).slice(0, 3) as string[];
+    } catch { return []; }
+  }, []);
+
   const tabs: {
     key: InputTab;
     tooltipKey:
@@ -584,6 +608,23 @@ export function InputSection({
                       border: `1px solid ${hasErr ? "rgba(239,68,68,0.6)" : "var(--border)"}`,
                     }}
                   />
+                  {recentHypotheses.filter((h) => h !== hypothesis).length > 0 && (
+                    <div className="flex flex-wrap gap-1 mt-1.5">
+                      <span className="text-[10px] text-[var(--muted)] self-center">최근:</span>
+                      {recentHypotheses
+                        .filter((h) => h !== hypothesis)
+                        .map((h) => (
+                          <button
+                            key={h}
+                            type="button"
+                            onClick={() => onHypothesisChange(h)}
+                            className="text-[10px] px-2 py-0.5 rounded border border-[var(--border)] text-[var(--muted)] hover:text-white hover:border-white/30 transition-colors bg-white/[0.02] cursor-pointer"
+                          >
+                            {h.length > 30 ? h.slice(0, 30) + "…" : h}
+                          </button>
+                        ))}
+                    </div>
+                  )}
                 </>
               );
             })()}
@@ -611,11 +652,19 @@ export function InputSection({
                       ? tMode("targetUserOptionalPlaceholder", locale, productMode)
                       : tMode("targetUserPlaceholder", locale, productMode)
                   }
+                  list="targetuser-history-list"
                   className="w-full px-4 py-2.5 bg-white/[0.03] rounded-md text-sm focus:outline-none transition-colors"
                   style={{
                     border: `1px solid ${hasErr ? "rgba(239,68,68,0.6)" : "var(--border)"}`,
                   }}
                 />
+                {recentTargetUsers.length > 0 && (
+                  <datalist id="targetuser-history-list">
+                    {recentTargetUsers.map((u) => (
+                      <option key={u} value={u} />
+                    ))}
+                  </datalist>
+                )}
               </>
             );
           })()}
@@ -686,8 +735,16 @@ export function InputSection({
                   value={task}
                   onChange={(e) => onTaskChange(e.target.value)}
                   placeholder={tMode("taskPlaceholder", locale, productMode)}
+                  list="task-history-list"
                   className="w-full px-4 py-2.5 bg-white/[0.03] border border-[var(--border)] rounded-md text-sm focus:outline-none focus:border-white/30"
                 />
+                {recentTasks.length > 0 && (
+                  <datalist id="task-history-list">
+                    {recentTasks.map((tk) => (
+                      <option key={tk} value={tk} />
+                    ))}
+                  </datalist>
+                )}
               </div>
             )}
             <div className={mode === "hypothesis" ? "" : "col-span-2"}>
