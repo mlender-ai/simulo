@@ -4,6 +4,18 @@
 import { NextRequest } from "next/server";
 import { prisma } from "@/lib/db";
 
+export async function GET() {
+  try {
+    const sessions = await prisma.chatSession.findMany({
+      orderBy: { createdAt: "desc" },
+      take: 50,
+    });
+    return Response.json(sessions);
+  } catch (err) {
+    return Response.json({ error: String(err) }, { status: 500 });
+  }
+}
+
 interface SessionPayload {
   frameId: string;
   frameName: string;
