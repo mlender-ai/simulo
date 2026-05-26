@@ -357,6 +357,51 @@ Escape      → 현재 턴 중단
 Ctrl+T      → 공유 태스크 리스트 토글
 ```
 
+---
+
+## 대화형 패턴 규칙 (Simulo 전용)
+
+### 스트리밍
+- 모든 Claude API 호출은 SSE 스트리밍으로. 예외 없음.
+- Intent 감지용 Haiku 호출만 유일한 예외 (짧은 JSON 응답이라 스트리밍 불필요).
+- 스트리밍 중 UI는 `streaming-cursor` CSS 클래스로 타이핑 인디케이터 표시.
+
+### Context Stack 조작
+- `context.frames`는 Figma selectionchange 이벤트 시에만 변경.
+- `context.intent`는 Intent Router(`detectIntentByKeyword` / `detectIntentByHaiku`)를 통해서만 변경. 직접 세팅 금지.
+- `context.results`는 append-only. 이전 결과를 수정하거나 삭제하지 않는다.
+- 되돌아가기 시: intent/subContext만 null로 리셋. frames/persona/results는 유지.
+- 프레임 변경 시: 이전 intent가 있으면 "이어서 / 새로 시작" 선택지 제공.
+
+### 라벨 규칙
+- 라벨은 최대 5개. 6개 이상이면 가장 관련성 높은 5개로 줄인다.
+- 라벨 텍스트는 6자 이내 ("전체 스캔" ✓, "이 화면의 전체적인 분석을 합니다" ✗).
+- 라벨 클릭 → `handleIntentLabel()` 호출. 라벨이 API를 직접 호출하지 않는다.
+- 유저가 라벨을 무시하고 직접 타이핑해도 `handleChatInput()`을 통해 동일하게 동작.
+
+### CTA 규칙
+- CTA는 분석 결과가 있을 때만 노출. 맥락 좁히기 중에는 CTA 없음.
+- CTA 클릭 → 즉시 실행 + 완료 피드백. 추가 대화 턴을 생성하지 않는다.
+- primary CTA: "📋 결과 복사" (초록 강조). secondary: "↩ 다시 분석".
+- 에러 시: "↺ 다시 시도" retry CTA 제공.
+
+### 응답 형식
+- Claude의 응답은 순수 JSON (마크다운 코드블록 없음).
+- JSON 파싱 실패 시 자연어 부분만 표시 (graceful degradation).
+- severity: 0=우수, 1=참고, 2=개선필요, 3=심각, 4=치명적.
+
+### 모델 분기
+- Haiku: Intent 감지, 카피 제안, 사용성/시각/CTA 분석
+- Sonnet: 4축 전체 분석, 경쟁사 비교, A/B 변형, 개선안
+
+### 에러 처리
+- API 키 없음 → free mode 활성화, 서버 프록시 사용.
+- 401 → "API 키가 유효하지 않아요" + retry CTA.
+- 429 → "요청이 너무 많아요. 잠시 후 다시 시도해주세요" + retry CTA.
+- 60s 타임아웃 → "응답이 너무 오래 걸려요" + retry CTA.
+- 네트워크 에러 → "서버 연결 실패" + retry CTA.
+- 프레임 변경으로 인한 abort → streaming 메시지 즉시 제거, 새 프레임으로 전환.
+
 ### 팀 생성 프롬프트 패턴
 
 ```
