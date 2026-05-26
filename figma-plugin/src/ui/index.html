@@ -238,13 +238,52 @@
 
     /* ── Animations ── */
     @keyframes msgFadeIn {
-      from { opacity: 0; transform: translateY(6px); }
+      from { opacity: 0; transform: translateY(12px); }
       to   { opacity: 1; transform: translateY(0); }
     }
-    .chat-msg { animation: msgFadeIn 0.18s ease; }
+    @keyframes msgFadeInUser {
+      from { opacity: 0; transform: translateX(12px); }
+      to   { opacity: 1; transform: translateX(0); }
+    }
+    @keyframes msgFade {
+      from { opacity: 0; }
+      to   { opacity: 1; }
+    }
+    .chat-msg-bot    { animation: msgFadeIn     0.3s ease-out both; }
+    .chat-msg-user   { animation: msgFadeInUser 0.25s ease-out both; }
+    .chat-msg-system { animation: msgFade        0.4s ease-out both; }
 
     @keyframes blink { 0%,100%{opacity:1} 50%{opacity:0} }
-    .streaming-cursor::after { content: "▋"; animation: blink 0.7s infinite; color: #a3e635; font-size: 10px; }
+    .streaming-cursor::after { content: "│"; animation: blink 0.8s step-end infinite; color: #666; margin-left: 1px; }
+
+    /* Typing indicator bounce */
+    @keyframes typingBounce {
+      0%, 60%, 100% { transform: translateY(0); opacity: 0.4; }
+      30%           { transform: translateY(-6px); opacity: 1; }
+    }
+    .typing-indicator { display: inline-flex; align-items: center; gap: 4px; padding: 8px 14px; border-radius: 16px; background: #141414; animation: msgFadeIn 0.3s ease-out both; }
+    .typing-dot-plugin { width: 7px; height: 7px; border-radius: 50%; background: #444; animation: typingBounce 1.4s ease-in-out infinite; }
+    .typing-dot-plugin:nth-child(2) { animation-delay: 0.15s; }
+    .typing-dot-plugin:nth-child(3) { animation-delay: 0.3s; }
+
+    /* Label stagger entrance */
+    @keyframes labelEnter {
+      from { opacity: 0; transform: translateY(6px) scale(0.95); }
+      to   { opacity: 1; transform: translateY(0) scale(1); }
+    }
+    .chat-label-chip { animation: labelEnter 0.25s ease-out both; }
+    .chat-label-chip:nth-child(1) { animation-delay: 0ms; }
+    .chat-label-chip:nth-child(2) { animation-delay: 50ms; }
+    .chat-label-chip:nth-child(3) { animation-delay: 100ms; }
+    .chat-label-chip:nth-child(4) { animation-delay: 150ms; }
+    .chat-label-chip:nth-child(5) { animation-delay: 200ms; }
+    .chat-label-chip:hover { transform: translateY(-1px); }
+    .chat-label-chip:active { transform: scale(0.97); }
+
+    /* Label selection states */
+    @keyframes labelExit { to { opacity: 0; transform: scale(0.9); pointer-events: none; } }
+    .chat-label-chip.dismissed { animation: labelExit 0.2s ease-in forwards; }
+    .chat-label-chip.selected  { background: #1a2a1a; border-color: #4a7a4a; color: #a3e635; pointer-events: none; }
 
     /* ── Mini report ── */
     .mini-report {

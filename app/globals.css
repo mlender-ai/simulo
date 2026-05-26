@@ -44,3 +44,95 @@ body {
 .react-flow__panel {
   margin: 8px !important;
 }
+
+/* ── Chat Animations (Round 1) ─────────────────────────────────────────────── */
+
+/* Bot message: slide up + fade in */
+@keyframes chat-msg-enter {
+  from { opacity: 0; transform: translateY(12px); }
+  to   { opacity: 1; transform: translateY(0); }
+}
+
+/* User message: slide from right */
+@keyframes chat-msg-enter-user {
+  from { opacity: 0; transform: translateX(12px); }
+  to   { opacity: 1; transform: translateX(0); }
+}
+
+/* System message: simple fade */
+@keyframes chat-msg-fade {
+  from { opacity: 0; }
+  to   { opacity: 1; }
+}
+
+.chat-anim-bot    { animation: chat-msg-enter      0.3s ease-out both; }
+.chat-anim-user   { animation: chat-msg-enter-user 0.25s ease-out both; }
+.chat-anim-system { animation: chat-msg-fade        0.4s ease-out both; }
+
+/* Typing indicator bounce */
+@keyframes typing-bounce {
+  0%, 60%, 100% { transform: translateY(0); opacity: 0.4; }
+  30%           { transform: translateY(-6px); opacity: 1; }
+}
+
+.typing-dot {
+  width: 7px;
+  height: 7px;
+  border-radius: 50%;
+  background: rgba(255,255,255,0.35);
+  animation: typing-bounce 1.4s ease-in-out infinite;
+}
+.typing-dot:nth-child(2) { animation-delay: 0.15s; }
+.typing-dot:nth-child(3) { animation-delay: 0.3s; }
+
+/* Streaming cursor blink */
+.streaming-cursor::after {
+  content: '│';
+  color: rgba(255,255,255,0.3);
+  animation: cursor-blink 0.8s step-end infinite;
+  margin-left: 1px;
+}
+@keyframes cursor-blink {
+  0%, 100% { opacity: 1; }
+  50%      { opacity: 0; }
+}
+
+/* Label stagger entrance */
+@keyframes label-enter {
+  from { opacity: 0; transform: translateY(6px) scale(0.95); }
+  to   { opacity: 1; transform: translateY(0) scale(1); }
+}
+
+.chat-label-enter {
+  animation: label-enter 0.25s ease-out both;
+}
+
+/* Label dismissed / selected */
+@keyframes label-exit {
+  to { opacity: 0; transform: scale(0.9); pointer-events: none; }
+}
+.chat-label-dismissed { animation: label-exit 0.2s ease-in forwards; }
+.chat-label-selected  { opacity: 1; background: rgba(255,255,255,0.15); border-color: rgba(255,255,255,0.3); pointer-events: none; }
+
+/* Scroll-to-bottom floating button */
+.scroll-to-bottom-btn {
+  position: sticky;
+  bottom: 8px;
+  left: 50%;
+  transform: translateX(-50%);
+  padding: 6px 14px;
+  border-radius: 20px;
+  background: var(--surface);
+  border: 1px solid var(--border);
+  font-size: 12px;
+  color: var(--muted);
+  cursor: pointer;
+  animation: chat-msg-fade 0.3s ease-out;
+  z-index: 10;
+  box-shadow: 0 2px 12px rgba(0,0,0,0.4);
+  transition: color 0.15s, border-color 0.15s;
+}
+.scroll-to-bottom-btn:hover {
+  color: var(--foreground);
+  border-color: rgba(255,255,255,0.2);
+}

@@ -61,6 +61,10 @@ function chatId(): string {
   return `msg-${Date.now()}-${++msgCounter}`;
 }
 
+function delay(ms: number): Promise<void> {
+  return new Promise((resolve) => setTimeout(resolve, ms));
+}
+
 function getInitialLabels(): Label[] {
   return [
     { id: "full-scan", name: "전체 스캔" },
@@ -90,21 +94,46 @@ export function WebChatContainer() {
   const [conversationHistory, setConversationHistory] = useState<
     Array<{ role: "user" | "assistant"; content: string }>
   >([]);
+  const [userScrolledUp, setUserScrolledUp] = useState(false);
+  const [hasNewBelow, setHasNewBelow] = useState(false);
   const abortRef = useRef<AbortController | null>(null);
   const listRef = useRef<HTMLDivElement>(null);
+  const endRef = useRef<HTMLDivElement>(null);
+
+  // ── Smart scroll ───────────────────────────────────────────────────────────
+
+  const isAtBottom = useCallback(() => {
+    const el = listRef.current;
+    if (!el) return true;
+    return el.scrollHeight - el.scrollTop - el.clientHeight < 100;
+  }, []);
 
   const scrollToBottom = useCallback(() => {
     requestAnimationFrame(() => {
-      listRef.current?.scrollTo({ top: listRef.current.scrollHeight, behavior: "smooth" });
+      endRef.current?.scrollIntoView({ behavior: "smooth" });
+      setUserScrolledUp(false);
+      setHasNewBelow(false);
     });
   }, []);
+
+  const handleScroll = useCallback(() => {
+    const atBottom = isAtBottom();
+    setUserScrolledUp(!atBottom);
+    if (atBottom) setHasNewBelow(false);
+  }, [isAtBottom]);
 
   const addMsg = useCallback(
     (msg: ChatMsg) => {
       setMessages((prev) => [...prev, msg]);
-      setTimeout(scrollToBottom, 50);
+      setTimeout(() => {
+        if (isAtBottom()) {
+          scrollToBottom();
+        } else {
+          setHasNewBelow(true);
+        }
+      }, 50);
     },
-    [scrollToBottom]
+    [scrollToBottom, isAtBottom]
   );
 
   const updateMsg = useCallback(
@@ -112,9 +141,11 @@ export function WebChatContainer() {
       setMessages((prev) =>
         prev.map((m) => (m.id === id ? { ...m, ...patch } : m))
       );
-      setTimeout(scrollToBottom, 50);
+      setTimeout(() => {
+        if (isAtBottom()) scrollToBottom();
+      }, 50);
     },
-    [scrollToBottom]
+    [scrollToBottom, isAtBottom]
   );
 
   // ── Image upload handler ──────────────────────────────────────────────────────
@@ -172,8 +203,12 @@ export function WebChatContainer() {
       setAnalyzing(true);
       setIntent(intentId);
 
+      // Typing indicator (no content yet)
       const msgId = chatId();
       addMsg({ id: msgId, role: "bot", content: "", streaming: true });
+
+      // Artificial delay: 400~700ms for "thinking" feel
+      await delay(400 + Math.random() * 300);
 
       const ac = new AbortController();
       abortRef.current = ac;
@@ -252,7 +287,7 @@ export function WebChatContainer() {
               if (parsed.error) throw new Error(parsed.error);
               if (parsed.text) {
                 accumulated += parsed.text;
-                updateMsg(msgId, { content: "분석 중...", streaming: true });
+                updateMsg(msgId, { content: accumulated, streaming: true });
               }
             } catch {
               /* partial JSON */
@@ -332,7 +367,6 @@ export function WebChatContainer() {
       const name = INTENT_LABELS[labelId] ?? labelId;
       addMsg({ id: chatId(), role: "user", content: name });
 
-      // Map to intent + axis
       const entry = KEYWORD_INTENT_MAP.find((e) => e.intent === labelId);
       startAnalysis(labelId, "", entry?.axis);
     },
@@ -406,7 +440,6 @@ export function WebChatContainer() {
       if (detected) {
         startAnalysis(detected.intent, text, detected.axis);
       } else {
-        // Fallback: full-scan with user text as context
         startAnalysis("full-scan", text);
       }
     },
@@ -428,7 +461,11 @@ export function WebChatContainer() {
   return (
     <div className="flex flex-col h-full">
       {/* Message area */}
-      <div ref={listRef} className="flex-1 overflow-y-auto">
+      <div
+        ref={listRef}
+        className="flex-1 overflow-y-auto relative"
+        onScroll={handleScroll}
+      >
         {!hasMessages ? (
           /* Empty state */
           <div className="flex flex-col items-center justify-center h-full px-6 text-center">
@@ -451,7 +488,7 @@ export function WebChatContainer() {
                 <button
                   key={prompt}
                   onClick={() => handleTextSubmit(prompt)}
-                  className="px-3 py-1.5 text-xs text-white/50 border border-white/10 rounded-full hover:text-white/80 hover:border-white/25 transition-colors"
+                  className="chat-label-enter px-3 py-1.5 text-xs text-white/50 border border-white/10 rounded-full hover:text-white/80 hover:border-white/25 hover:-translate-y-px active:scale-[0.97] transition-all duration-150"
                 >
                   {prompt}
                 </button>
@@ -469,6 +506,19 @@ export function WebChatContainer() {
                 onActionClick={handleAction}
               />
             ))}
+            <div ref={endRef} />
+          </div>
+        )}
+
+        {/* Scroll-to-bottom button */}
+        {userScrolledUp && hasNewBelow && (
+          <div className="flex justify-center pointer-events-none sticky bottom-2">
+            <button
+              onClick={scrollToBottom}
+              className="scroll-to-bottom-btn pointer-events-auto"
+            >
+              ↓ 새 메시지
+            </button>
           </div>
         )}
       </div>

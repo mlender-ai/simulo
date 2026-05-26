@@ -1,5 +1,6 @@
 "use client";
 
+import { useState } from "react";
 import { WebMiniReport, type MiniReportData } from "./WebMiniReport";
 
 // ── Types ──────────────────────────────────────────────────────────────────────
@@ -23,10 +24,12 @@ interface Props {
 // ── Component ──────────────────────────────────────────────────────────────────
 
 export function WebChatMessage({ msg, onLabelClick, onActionClick }: Props) {
+  const [selectedLabel, setSelectedLabel] = useState<string | null>(null);
+
   // System message
   if (msg.role === "system") {
     return (
-      <div className="text-center text-xs text-white/30 py-1 select-none">
+      <div className="chat-anim-system text-center text-xs text-white/30 py-1 select-none">
         {msg.content}
       </div>
     );
@@ -35,7 +38,7 @@ export function WebChatMessage({ msg, onLabelClick, onActionClick }: Props) {
   // User message
   if (msg.role === "user") {
     return (
-      <div className="flex justify-end">
+      <div className="chat-anim-user flex justify-end">
         <div className="max-w-[80%] px-4 py-2.5 rounded-2xl rounded-br-sm bg-white/10 text-sm text-white/90">
           {msg.content}
         </div>
@@ -45,16 +48,22 @@ export function WebChatMessage({ msg, onLabelClick, onActionClick }: Props) {
 
   // Bot message
   return (
-    <div className="flex flex-col gap-2 max-w-[90%]">
-      {/* Streaming indicator or content */}
+    <div className="chat-anim-bot flex flex-col gap-2 max-w-[90%]">
+      {/* Streaming: typing indicator → streaming cursor */}
       {msg.streaming ? (
-        <div className="px-1 py-2">
-          <span className="inline-flex gap-1">
-            <span className="w-1.5 h-1.5 rounded-full bg-white/40 animate-pulse" />
-            <span className="w-1.5 h-1.5 rounded-full bg-white/40 animate-pulse [animation-delay:150ms]" />
-            <span className="w-1.5 h-1.5 rounded-full bg-white/40 animate-pulse [animation-delay:300ms]" />
-          </span>
-        </div>
+        msg.content ? (
+          <div className="streaming-cursor text-sm text-white/80 leading-relaxed whitespace-pre-wrap">
+            {msg.content}
+          </div>
+        ) : (
+          <div className="px-1 py-2">
+            <span className="inline-flex items-center gap-[5px] px-3.5 py-2 rounded-2xl bg-white/[0.04]">
+              <span className="typing-dot" />
+              <span className="typing-dot" />
+              <span className="typing-dot" />
+            </span>
+          </div>
+        )
       ) : (
         <>
           {msg.content && (
@@ -70,18 +79,34 @@ export function WebChatMessage({ msg, onLabelClick, onActionClick }: Props) {
         <WebMiniReport data={msg.miniReport} />
       )}
 
-      {/* Labels */}
+      {/* Labels with stagger + selection interaction */}
       {msg.labels && msg.labels.length > 0 && !msg.streaming && (
         <div className="flex flex-wrap gap-1.5 mt-1">
-          {msg.labels.map((label) => (
-            <button
-              key={label.id}
-              onClick={() => onLabelClick(label.id)}
-              className="px-3 py-1.5 text-xs text-white/60 border border-white/10 rounded-full hover:text-white/90 hover:border-white/25 hover:bg-white/5 transition-colors"
-            >
-              {label.name}
-            </button>
-          ))}
+          {msg.labels.map((label, i) => {
+            const isSelected = selectedLabel === label.id;
+            const isDismissed = selectedLabel !== null && !isSelected;
+            return (
+              <button
+                key={label.id}
+                onClick={() => {
+                  if (selectedLabel) return;
+                  setSelectedLabel(label.id);
+                  setTimeout(() => onLabelClick(label.id), 280);
+                }}
+                disabled={!!selectedLabel}
+                className={`chat-label-enter px-3 py-1.5 text-xs border rounded-full transition-all duration-150 ${
+                  isSelected
+                    ? "chat-label-selected border-white/30 text-white/90 bg-white/15"
+                    : isDismissed
+                      ? "chat-label-dismissed border-white/10 text-white/60"
+                      : "border-white/10 text-white/60 hover:text-white/90 hover:border-white/25 hover:bg-white/5 hover:-translate-y-px active:scale-[0.97]"
+                }`}
+                style={{ animationDelay: `${i * 50}ms` }}
+              >
+                {label.name}
+              </button>
+            );
+          })}
         </div>
       )}
 
@@ -92,7 +117,7 @@ export function WebChatMessage({ msg, onLabelClick, onActionClick }: Props) {
             <button
               key={action.id}
               onClick={() => onActionClick(action.id)}
-              className={`px-3 py-1.5 text-xs rounded-md transition-colors ${
+              className={`px-3 py-1.5 text-xs rounded-md transition-all duration-150 hover:-translate-y-px active:scale-[0.97] ${
                 action.primary
                   ? "bg-[#0f1f0f] border border-[#2a4a2a] text-[#a3e635] hover:bg-[#162816]"
                   : "bg-white/5 border border-white/10 text-white/60 hover:text-white/90 hover:bg-white/10"

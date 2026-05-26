@@ -2220,7 +2220,12 @@ function renderMessages() {
 
 function renderMsgHTML(msg: ChatMessage): string {
   const cls = msg.role === "user" ? "chat-msg-user" : msg.role === "system" ? "chat-msg-system" : "chat-msg-bot";
-  let inner = `<div class="chat-bubble${msg.streaming ? " streaming-cursor" : ""}">${escapeHtml(msg.content)}</div>`;
+  let inner = "";
+  if (msg.streaming && !msg.content) {
+    inner = `<div class="typing-indicator"><span class="typing-dot-plugin"></span><span class="typing-dot-plugin"></span><span class="typing-dot-plugin"></span></div>`;
+  } else {
+    inner = `<div class="chat-bubble${msg.streaming ? " streaming-cursor" : ""}">${escapeHtml(msg.content)}</div>`;
+  }
 
   if (msg.labels) {
     inner += `<div class="chat-labels">${msg.labels.map((l) =>
@@ -2457,6 +2462,9 @@ async function startChatAnalysis(_categoryId: string, followUpContext: string) {
 
   const msgId = chatId();
   addMsg({ id: msgId, role: "bot", content: "", streaming: true });
+
+  // Artificial delay for "thinking" feel (400~700ms)
+  await new Promise((r) => setTimeout(r, 400 + Math.random() * 300));
 
   chatAbortController = new AbortController();
   const timeoutId = setTimeout(() => chatAbortController?.abort(), ANALYSIS_TIMEOUT_MS);
