@@ -42,8 +42,70 @@ function SeverityBadge({ severity }: { severity: number }) {
   );
 }
 
+function ClipboardIcon() {
+  return (
+    <svg width="12" height="12" viewBox="0 0 12 12" fill="none" xmlns="http://www.w3.org/2000/svg">
+      <rect x="4" y="1" width="7" height="9" rx="1" stroke="currentColor" strokeWidth="1"/>
+      <rect x="1" y="3" width="7" height="9" rx="1" fill="var(--bg)" stroke="currentColor" strokeWidth="1"/>
+    </svg>
+  );
+}
+
+function CheckIcon() {
+  return (
+    <svg width="12" height="12" viewBox="0 0 12 12" fill="none" xmlns="http://www.w3.org/2000/svg">
+      <path d="M2 6L5 9L10 3" stroke="currentColor" strokeWidth="1.5" strokeLinecap="round" strokeLinejoin="round"/>
+    </svg>
+  );
+}
+
+function FindingRow({ f }: { f: Finding }) {
+  const [copied, setCopied] = useState(false);
+
+  function copyFinding() {
+    const severityLabel = SEVERITY_LABEL[f.severity] ?? "Low";
+    const text = [
+      `[${severityLabel}] ${f.oneLineFinding}`,
+      f.fix ? `→ 수정: ${f.fix}` : null,
+      `기준: ${f.criterion}`,
+    ]
+      .filter(Boolean)
+      .join("\n");
+    navigator.clipboard.writeText(text).then(() => {
+      setCopied(true);
+      setTimeout(() => setCopied(false), 2000);
+    });
+  }
+
+  return (
+    <div className="flex gap-3">
+      <SeverityBadge severity={f.severity} />
+      <div className="flex-1 min-w-0">
+        <p className="text-xs text-white/90 font-medium mb-0.5">{f.oneLineFinding}</p>
+        {f.fix && (
+          <div className="mt-1.5 flex gap-1.5 items-start">
+            <span className="text-[10px] font-mono text-emerald-400 shrink-0 mt-0.5">→ 수정</span>
+            <p className="text-xs text-white/70 leading-relaxed">{f.fix}</p>
+          </div>
+        )}
+        <p className="text-[10px] text-zinc-600 mono mt-1">[{f.criterion}]</p>
+      </div>
+      <button
+        onClick={copyFinding}
+        title="이 수정 가이드 복사"
+        className={`shrink-0 mt-0.5 transition-all ${
+          copied ? "opacity-100 text-emerald-400" : "opacity-40 hover:opacity-100 text-[var(--muted)]"
+        }`}
+      >
+        {copied ? <CheckIcon /> : <ClipboardIcon />}
+      </button>
+    </div>
+  );
+}
+
 function SessionCard({ session }: { session: ChatSession }) {
   const [open, setOpen] = useState(false);
+  const [allCopied, setAllCopied] = useState(false);
   const findings = session.findings ?? [];
   const date = new Date(session.createdAt).toLocaleString("ko-KR", {
     month: "2-digit",
@@ -51,6 +113,20 @@ function SessionCard({ session }: { session: ChatSession }) {
     hour: "2-digit",
     minute: "2-digit",
   });
+
+  function copyAllFindings() {
+    const lines: string[] = [`## [${session.frameName}] 수정 가이드`, ""];
+    for (const f of findings) {
+      const severityLabel = SEVERITY_LABEL[f.severity] ?? "Low";
+      lines.push(`### [${severityLabel}] ${f.oneLineFinding}`);
+      if (f.fix) lines.push(`→ ${f.fix}`);
+      lines.push("");
+    }
+    navigator.clipboard.writeText(lines.join("\n").trimEnd()).then(() => {
+      setAllCopied(true);
+      setTimeout(() => setAllCopied(false), 2000);
+    });
+  }
 
   return (
     <div className="border border-[var(--border)] rounded-lg overflow-hidden">
@@ -79,22 +155,26 @@ function SessionCard({ session }: { session: ChatSession }) {
         </div>
       </button>
 
+      {open && findings.length > 0 && (
+        <div className="border-t border-[var(--border)] px-5 py-2 flex justify-end">
+          <button
+            onClick={copyAllFindings}
+            className={`text-xs mono transition-colors flex items-center gap-1.5 ${
+              allCopied ? "text-emerald-400" : "text-[var(--muted)] hover:text-white"
+            }`}
+          >
+            {allCopied ? <CheckIcon /> : <ClipboardIcon />}
+            {allCopied ? "복사됨" : "전체 복사"}
+          </button>
+        </div>
+      )}
+
       {open && (
         <div className="border-t border-[var(--border)] px-5 py-4 space-y-3">
           {findings.length === 0 ? (
             <p className="text-xs text-[var(--muted)]">findings 데이터 없음</p>
           ) : (
-            findings.map((f, i) => (
-              <div key={i} className="flex gap-3">
-                <SeverityBadge severity={f.severity} />
-                <div className="flex-1 min-w-0">
-                  <p className="text-xs text-white/90 font-medium mb-0.5">{f.oneLineFinding}</p>
-                  <p className="text-xs text-[var(--muted)]">
-                    <span className="text-zinc-500 mono">[{f.criterion}]</span> {f.fix}
-                  </p>
-                </div>
-              </div>
-            ))
+            findings.map((f, i) => <FindingRow key={i} f={f} />)
           )}
         </div>
       )}
