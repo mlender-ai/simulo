@@ -2522,6 +2522,22 @@ async function startChatAnalysis(_categoryId: string, followUpContext: string) {
     const reader = res.body?.getReader();
     const decoder = new TextDecoder();
     let accumulated = "";
+    const streamStart = Date.now();
+
+    // Loading message rotation
+    const loadingMsgs: Record<string, string[]> = {
+      "full-scan": ["화면을 살펴보고 있어요...", "4축 관점으로 집중 분석 중...", "개선 포인트를 정리하고 있어요..."],
+      "copy-rewrite": ["현재 카피를 분석하고 있어요...", "여러 톤으로 변형을 만드는 중...", "가장 효과적인 카피를 고르고 있어요..."],
+      "ab-variant": ["현재 화면의 이슈를 파악하고...", "가설 기반으로 변형을 설계하는 중...", "예상 효과를 추정하고 있어요..."],
+      "competitor-compare": ["야핏무브 화면을 먼저 분석하고...", "경쟁사 화면과 나란히 비교하는 중...", "격차를 정리하고 있어요..."],
+    };
+    const msgs = loadingMsgs[_categoryId] ?? ["분석하고 있어요..."];
+    const getLoadMsg = () => msgs[Math.min(Math.floor((Date.now() - streamStart) / 3500), msgs.length - 1)];
+
+    updateMsg(msgId, { content: getLoadMsg(), streaming: true });
+    const loadingTimer = setInterval(() => {
+      if (!accumulated) updateMsg(msgId, { content: getLoadMsg(), streaming: true });
+    }, 3500);
 
     while (reader) {
       const { done, value } = await reader.read();
@@ -2534,13 +2550,11 @@ async function startChatAnalysis(_categoryId: string, followUpContext: string) {
         try {
           const parsed = JSON.parse(data) as { text?: string; error?: string };
           if (parsed.error) throw new Error(parsed.error);
-          if (parsed.text) {
-            accumulated += parsed.text;
-            updateMsg(msgId, { content: "분석 중...", streaming: true });
-          }
+          if (parsed.text) accumulated += parsed.text;
         } catch { /* partial JSON ok */ }
       }
     }
+    clearInterval(loadingTimer);
 
     let miniReport: LiveMiniReport | null = null;
     try {
@@ -2651,6 +2665,13 @@ function handleChatAction(action: string) {
     const frameName = contextStack.frames[0]?.nodeName ?? "선택된 프레임";
     const fullComment = `📊 Simulo 분석 — ${frameName}\n${contextStack.lastReport.quickSummary}\n\n${commentText}`;
     navigator.clipboard.writeText(fullComment).catch(() => {});
+    // CTA success feedback
+    const commentBtns = document.querySelectorAll('.chat-action-btn[data-action="comment"]');
+    commentBtns.forEach((btn) => {
+      btn.classList.add("success");
+      (btn as HTMLElement).textContent = "✓ 복사됨";
+      setTimeout(() => { btn.classList.remove("success"); (btn as HTMLElement).textContent = "📋 결과 복사"; }, 1500);
+    });
     showLiveCommentPopup(fullComment);
   } else if (action === "copy-all") {
     const sevEmoji = ["✅", "💡", "⚠️", "🔴", "🚨"];

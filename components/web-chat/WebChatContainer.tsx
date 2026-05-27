@@ -4,6 +4,47 @@ import { useState, useRef, useCallback, useEffect } from "react";
 import { WebChatMessage, type ChatMsg } from "./WebChatMessage";
 import { WebChatInput } from "./WebChatInput";
 import { type MiniReportData } from "./WebMiniReport";
+import { getGreeting } from "@/lib/greeting";
+
+// ── Loading messages per intent ─────────────────────────────────────────────
+
+const LOADING_MESSAGES: Record<string, string[]> = {
+  "full-scan": [
+    "화면을 살펴보고 있어요...",
+    "4축 관점으로 집중 분석 중...",
+    "개선 포인트를 정리하고 있어요...",
+  ],
+  "analyze-axis": [
+    "해당 축을 집중적으로 보는 중...",
+    "경쟁사 기준으로 비교하는 중...",
+    "발견 사항을 정리하고 있어요...",
+  ],
+  "copy-rewrite": [
+    "현재 카피를 분석하고 있어요...",
+    "여러 톤으로 변형을 만드는 중...",
+    "가장 효과적인 카피를 고르고 있어요...",
+  ],
+  "ab-variant": [
+    "현재 화면의 이슈를 파악하고...",
+    "가설 기반으로 변형을 설계하는 중...",
+    "예상 효과를 추정하고 있어요...",
+  ],
+  "competitor-compare": [
+    "야핏무브 화면을 먼저 분석하고...",
+    "경쟁사 화면과 나란히 비교하는 중...",
+    "격차를 정리하고 있어요...",
+  ],
+  "suggestion": [
+    "이슈를 우선순위대로 정리하는 중...",
+    "Quick Win 위주로 제안을 준비하고 있어요...",
+  ],
+};
+
+function getLoadingMessage(intent: string, elapsed: number): string {
+  const msgs = LOADING_MESSAGES[intent] ?? ["분석하고 있어요..."];
+  const idx = Math.min(Math.floor(elapsed / 3500), msgs.length - 1);
+  return msgs[idx];
+}
 
 // ── Types ──────────────────────────────────────────────────────────────────────
 
@@ -270,6 +311,24 @@ export function WebChatContainer() {
         const reader = res.body?.getReader();
         const decoder = new TextDecoder();
         let accumulated = "";
+        const streamStart = Date.now();
+
+        // Loading message rotation interval
+        const loadingInterval = setInterval(() => {
+          if (!accumulated) {
+            const elapsed = Date.now() - streamStart;
+            updateMsg(msgId, {
+              content: getLoadingMessage(intentId, elapsed),
+              streaming: true,
+            });
+          }
+        }, 3500);
+
+        // Show first loading message immediately
+        updateMsg(msgId, {
+          content: getLoadingMessage(intentId, 0),
+          streaming: true,
+        });
 
         while (reader) {
           const { done, value } = await reader.read();
@@ -287,13 +346,14 @@ export function WebChatContainer() {
               if (parsed.error) throw new Error(parsed.error);
               if (parsed.text) {
                 accumulated += parsed.text;
-                updateMsg(msgId, { content: accumulated, streaming: true });
               }
             } catch {
               /* partial JSON */
             }
           }
         }
+
+        clearInterval(loadingInterval);
 
         let miniReport: MiniReportData | null = null;
         try {
@@ -471,10 +531,10 @@ export function WebChatContainer() {
           <div className="flex flex-col items-center justify-center h-full px-6 text-center">
             <div className="text-4xl opacity-20 mb-4">S</div>
             <h2 className="text-lg font-semibold text-white/80 mb-2">
-              분석할 화면을 올려주세요
+              {getGreeting()}
             </h2>
             <p className="text-sm text-white/40 mb-8 max-w-sm">
-              이미지를 드래그하거나, 아래에서 업로드하세요.
+              분석할 화면을 드래그하거나 업로드하세요.
               <br />
               또는 바로 질문을 입력해도 돼요.
             </p>

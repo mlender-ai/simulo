@@ -1,6 +1,6 @@
 "use client";
 
-import { useState } from "react";
+import { useState, useCallback } from "react";
 import { WebMiniReport, type MiniReportData } from "./WebMiniReport";
 
 // ── Types ──────────────────────────────────────────────────────────────────────
@@ -25,6 +25,18 @@ interface Props {
 
 export function WebChatMessage({ msg, onLabelClick, onActionClick }: Props) {
   const [selectedLabel, setSelectedLabel] = useState<string | null>(null);
+  const [successAction, setSuccessAction] = useState<string | null>(null);
+
+  const handleActionClick = useCallback(
+    (actionId: string) => {
+      onActionClick(actionId);
+      if (actionId === "copy") {
+        setSuccessAction(actionId);
+        setTimeout(() => setSuccessAction(null), 1500);
+      }
+    },
+    [onActionClick]
+  );
 
   // System message
   if (msg.role === "system") {
@@ -110,22 +122,27 @@ export function WebChatMessage({ msg, onLabelClick, onActionClick }: Props) {
         </div>
       )}
 
-      {/* Actions */}
+      {/* Actions with CTA feedback */}
       {msg.actions && msg.actions.length > 0 && !msg.streaming && (
         <div className="flex flex-wrap gap-2 mt-1">
-          {msg.actions.map((action) => (
-            <button
-              key={action.id}
-              onClick={() => onActionClick(action.id)}
-              className={`px-3 py-1.5 text-xs rounded-md transition-all duration-150 hover:-translate-y-px active:scale-[0.97] ${
-                action.primary
-                  ? "bg-[#0f1f0f] border border-[#2a4a2a] text-[#a3e635] hover:bg-[#162816]"
-                  : "bg-white/5 border border-white/10 text-white/60 hover:text-white/90 hover:bg-white/10"
-              }`}
-            >
-              {action.label}
-            </button>
-          ))}
+          {msg.actions.map((action) => {
+            const isSuccess = successAction === action.id;
+            return (
+              <button
+                key={action.id}
+                onClick={() => handleActionClick(action.id)}
+                className={`px-3 py-1.5 text-xs rounded-md transition-all duration-150 hover:-translate-y-px active:scale-[0.97] ${
+                  isSuccess
+                    ? "cta-success border border-white/10"
+                    : action.primary
+                      ? "bg-[#0f1f0f] border border-[#2a4a2a] text-[#a3e635] hover:bg-[#162816]"
+                      : "bg-white/5 border border-white/10 text-white/60 hover:text-white/90 hover:bg-white/10"
+                }`}
+              >
+                {isSuccess ? "✓ 복사됨" : action.label}
+              </button>
+            );
+          })}
         </div>
       )}
     </div>

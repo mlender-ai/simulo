@@ -285,6 +285,27 @@
     .chat-label-chip.dismissed { animation: labelExit 0.2s ease-in forwards; }
     .chat-label-chip.selected  { background: #1a2a1a; border-color: #4a7a4a; color: #a3e635; pointer-events: none; }
 
+    /* Round 2: Finding stagger + severity pulse + CTA feedback */
+    @keyframes findingEnter {
+      from { opacity: 0; transform: translateX(-8px); }
+      to   { opacity: 1; transform: translateX(0); }
+    }
+    .mini-finding { animation: findingEnter 0.3s ease-out both; }
+    .mini-finding:nth-child(1) { animation-delay: 200ms; }
+    .mini-finding:nth-child(2) { animation-delay: 350ms; }
+    .mini-finding:nth-child(3) { animation-delay: 500ms; }
+    .mini-finding:nth-child(4) { animation-delay: 650ms; }
+
+    @keyframes sevPulse { 0% { transform: scale(1); } 50% { transform: scale(1.15); } 100% { transform: scale(1); } }
+    .sev-3 .sev-dot, .sev-4 .sev-dot { animation: sevPulse 0.4s ease-out; }
+
+    @keyframes ctaSuccess {
+      0%   { background: #111; }
+      40%  { background: rgba(74,222,128,0.15); border-color: rgba(74,222,128,0.4); }
+      100% { background: #111; }
+    }
+    .chat-action-btn.success { animation: ctaSuccess 0.6s ease; color: #4ade80; border-color: rgba(74,222,128,0.3); }
+
     /* ── Mini report ── */
     .mini-report {
       background: #0f1f0f;

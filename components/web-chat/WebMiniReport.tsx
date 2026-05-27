@@ -40,10 +40,13 @@ export function WebMiniReport({ data }: Props) {
   const overall = sevConfig(maxSev);
 
   return (
-    <div className="rounded-lg border border-white/10 bg-white/[0.03] overflow-hidden">
-      {/* Header */}
-      <div className="flex items-center gap-2 px-4 py-3 border-b border-white/5">
-        <span className={`w-2 h-2 rounded-full ${overall.dot}`} />
+    <div className="mini-report-enter rounded-lg border border-white/10 bg-white/[0.03] overflow-hidden">
+      {/* Header — appears first */}
+      <div
+        className="flex items-center gap-2 px-4 py-3 border-b border-white/5"
+        style={{ animation: "chat-msg-fade 0.4s ease-out both" }}
+      >
+        <span className={`w-2 h-2 rounded-full ${overall.dot} ${maxSev >= 3 ? "sev-pulse" : ""}`} />
         <span className={`text-xs font-medium ${overall.color}`}>
           {overall.label}
         </span>
@@ -52,24 +55,27 @@ export function WebMiniReport({ data }: Props) {
         </span>
       </div>
 
-      {/* Findings */}
+      {/* Findings — staggered reveal */}
       <div className="divide-y divide-white/5">
         {data.findings.map((f, i) => {
           const s = sevConfig(f.severity);
           return (
-            <div key={i} className="px-4 py-3">
+            <div
+              key={i}
+              className="finding-row-enter px-4 py-3"
+              style={{ animationDelay: `${200 + i * 150}ms` }}
+            >
               <div className="flex items-start gap-2">
                 <span
-                  className={`shrink-0 mt-1 w-1.5 h-1.5 rounded-full ${s.dot}`}
+                  className={`shrink-0 mt-1 w-1.5 h-1.5 rounded-full ${s.dot} ${f.severity >= 3 ? "sev-pulse" : ""}`}
+                  style={f.severity >= 3 ? { animationDelay: `${200 + i * 150}ms` } : undefined}
                 />
                 <div className="min-w-0 flex-1">
                   <div className="flex items-center gap-2">
                     <span className="text-xs text-white/70 font-medium">
                       {f.criterion}
                     </span>
-                    <span
-                      className={`text-[10px] ${s.color} opacity-60`}
-                    >
+                    <span className={`text-[10px] ${s.color} opacity-60`}>
                       {s.label}
                     </span>
                   </div>
