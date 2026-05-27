@@ -134,7 +134,7 @@ export function WebChatInput({
                 : "메시지 입력... (Shift+Enter로 줄바꿈)"
             }
             rows={1}
-            className="w-full resize-none bg-white/5 border border-white/10 rounded-xl px-4 py-2.5 text-sm text-white/90 placeholder:text-white/30 focus:outline-none focus:border-white/25 disabled:opacity-40 transition-colors"
+            className="chat-input-bar w-full resize-none bg-white/5 border border-white/10 rounded-xl px-4 py-2.5 text-sm text-white/90 placeholder:text-white/30 focus:outline-none disabled:opacity-40"
             style={{ maxHeight: 160 }}
           />
         </div>
@@ -143,7 +143,11 @@ export function WebChatInput({
         <button
           onClick={handleSubmit}
           disabled={disabled || !text.trim()}
-          className="shrink-0 w-9 h-9 flex items-center justify-center rounded-md bg-white/10 text-white/70 hover:bg-white/20 transition-colors disabled:opacity-30"
+          className={`shrink-0 w-9 h-9 flex items-center justify-center rounded-md transition-all duration-200 ${
+            text.trim() && !disabled
+              ? "send-btn-active bg-white/10"
+              : "bg-white/10 text-white/70 opacity-30"
+          }`}
           aria-label="전송"
         >
           <svg

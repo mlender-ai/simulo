@@ -137,6 +137,10 @@ export function WebChatContainer() {
   >([]);
   const [userScrolledUp, setUserScrolledUp] = useState(false);
   const [hasNewBelow, setHasNewBelow] = useState(false);
+  const [dragOverArea, setDragOverArea] = useState(false);
+  const [recentSessions, setRecentSessions] = useState<
+    Array<{ frameName: string; intent: string | null }>
+  >([]);
   const abortRef = useRef<AbortController | null>(null);
   const listRef = useRef<HTMLDivElement>(null);
   const endRef = useRef<HTMLDivElement>(null);
@@ -506,6 +510,17 @@ export function WebChatContainer() {
     [analyzing, frames, addMsg, startAnalysis]
   );
 
+  // ── Fetch recent sessions for dynamic suggestions ─────────────────────────
+
+  useEffect(() => {
+    fetch("/api/chat/sessions")
+      .then((r) => r.json())
+      .then((data: Array<{ frameName: string; intent: string | null }>) => {
+        if (Array.isArray(data)) setRecentSessions(data.slice(0, 5));
+      })
+      .catch(() => {});
+  }, []);
+
   // ── Cleanup on unmount ────────────────────────────────────────────────────────
 
   useEffect(() => {
@@ -514,12 +529,41 @@ export function WebChatContainer() {
     };
   }, []);
 
+  // ── Dynamic suggestions ──────────────────────────────────────────────────────
+
+  const dynamicSuggestions = (() => {
+    const suggestions: string[] = [];
+    const lastFrame = recentSessions[0]?.frameName;
+    if (lastFrame) suggestions.push(`${lastFrame} 이어서 보기`);
+    const hasCompetitor = recentSessions.some((s) => s.intent === "competitor-compare");
+    if (!hasCompetitor) suggestions.push("경쟁사 최근 업데이트 확인해볼까요?");
+    suggestions.push("홈 화면 전체 스캔해줘", "A/B 테스트 가설 잡아줘");
+    return suggestions.slice(0, 4);
+  })();
+
   // ── Render ────────────────────────────────────────────────────────────────────
 
   const hasMessages = messages.length > 0;
 
   return (
-    <div className="flex flex-col h-full">
+    <div
+      className="flex flex-col h-full relative"
+      onDragOver={(e) => { e.preventDefault(); setDragOverArea(true); }}
+      onDragLeave={(e) => {
+        // Only if leaving the container itself
+        if (e.currentTarget === e.target || !e.currentTarget.contains(e.relatedTarget as Node)) {
+          setDragOverArea(false);
+        }
+      }}
+      onDrop={(e) => { e.preventDefault(); setDragOverArea(false); }}
+    >
+      {/* Drag overlay */}
+      {dragOverArea && (
+        <div className="chat-dropzone-overlay">
+          <div className="chat-dropzone-label">여기에 놓으면 분석할게요</div>
+        </div>
+      )}
+
       {/* Message area */}
       <div
         ref={listRef}
@@ -539,16 +583,12 @@ export function WebChatContainer() {
               또는 바로 질문을 입력해도 돼요.
             </p>
             <div className="flex flex-wrap gap-2 justify-center max-w-md">
-              {[
-                "야핏무브 홈 화면 전체 스캔해줘",
-                "이 카피 다듬어줘",
-                "경쟁사랑 비교해봐",
-                "A/B 변형 만들어줘",
-              ].map((prompt) => (
+              {dynamicSuggestions.map((prompt, i) => (
                 <button
                   key={prompt}
                   onClick={() => handleTextSubmit(prompt)}
                   className="chat-label-enter px-3 py-1.5 text-xs text-white/50 border border-white/10 rounded-full hover:text-white/80 hover:border-white/25 hover:-translate-y-px active:scale-[0.97] transition-all duration-150"
+                  style={{ animationDelay: `${i * 50}ms` }}
                 >
                   {prompt}
                 </button>

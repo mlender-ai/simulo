@@ -181,3 +181,47 @@ body {
   100% { opacity: 1; transform: translateY(0); }
 }
 .loading-msg-swap { animation: loading-swap 0.5s ease; }
+
+/* ── Round 3: Drop zone + Input bar ──────────────────────────────────────── */
+
+/* Full-area drag overlay */
+.chat-dropzone-overlay {
+  position: absolute;
+  inset: 0;
+  background: rgba(120, 100, 255, 0.04);
+  border: 2px dashed rgba(120, 100, 255, 0.3);
+  border-radius: 12px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  z-index: 20;
+  animation: chat-msg-fade 0.15s ease-out;
+  pointer-events: none;
+}
+.chat-dropzone-label {
+  font-size: 14px;
+  font-weight: 500;
+  color: rgba(160, 140, 255, 0.8);
+  padding: 10px 20px;
+  background: var(--surface);
+  border-radius: 8px;
+  border: 1px solid rgba(120, 100, 255, 0.2);
+}
+
+/* Input bar focus glow */
+.chat-input-bar {
+  transition: border-color 0.2s ease, box-shadow 0.2s ease;
+}
+.chat-input-bar:focus-within {
+  border-color: rgba(255,255,255,0.2) !important;
+  box-shadow: 0 0 0 3px rgba(120, 100, 255, 0.06);
+}
+
+/* Send button activation */
+.send-btn-active {
+  opacity: 1 !important;
+  color: rgba(160, 140, 255, 0.9) !important;
+  pointer-events: auto !important;
+}
+.send-btn-active:hover { transform: scale(1.05); }
+.send-btn-active:active { transform: scale(0.95); }
