@@ -156,6 +156,7 @@ const KEYWORD_INTENT_MAP: Array<{ keywords: string[]; intent: string; axis?: str
   { keywords: ["A/B", "a/b", "ab", "변형", "테스트", "실험안"], intent: "ab-variant" },
   { keywords: ["비교", "경쟁사", "머니워크", "돈이돼지", "타사", "competitor"], intent: "competitor-compare" },
   { keywords: ["개선안", "개선해줘", "어떻게 고치", "솔루션", "제안해줘"], intent: "suggestion" },
+  { keywords: ["상태 누락", "빈 화면", "empty state", "에러 상태", "로딩 상태", "상태 커버리지", "빠진 상태", "상태 감사", "상태 점검"], intent: "state-audit" },
 ];
 
 const INTENT_TO_CATEGORY: Record<string, string> = {
@@ -165,6 +166,7 @@ const INTENT_TO_CATEGORY: Record<string, string> = {
   "ab-variant":         "scan",
   "competitor-compare": "scan",
   "suggestion":         "scan",
+  "state-audit":        "scan",
   "flow-analysis":      "scan",
   "compound":           "scan",
   "usability":          "usability",
@@ -173,6 +175,23 @@ const INTENT_TO_CATEGORY: Record<string, string> = {
 };
 
 const DIRECTION_CHANGE_KEYWORDS = ["잠깐", "아니", "아 그게 아니라", "다시 봐줘", "다른 걸로", "바꿔서", "쪽으로 봐줘", "말고", "대신에"];
+
+const PERSONA_KEYWORDS: Array<{ keywords: string[]; id: string; label: string; promptContext: string }> = [
+  { keywords: ["시니어", "노인", "어르신", "60대", "고령"], id: "senior", label: "시니어(60+)", promptContext: "시니어(60대 이상). 기술 친숙도 낮음, 작은 글씨 읽기 어려움, 복잡한 단계 혼란 유발." },
+  { keywords: ["초보", "비친숙", "처음 쓰는", "입문자"], id: "novice", label: "기술 비친숙", promptContext: "기술 비친숙 사용자. 스마트폰 기본 조작만 가능, 전문 용어 이해 불가, 실수 시 당황." },
+  { keywords: ["글로벌", "외국인", "비원어민"], id: "global", label: "글로벌(비원어민)", promptContext: "글로벌 비원어민 사용자. 한국어 읽기 불가, 아이콘/시각 단서에 의존, 문화적 맥락 차이." },
+  { keywords: ["시각장애", "저시력", "접근성"], id: "a11y", label: "접근성", promptContext: "저시력/시각장애 사용자. 스크린 리더 사용, 고대비 필요, 색상만으로 정보 전달 불가." },
+];
+
+function detectPersonaFromText(text: string): { id: string; label: string; promptContext: string } | null {
+  const lower = text.toLowerCase();
+  for (const entry of PERSONA_KEYWORDS) {
+    if (entry.keywords.some((kw) => lower.includes(kw))) {
+      return { id: entry.id, label: entry.label, promptContext: entry.promptContext };
+    }
+  }
+  return null;
+}
 
 function detectIntentByKeyword(text: string): IntentDetectionResult | null {
   const lower = text.toLowerCase();
@@ -2501,6 +2520,7 @@ async function startChatAnalysis(_categoryId: string, followUpContext: string) {
         userMessage: followUpContext || "",
         apiKey: apiKey || undefined,
         ocrContext: figmaOcrCtx,
+        persona: contextStack.persona?.promptContext || undefined,
       }),
     });
 
@@ -2530,6 +2550,7 @@ async function startChatAnalysis(_categoryId: string, followUpContext: string) {
       "copy-rewrite": ["현재 카피를 분석하고 있어요...", "여러 톤으로 변형을 만드는 중...", "가장 효과적인 카피를 고르고 있어요..."],
       "ab-variant": ["현재 화면의 이슈를 파악하고...", "가설 기반으로 변형을 설계하는 중...", "예상 효과를 추정하고 있어요..."],
       "competitor-compare": ["야핏무브 화면을 먼저 분석하고...", "경쟁사 화면과 나란히 비교하는 중...", "격차를 정리하고 있어요..."],
+      "state-audit": ["화면 상태들을 점검하고 있어요...", "에러·빈·로딩 상태 누락 여부 확인 중...", "커버리지 결과를 정리하고 있어요..."],
     };
     const msgs = loadingMsgs[_categoryId] ?? ["분석하고 있어요..."];
     const getLoadMsg = () => msgs[Math.min(Math.floor((Date.now() - streamStart) / 3500), msgs.length - 1)];
@@ -2722,6 +2743,12 @@ async function handleChatInput(text: string) {
     contextStack.intent = null;
     contextStack.subContext = null;
     contextStack.pipeline = [];
+  }
+
+  // 페르소나 감지 (intent와 독립)
+  const detectedPersona = detectPersonaFromText(text);
+  if (detectedPersona) {
+    contextStack.persona = detectedPersona;
   }
 
   // 1단계: keyword 즉시 감지

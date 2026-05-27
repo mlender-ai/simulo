@@ -22,7 +22,8 @@ const AXIS_PROMPTS: Record<string, string> = {
 function buildSystemPrompt(
   intent: string,
   subContext: string,
-  ocrContext: string | undefined
+  ocrContext: string | undefined,
+  persona?: string
 ): string {
   const ocrBlock = ocrContext?.trim() ? `\n${ocrContext.trim()}\n` : "";
 
@@ -80,6 +81,19 @@ function buildSystemPrompt(
         "CTA 버튼의 명확성, 위치, 레이블, 전환 흐름의 마찰 요소를 분석하세요. " +
         "버튼 클릭 후 어떤 일이 일어날지 사용자가 예측할 수 있는지 평가하세요.";
       break;
+    case "state-audit":
+      categoryGuide =
+        "이 화면의 '상태 완전성'을 감사하세요. 다음 상태가 설계되어 있는지 확인하세요:\n" +
+        "1. 에러 상태 — API 실패, 네트워크 오류 시 사용자에게 보이는 화면\n" +
+        "2. 빈 상태 (Empty State) — 데이터가 없을 때의 화면\n" +
+        "3. 로딩 상태 — 데이터 로드 중 스켈레톤/스피너\n" +
+        "4. 폼 검증 실패 — 입력값 오류 시 인라인 에러 메시지\n" +
+        "5. 권한 없음 — 접근 제한 시 안내\n" +
+        "6. 성공 완료 — 작업 완료 시 피드백\n" +
+        "각 상태가 화면에 보이는지, 누락되었는지 판단하세요. " +
+        "누락된 상태는 severity 3(심각)으로, 존재하지만 미흡한 상태는 severity 2(개선필요)로 평가하세요. " +
+        "criterion 필드에 상태 유형명을 사용하세요 (예: '에러 상태', '빈 상태').";
+      break;
     default:
       categoryGuide =
         "Nielsen 사용성 휴리스틱 기준으로 화면을 종합 평가하세요.";
@@ -88,6 +102,10 @@ function buildSystemPrompt(
   if (cleanSubContext) {
     categoryGuide += `\n분석 맥락: ${cleanSubContext}`;
   }
+
+  const personaBlock = persona
+    ? `\n\n## 페르소나 관점 분석\n분석 대상 사용자: ${persona}\n이 사용자의 눈으로 모든 UI 요소를 평가하세요. "일반적으로 좋다"가 아니라 "이 사용자에게 이 요소가 이해되는가, 조작 가능한가, 불안하지 않은가"를 기준으로 판단하세요.\n`
+    : "";
 
   return `당신은 야핏무브 팀의 시니어 UX 동료입니다. 야핏무브(만보기 리워드 앱, 4060 여성 타깃)의 Figma 화면을 같이 보면서 이야기합니다.
 
@@ -101,7 +119,7 @@ function buildSystemPrompt(
 - 경쟁사 언급: "돈이돼지는 여기서 이렇게 하고 있거든요" — 자연스러운 참조
 금지 표현: "분석 결과를 전달드립니다", "아래 항목을 참고하세요", "권장 드립니다", "검토 부탁드립니다"
 사용 표현: "같이 봐볼게요", "이런 점이 눈에 띄어요", "이렇게 하면 좋겠어요"
-${ocrBlock}
+${ocrBlock}${personaBlock}
 분석 지침: ${categoryGuide}
 
 응답 형식 (반드시 순수 JSON, 마크다운 코드 블록 없음):
@@ -142,6 +160,7 @@ function selectModel(intent: string): string {
     "ab-variant",
     "flow-analysis",
     "suggestion",
+    "state-audit",
   ].includes(intent);
   return needsSonnet
     ? "claude-sonnet-4-20250514"
@@ -152,6 +171,7 @@ function getMaxTokens(intent: string): number {
   if (intent === "full-scan") return 2048;
   if (intent === "analyze-axis") return 2048;
   if (intent === "ab-variant") return 1536;
+  if (intent === "state-audit") return 2048;
   return 1024;
 }
 
@@ -174,6 +194,7 @@ export async function POST(request: NextRequest) {
       userMessage = "",
       apiKey: clientApiKey,
       ocrContext,
+      persona,
       // Legacy fallback: support old analyze/chat body shape
       image,
       categoryId,
@@ -187,6 +208,7 @@ export async function POST(request: NextRequest) {
       userMessage?: string;
       apiKey?: string;
       ocrContext?: string;
+      persona?: string;
       image?: string;
       categoryId?: string;
       followUpContext?: string;
@@ -213,7 +235,7 @@ export async function POST(request: NextRequest) {
 
     const firstFrame = resolvedFrames[0];
     const frameName = firstFrame.nodeName ?? "선택된 프레임";
-    const systemPrompt = buildSystemPrompt(resolvedIntent, resolvedSubContext, ocrContext);
+    const systemPrompt = buildSystemPrompt(resolvedIntent, resolvedSubContext, ocrContext, persona);
     const model = selectModel(resolvedIntent);
     const maxTokens = getMaxTokens(resolvedIntent);
 

@@ -38,6 +38,11 @@ const LOADING_MESSAGES: Record<string, string[]> = {
     "이슈를 우선순위대로 정리하는 중...",
     "Quick Win 위주로 제안을 준비하고 있어요...",
   ],
+  "state-audit": [
+    "화면 상태들을 점검하고 있어요...",
+    "에러·빈·로딩 상태 누락 여부 확인 중...",
+    "커버리지 결과를 정리하고 있어요...",
+  ],
 };
 
 function getLoadingMessage(intent: string, elapsed: number): string {
@@ -71,6 +76,7 @@ const KEYWORD_INTENT_MAP = [
   { keywords: ["A/B", "a/b", "ab", "변형", "테스트", "실험안"], intent: "ab-variant" },
   { keywords: ["비교", "경쟁사", "머니워크", "돈이돼지", "타사", "competitor"], intent: "competitor-compare" },
   { keywords: ["개선안", "개선해줘", "어떻게 고치", "솔루션", "제안해줘"], intent: "suggestion" },
+  { keywords: ["상태 누락", "빈 화면", "empty state", "에러 상태", "로딩 상태", "상태 커버리지", "빠진 상태", "상태 감사", "상태 점검"], intent: "state-audit" },
 ];
 
 const INTENT_LABELS: Record<string, string> = {
@@ -83,15 +89,43 @@ const INTENT_LABELS: Record<string, string> = {
   "usability": "사용성 검증",
   "visual": "시각 분석",
   "cta": "CTA 분석",
+  "state-audit": "상태 점검",
 };
 
-function detectIntent(text: string): { intent: string; axis?: string } | null {
+// ── Persona detection ─────────────────────────────────────────────────────────
+
+const PERSONA_KEYWORDS: Array<{ keywords: string[]; persona: string }> = [
+  { keywords: ["시니어", "노인", "어르신", "60대", "고령", "어르신 관점"], persona: "시니어(60대 이상). 기술 친숙도 낮음, 작은 글씨 읽기 어려움, 복잡한 단계 혼란 유발." },
+  { keywords: ["초보", "비친숙", "처음 쓰는", "입문자", "뉴비"], persona: "기술 비친숙 사용자. 스마트폰 기본 조작만 가능, 전문 용어 이해 불가, 실수 시 당황." },
+  { keywords: ["글로벌", "외국인", "비원어민", "영어 사용자"], persona: "글로벌 비원어민 사용자. 한국어 읽기 불가, 아이콘/시각 단서에 의존, 문화적 맥락 차이." },
+  { keywords: ["시각장애", "저시력", "접근성"], persona: "저시력/시각장애 사용자. 스크린 리더 사용, 고대비 필요, 색상만으로 정보 전달 불가." },
+];
+
+function detectPersona(text: string): string | null {
   const lower = text.toLowerCase();
-  for (const entry of KEYWORD_INTENT_MAP) {
+  for (const entry of PERSONA_KEYWORDS) {
     if (entry.keywords.some((kw) => lower.includes(kw))) {
-      return { intent: entry.intent, axis: entry.axis };
+      return entry.persona;
     }
   }
+  return null;
+}
+
+function detectIntent(text: string): { intent: string; axis?: string; persona?: string } | null {
+  const lower = text.toLowerCase();
+  const persona = detectPersona(text) ?? undefined;
+
+  for (const entry of KEYWORD_INTENT_MAP) {
+    if (entry.keywords.some((kw) => lower.includes(kw))) {
+      return { intent: entry.intent, axis: entry.axis, persona };
+    }
+  }
+
+  // Persona detected but no specific intent → default to full-scan with persona
+  if (persona) {
+    return { intent: "full-scan", persona };
+  }
+
   return null;
 }
 
@@ -110,6 +144,7 @@ function getInitialLabels(): Label[] {
   return [
     { id: "full-scan", name: "전체 스캔" },
     { id: "usability", name: "사용성 검증" },
+    { id: "state-audit", name: "상태 점검" },
     { id: "copy-rewrite", name: "카피 다듬기" },
     { id: "ab-variant", name: "A/B 변형" },
     { id: "competitor-compare", name: "경쟁사 비교" },
@@ -243,7 +278,7 @@ export function WebChatContainer() {
   // ── Analysis execution ────────────────────────────────────────────────────────
 
   const startAnalysis = useCallback(
-    async (intentId: string, subContext: string, axis?: string) => {
+    async (intentId: string, subContext: string, axis?: string, persona?: string) => {
       if (!frames.length || analyzing) return;
       setAnalyzing(true);
       setIntent(intentId);
@@ -277,6 +312,7 @@ export function WebChatContainer() {
             })),
             intent: intentId,
             subContext: resolvedSubCtx,
+            persona: persona || undefined,
             conversationHistory:
               conversationHistory.length > 10
                 ? [
@@ -502,7 +538,7 @@ export function WebChatContainer() {
 
       const detected = detectIntent(text);
       if (detected) {
-        startAnalysis(detected.intent, text, detected.axis);
+        startAnalysis(detected.intent, text, detected.axis, detected.persona);
       } else {
         startAnalysis("full-scan", text);
       }
