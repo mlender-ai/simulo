@@ -181,6 +181,7 @@ interface FramePayload {
   nodeId: string;
   nodeName: string;
   imageBase64: string;
+  mimeType?: string;
 }
 
 export async function POST(request: NextRequest) {
@@ -242,11 +243,18 @@ export async function POST(request: NextRequest) {
     const client = new Anthropic({ apiKey });
 
     // Build user content: up to 3 frame images + text
+    const VALID_MEDIA_TYPES = ["image/png", "image/jpeg", "image/gif", "image/webp"] as const;
+    type MediaType = typeof VALID_MEDIA_TYPES[number];
+
     const imageBlocks: Anthropic.ImageBlockParam[] = resolvedFrames
       .slice(0, 3)
       .map((f) => ({
         type: "image" as const,
-        source: { type: "base64" as const, media_type: "image/png" as const, data: f.imageBase64 },
+        source: {
+          type: "base64" as const,
+          media_type: (VALID_MEDIA_TYPES.includes(f.mimeType as MediaType) ? f.mimeType : "image/png") as MediaType,
+          data: f.imageBase64,
+        },
       }));
 
     const textPrompt = userMessage

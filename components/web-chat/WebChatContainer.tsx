@@ -57,6 +57,7 @@ interface FrameInfo {
   nodeId: string;
   nodeName: string;
   imageBase64: string;
+  mimeType: string;
 }
 
 interface Label {
@@ -239,14 +240,15 @@ export function WebChatContainer() {
           new Promise<FrameInfo>((resolve) => {
             const reader = new FileReader();
             reader.onload = () => {
-              const base64 = (reader.result as string).replace(
-                /^data:image\/[^;]+;base64,/,
-                ""
-              );
+              const dataUrl = reader.result as string;
+              const mimeMatch = dataUrl.match(/^data:(image\/[^;]+);base64,/);
+              const mimeType = mimeMatch?.[1] ?? "image/png";
+              const base64 = dataUrl.replace(/^data:image\/[^;]+;base64,/, "");
               resolve({
                 nodeId: `upload-${Date.now()}-${i}`,
                 nodeName: f.name.replace(/\.[^.]+$/, ""),
                 imageBase64: base64,
+                mimeType,
               });
             };
             reader.readAsDataURL(f);
@@ -255,8 +257,6 @@ export function WebChatContainer() {
 
       Promise.all(readFiles).then((newFrames) => {
         setFrames(newFrames);
-        setIntent(null);
-        setConversationHistory([]);
 
         const names = newFrames.map((f) => f.nodeName).join(", ");
         addMsg({
@@ -309,6 +309,7 @@ export function WebChatContainer() {
               nodeId: f.nodeId,
               nodeName: f.nodeName,
               imageBase64: f.imageBase64,
+              mimeType: f.mimeType,
             })),
             intent: intentId,
             subContext: resolvedSubCtx,
