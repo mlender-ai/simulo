@@ -89,12 +89,12 @@ export function Sidebar({ onClose }: SidebarProps) {
         )}
       </div>
 
-      {/* New chat button */}
-      <div className="px-3 pt-3">
+      {/* Navigation */}
+      <nav className="px-3 pt-3 space-y-0.5">
         <Link
           href="/"
           onClick={handleNavClick}
-          className={`flex items-center gap-3 px-3 py-3 rounded-md text-sm transition-colors min-h-[44px] ${
+          className={`flex items-center gap-3 px-3 py-2.5 rounded-md text-sm transition-colors min-h-[40px] ${
             pathname === "/"
               ? "bg-white/10 text-white"
               : "text-[var(--muted)] hover:text-white hover:bg-white/5"
@@ -103,7 +103,55 @@ export function Sidebar({ onClose }: SidebarProps) {
           <span className="mono text-xs w-4 text-center shrink-0">+</span>
           새 대화
         </Link>
-      </div>
+        <Link
+          href="/dashboard"
+          onClick={handleNavClick}
+          className={`flex items-center gap-3 px-3 py-2.5 rounded-md text-sm transition-colors min-h-[40px] ${
+            pathname.startsWith("/dashboard")
+              ? "bg-white/10 text-white"
+              : "text-[var(--muted)] hover:text-white hover:bg-white/5"
+          }`}
+        >
+          <span className="mono text-xs w-4 text-center shrink-0">▦</span>
+          대시보드
+        </Link>
+        <Link
+          href="/history"
+          onClick={handleNavClick}
+          className={`flex items-center gap-3 px-3 py-2.5 rounded-md text-sm transition-colors min-h-[40px] ${
+            pathname === "/history"
+              ? "bg-white/10 text-white"
+              : "text-[var(--muted)] hover:text-white hover:bg-white/5"
+          }`}
+        >
+          <span className="mono text-xs w-4 text-center shrink-0">⏱</span>
+          히스토리
+        </Link>
+        <Link
+          href="/flow-builder"
+          onClick={handleNavClick}
+          className={`flex items-center gap-3 px-3 py-2.5 rounded-md text-sm transition-colors min-h-[40px] ${
+            pathname === "/flow-builder"
+              ? "bg-white/10 text-white"
+              : "text-[var(--muted)] hover:text-white hover:bg-white/5"
+          }`}
+        >
+          <span className="mono text-xs w-4 text-center shrink-0">⎇</span>
+          플로우 빌더
+        </Link>
+        <Link
+          href="/plugin-sessions"
+          onClick={handleNavClick}
+          className={`flex items-center gap-3 px-3 py-2.5 rounded-md text-sm transition-colors min-h-[40px] ${
+            pathname === "/plugin-sessions"
+              ? "bg-white/10 text-white"
+              : "text-[var(--muted)] hover:text-white hover:bg-white/5"
+          }`}
+        >
+          <span className="mono text-xs w-4 text-center shrink-0">◈</span>
+          플러그인 세션
+        </Link>
+      </nav>
 
       {/* Session search */}
       {sessions.length > 3 && (
