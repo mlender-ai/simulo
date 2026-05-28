@@ -225,3 +225,12 @@ body {
 }
 .send-btn-active:hover { transform: scale(1.05); }
 .send-btn-active:active { transform: scale(0.95); }
+
+/* ── Markdown chat styling ─────────────────────────────────────────────────── */
+.markdown-chat {
+  font-size: 14px;
+  line-height: 1.6;
+  color: rgba(255,255,255,0.8);
+}
+.markdown-chat > *:first-child { margin-top: 0; }
+.markdown-chat > *:last-child { margin-bottom: 0; }

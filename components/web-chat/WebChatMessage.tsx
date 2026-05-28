@@ -1,6 +1,7 @@
 "use client";
 
 import { useState, useCallback } from "react";
+import ReactMarkdown from "react-markdown";
 import { WebMiniReport, type MiniReportData } from "./WebMiniReport";
 
 // ── Types ──────────────────────────────────────────────────────────────────────
@@ -20,6 +21,21 @@ interface Props {
   onLabelClick: (labelId: string) => void;
   onActionClick: (actionId: string) => void;
 }
+
+// ── Markdown components ───────────────────────────────────────────────────────
+
+const markdownComponents = {
+  p: ({ children }: { children?: React.ReactNode }) => <p className="mb-2 last:mb-0">{children}</p>,
+  h2: ({ children }: { children?: React.ReactNode }) => <h2 className="text-white/90 font-semibold text-sm mt-3 mb-1">{children}</h2>,
+  h3: ({ children }: { children?: React.ReactNode }) => <h3 className="text-white/85 font-medium text-sm mt-2 mb-1">{children}</h3>,
+  ul: ({ children }: { children?: React.ReactNode }) => <ul className="list-disc list-inside space-y-0.5 my-1">{children}</ul>,
+  ol: ({ children }: { children?: React.ReactNode }) => <ol className="list-decimal list-inside space-y-0.5 my-1">{children}</ol>,
+  li: ({ children }: { children?: React.ReactNode }) => <li className="text-white/75">{children}</li>,
+  strong: ({ children }: { children?: React.ReactNode }) => <strong className="text-white/95 font-semibold">{children}</strong>,
+  em: ({ children }: { children?: React.ReactNode }) => <em className="text-white/70 italic">{children}</em>,
+  blockquote: ({ children }: { children?: React.ReactNode }) => <blockquote className="border-l-2 border-white/20 pl-3 text-white/60 italic my-1">{children}</blockquote>,
+  code: ({ children }: { children?: React.ReactNode }) => <code className="px-1 py-0.5 bg-white/10 rounded text-xs mono">{children}</code>,
+};
 
 // ── Component ──────────────────────────────────────────────────────────────────
 
@@ -64,8 +80,10 @@ export function WebChatMessage({ msg, onLabelClick, onActionClick }: Props) {
       {/* Streaming: typing indicator → streaming cursor */}
       {msg.streaming ? (
         msg.content ? (
-          <div className="streaming-cursor text-sm text-white/80 leading-relaxed whitespace-pre-wrap">
-            {msg.content}
+          <div className="streaming-cursor markdown-chat">
+            <ReactMarkdown components={markdownComponents}>
+              {msg.content}
+            </ReactMarkdown>
           </div>
         ) : (
           <div className="px-1 py-2">
@@ -79,8 +97,10 @@ export function WebChatMessage({ msg, onLabelClick, onActionClick }: Props) {
       ) : (
         <>
           {msg.content && (
-            <div className="text-sm text-white/80 leading-relaxed whitespace-pre-wrap">
-              {msg.content}
+            <div className="markdown-chat">
+              <ReactMarkdown components={markdownComponents}>
+                {msg.content}
+              </ReactMarkdown>
             </div>
           )}
         </>
