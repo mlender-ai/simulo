@@ -5,7 +5,6 @@ import { useState, useEffect } from "react";
 import Link from "next/link";
 import { Sidebar } from "./Sidebar";
 import StorageWarningBanner from "./StorageWarningBanner";
-import { QuickDiagnoseOverlay } from "./QuickDiagnoseCard";
 
 export function LayoutShellClient({ children }: { children: React.ReactNode }) {
   const pathname = usePathname();
@@ -78,8 +77,6 @@ export function LayoutShellClient({ children }: { children: React.ReactNode }) {
         {children}
       </main>
 
-      {/* Global drag & drop quick diagnosis */}
-      <QuickDiagnoseOverlay />
     </div>
   );
 }
