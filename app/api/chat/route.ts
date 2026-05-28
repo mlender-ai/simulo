@@ -81,6 +81,18 @@ function buildSystemPrompt(
         "CTA 버튼의 명확성, 위치, 레이블, 전환 흐름의 마찰 요소를 분석하세요. " +
         "버튼 클릭 후 어떤 일이 일어날지 사용자가 예측할 수 있는지 평가하세요.";
       break;
+    case "text-consistency":
+      categoryGuide =
+        "제공된 화면들의 텍스트를 크로스 비교하여 **의미적 불일치**를 탐지하세요.\n" +
+        "같은 역할(CTA, 에러 메시지, 상태 표시 등)을 하는 텍스트가 화면마다 다른 표현을 쓰는 경우를 찾아내세요.\n" +
+        "예: '확인'/'완료'/'저장'이 같은 역할의 CTA에서 혼용, '포인트'/'리워드'/'적립금' 용어 혼용\n" +
+        "각 불일치 그룹마다:\n" +
+        "- criterion: 불일치 카테고리 (예: 'CTA 레이블 불일치', '에러 메시지 톤 불일치')\n" +
+        "- oneLineFinding: 어떤 표현들이 혼용되는지 나열\n" +
+        "- detail: 어느 화면에서 각각 발견되는지 구체적으로\n" +
+        "- fix: 권장 표준 표현 1개 제시\n" +
+        "severity: 3=사용자 혼란 유발, 2=톤 불일치, 1=사소한 차이";
+      break;
     case "state-audit":
       categoryGuide =
         "이 화면의 '상태 완전성'을 감사하세요. 다음 상태가 설계되어 있는지 확인하세요:\n" +
@@ -161,6 +173,7 @@ function selectModel(intent: string): string {
     "flow-analysis",
     "suggestion",
     "state-audit",
+    "text-consistency",
   ].includes(intent);
   return needsSonnet
     ? "claude-sonnet-4-20250514"
@@ -172,6 +185,7 @@ function getMaxTokens(intent: string): number {
   if (intent === "analyze-axis") return 2048;
   if (intent === "ab-variant") return 1536;
   if (intent === "state-audit") return 2048;
+  if (intent === "text-consistency") return 2048;
   return 1024;
 }
 

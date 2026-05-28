@@ -157,6 +157,7 @@ const KEYWORD_INTENT_MAP: Array<{ keywords: string[]; intent: string; axis?: str
   { keywords: ["비교", "경쟁사", "머니워크", "돈이돼지", "타사", "competitor"], intent: "competitor-compare" },
   { keywords: ["개선안", "개선해줘", "어떻게 고치", "솔루션", "제안해줘"], intent: "suggestion" },
   { keywords: ["상태 누락", "빈 화면", "empty state", "에러 상태", "로딩 상태", "상태 커버리지", "빠진 상태", "상태 감사", "상태 점검"], intent: "state-audit" },
+  { keywords: ["일관성", "텍스트 통일", "같은 표현", "용어 혼용", "표현 불일치", "텍스트 일관", "워딩 통일"], intent: "text-consistency" },
 ];
 
 const INTENT_TO_CATEGORY: Record<string, string> = {
@@ -167,6 +168,7 @@ const INTENT_TO_CATEGORY: Record<string, string> = {
   "competitor-compare": "scan",
   "suggestion":         "scan",
   "state-audit":        "scan",
+  "text-consistency":   "scan",
   "flow-analysis":      "scan",
   "compound":           "scan",
   "usability":          "usability",
@@ -2551,6 +2553,7 @@ async function startChatAnalysis(_categoryId: string, followUpContext: string) {
       "ab-variant": ["현재 화면의 이슈를 파악하고...", "가설 기반으로 변형을 설계하는 중...", "예상 효과를 추정하고 있어요..."],
       "competitor-compare": ["야핏무브 화면을 먼저 분석하고...", "경쟁사 화면과 나란히 비교하는 중...", "격차를 정리하고 있어요..."],
       "state-audit": ["화면 상태들을 점검하고 있어요...", "에러·빈·로딩 상태 누락 여부 확인 중...", "커버리지 결과를 정리하고 있어요..."],
+      "text-consistency": ["화면별 텍스트를 비교하고 있어요...", "같은 개념의 다른 표현을 찾는 중...", "불일치 항목을 정리하고 있어요..."],
     };
     const msgs = loadingMsgs[_categoryId] ?? ["분석하고 있어요..."];
     const getLoadMsg = () => msgs[Math.min(Math.floor((Date.now() - streamStart) / 3500), msgs.length - 1)];

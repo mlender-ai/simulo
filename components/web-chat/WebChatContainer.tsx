@@ -43,6 +43,11 @@ const LOADING_MESSAGES: Record<string, string[]> = {
     "에러·빈·로딩 상태 누락 여부 확인 중...",
     "커버리지 결과를 정리하고 있어요...",
   ],
+  "text-consistency": [
+    "화면별 텍스트를 비교하고 있어요...",
+    "같은 개념의 다른 표현을 찾는 중...",
+    "불일치 항목을 정리하고 있어요...",
+  ],
 };
 
 function getLoadingMessage(intent: string, elapsed: number): string {
@@ -78,6 +83,7 @@ const KEYWORD_INTENT_MAP = [
   { keywords: ["비교", "경쟁사", "머니워크", "돈이돼지", "타사", "competitor"], intent: "competitor-compare" },
   { keywords: ["개선안", "개선해줘", "어떻게 고치", "솔루션", "제안해줘"], intent: "suggestion" },
   { keywords: ["상태 누락", "빈 화면", "empty state", "에러 상태", "로딩 상태", "상태 커버리지", "빠진 상태", "상태 감사", "상태 점검"], intent: "state-audit" },
+  { keywords: ["일관성", "텍스트 통일", "같은 표현", "용어 혼용", "표현 불일치", "텍스트 일관", "워딩 통일"], intent: "text-consistency" },
 ];
 
 const INTENT_LABELS: Record<string, string> = {
@@ -91,6 +97,7 @@ const INTENT_LABELS: Record<string, string> = {
   "visual": "시각 분석",
   "cta": "CTA 분석",
   "state-audit": "상태 점검",
+  "text-consistency": "텍스트 일관성",
 };
 
 // ── Persona detection ─────────────────────────────────────────────────────────
