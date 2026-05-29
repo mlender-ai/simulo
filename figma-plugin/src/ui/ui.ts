@@ -158,6 +158,7 @@ const KEYWORD_INTENT_MAP: Array<{ keywords: string[]; intent: string; axis?: str
   { keywords: ["개선안", "개선해줘", "어떻게 고치", "솔루션", "제안해줘"], intent: "suggestion" },
   { keywords: ["상태 누락", "빈 화면", "empty state", "에러 상태", "로딩 상태", "상태 커버리지", "빠진 상태", "상태 감사", "상태 점검"], intent: "state-audit" },
   { keywords: ["일관성", "텍스트 통일", "같은 표현", "용어 혼용", "표현 불일치", "텍스트 일관", "워딩 통일"], intent: "text-consistency" },
+  { keywords: ["타이포", "텍스트 위계", "글자 위계", "폰트 위계", "위계 역전", "시각 가중치", "위계 오류", "위계 검증", "장식 텍스트", "CTA보다 큰", "중요도 역전"], intent: "typography-hierarchy" },
 ];
 
 const INTENT_TO_CATEGORY: Record<string, string> = {
@@ -167,9 +168,10 @@ const INTENT_TO_CATEGORY: Record<string, string> = {
   "ab-variant":         "scan",
   "competitor-compare": "scan",
   "suggestion":         "scan",
-  "state-audit":        "scan",
-  "text-consistency":   "scan",
-  "flow-analysis":      "scan",
+  "state-audit":           "scan",
+  "text-consistency":      "scan",
+  "typography-hierarchy":  "scan",
+  "flow-analysis":         "scan",
   "compound":           "scan",
   "usability":          "usability",
   "visual":             "visual",
@@ -227,6 +229,7 @@ ${convSummary || "(없음)"}
 - competitor-compare: 경쟁사 비교
 - suggestion: 구체적 개선안 요청
 - flow-analysis: 여러 화면 흐름 분석
+- typography-hierarchy: 타이포그래피 시각 위계 검증 (폰트 크기·굵기 vs 정보 중요도 역전 탐지)
 
 JSON만 응답:
 {"intent":"...","axis":"ad-buffer|earning-motivation|retention-trigger|exchange-trust|null","subContext":"추출된 맥락 또는 null","confidence":0.0}`;
@@ -281,11 +284,12 @@ function getLabelsForState(ctx: ContextStack): { id: string; name: string }[] {
   // No intent → initial labels
   if (!ctx.intent) {
     return [
-      { id: "full-scan",          name: "전체 스캔" },
-      { id: "usability",          name: "사용성 검증" },
-      { id: "copy-rewrite",       name: "카피 다듬기" },
-      { id: "ab-variant",         name: "A/B 변형" },
-      { id: "competitor-compare", name: "경쟁사 비교" },
+      { id: "full-scan",            name: "전체 스캔" },
+      { id: "usability",            name: "사용성 검증" },
+      { id: "copy-rewrite",         name: "카피 다듬기" },
+      { id: "ab-variant",           name: "A/B 변형" },
+      { id: "competitor-compare",   name: "경쟁사 비교" },
+      { id: "typography-hierarchy", name: "타이포 위계" },
     ];
   }
 
@@ -407,6 +411,38 @@ function buildFigmaOcrContext(images: ImageItem[], frameWidths?: number[], frame
     return `화면 ${si + 1} (${img.name}):\n${lines.join("\n")}`;
   });
   return `=== Figma 실제 텍스트 (OCR 오차 없음, 100% 정확) ===\n아래 텍스트는 Figma 디자인 파일에서 직접 추출한 것으로, 이미지 OCR 없이 정확합니다. 반드시 이 텍스트를 기준으로 분석하세요.\n\n${screens.join("\n\n")}`;
+}
+
+function buildTypographyWeightContext(frames: FrameInfo[]): string {
+  interface WeightedText { frameName: string; text: string; fontSize: number; isBold: boolean; weight: number; }
+  const all: WeightedText[] = [];
+  for (const f of frames) {
+    if (!f.texts?.length) continue;
+    for (const t of f.texts) {
+      const size = t.fontSize ?? 14;
+      const bold = t.fontWeight === "bold";
+      all.push({ frameName: f.nodeName, text: t.text, fontSize: size, isBold: bold, weight: size * (bold ? 1.5 : 1.0) });
+    }
+  }
+  if (all.length === 0) return "";
+  all.sort((a, b) => b.weight - a.weight);
+
+  const topN = Math.min(15, all.length);
+  const topLines = all.slice(0, topN).map((t, i) => {
+    const boldTag = t.isBold ? " 볼드" : "";
+    return `${i + 1}. [가중치=${t.weight.toFixed(0)} fs=${t.fontSize}${boldTag}] "${t.text}" (${t.frameName})`;
+  });
+  const allLines = all.map((t) => {
+    const boldTag = t.isBold ? " bold" : "";
+    return `  [${t.fontSize}px${boldTag}] "${t.text}" (${t.frameName})`;
+  });
+
+  return `\n=== 타이포그래피 위계 분석 데이터 (시각 가중치 = fontSize × (볼드?1.5:1.0)) ===
+[시각 가중치 TOP ${topN} — 가장 눈에 띄는 텍스트]:
+${topLines.join("\n")}
+
+[전체 텍스트 목록 (${all.length}개)]:
+${allLines.join("\n")}`;
 }
 
 function escapeHtml(s: string): string {
@@ -2494,11 +2530,14 @@ async function startChatAnalysis(_categoryId: string, followUpContext: string) {
 
   // Build OCR context from all selected frames
   const framesWithText = contextStack.frames.filter((f) => f.texts?.length > 0);
-  const figmaOcrCtx = framesWithText.length > 0
+  const baseOcrCtx = framesWithText.length > 0
     ? buildFigmaOcrContext(
         framesWithText.map((f) => ({ name: f.nodeName, base64: f.imageBase64, texts: f.texts }))
       )
     : undefined;
+  const figmaOcrCtx = contextStack.intent === "typography-hierarchy"
+    ? (baseOcrCtx ?? "") + buildTypographyWeightContext(contextStack.frames)
+    : baseOcrCtx;
 
   // Resolve subContext: combine stored subContext + followUpContext
   const resolvedSubCtx = [contextStack.subContext, followUpContext]
@@ -2554,6 +2593,7 @@ async function startChatAnalysis(_categoryId: string, followUpContext: string) {
       "competitor-compare": ["야핏무브 화면을 먼저 분석하고...", "경쟁사 화면과 나란히 비교하는 중...", "격차를 정리하고 있어요..."],
       "state-audit": ["화면 상태들을 점검하고 있어요...", "에러·빈·로딩 상태 누락 여부 확인 중...", "커버리지 결과를 정리하고 있어요..."],
       "text-consistency": ["화면별 텍스트를 비교하고 있어요...", "같은 개념의 다른 표현을 찾는 중...", "불일치 항목을 정리하고 있어요..."],
+      "typography-hierarchy": ["텍스트 시각 가중치를 계산하고 있어요...", "의미 카테고리를 분류하는 중...", "위계 역전 패턴을 찾고 있어요..."],
     };
     const msgs = loadingMsgs[_categoryId] ?? ["분석하고 있어요..."];
     const getLoadMsg = () => msgs[Math.min(Math.floor((Date.now() - streamStart) / 3500), msgs.length - 1)];

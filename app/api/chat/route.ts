@@ -93,6 +93,17 @@ function buildSystemPrompt(
         "- fix: 권장 표준 표현 1개 제시\n" +
         "severity: 3=사용자 혼란 유발, 2=톤 불일치, 1=사소한 차이";
       break;
+    case "typography-hierarchy":
+      categoryGuide =
+        "제공된 '타이포그래피 위계 분석 데이터'를 사용하여 시각 가중치(fontSize × bold배율) 순위 vs 정보 의미 중요도의 역전을 탐지하세요.\n" +
+        "각 텍스트를 의미 카테고리로 분류하세요: CTA | 핵심정보 | 본문 | 장식 | 라벨\n" +
+        "판별 기준: CTA/핵심정보보다 시각 가중치가 높은 장식/본문 텍스트 = 위계 역전\n" +
+        "각 역전 케이스는 아래 형식으로 기술하세요:\n" +
+        "  detail: '1순위 가장 큰 텍스트: \"[텍스트]\" [장식] — CTA \"[텍스트]\"보다 Npx 더 큼'\n" +
+        "criterion 첫 번째 항목은 반드시 '위계 스코어'로 하고 0-100점 평가 결과와 근거를 포함하세요 (100=완벽, 0=완전 역전).\n" +
+        "severity: 3=CTA가 장식보다 작음(심각), 2=핵심정보 가중치 역전, 1=미미한 불균형, 0=위계 양호\n" +
+        "fix: 구체적 폰트 크기 조정 수치 포함 (예: 'CTA를 18px→22px, 배경 카피를 24px→16px로 조정')";
+      break;
     case "state-audit":
       categoryGuide =
         "이 화면의 '상태 완전성'을 감사하세요. 다음 상태가 설계되어 있는지 확인하세요:\n" +
@@ -174,6 +185,7 @@ function selectModel(intent: string): string {
     "suggestion",
     "state-audit",
     "text-consistency",
+    "typography-hierarchy",
   ].includes(intent);
   return needsSonnet
     ? "claude-sonnet-4-20250514"
@@ -186,6 +198,7 @@ function getMaxTokens(intent: string): number {
   if (intent === "ab-variant") return 1536;
   if (intent === "state-audit") return 2048;
   if (intent === "text-consistency") return 2048;
+  if (intent === "typography-hierarchy") return 1536;
   return 1024;
 }
 
