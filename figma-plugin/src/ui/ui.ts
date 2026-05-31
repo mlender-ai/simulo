@@ -117,6 +117,18 @@ interface ContextStack {
   selectedCategory: string | null;
 }
 
+const HINT_CHIPS = [
+  { label: "전체 분석",  text: "전체 분석해줘" },
+  { label: "A/B 변형",  text: "A/B 변형 만들어줘" },
+  { label: "카피 다듬기", text: "카피 다듬어줘" },
+  { label: "경쟁사 비교", text: "경쟁사와 비교해줘" },
+  { label: "사용성 점검", text: "사용성 점검해줘" },
+  { label: "CTA 분석",  text: "CTA 분석해줘" },
+  { label: "개선안 제안", text: "개선안 제안해줘" },
+];
+
+let chipsHidden = false;
+
 let chatMessages: ChatMessage[] = [];
 let contextStack: ContextStack = {
   frames: [], frameMode: null,
@@ -371,6 +383,16 @@ function $<T extends HTMLElement = HTMLElement>(id: string): T {
   return document.getElementById(id) as T;
 }
 
+function showHintChips() {
+  if (chipsHidden) return;
+  $("hint-chips")?.classList.remove("hidden");
+}
+
+function hideHintChips() {
+  chipsHidden = true;
+  $("hint-chips")?.classList.add("hidden");
+}
+
 /**
  * Figma 텍스트 노드를 서버 OCR 패스 없이 Claude에 전달하기 위한 컨텍스트 문자열로 변환.
  * 이미지 OCR 대신 이 값을 사용하면 한국어 텍스트 오독 문제가 없어짐.
@@ -517,9 +539,27 @@ window.addEventListener("DOMContentLoaded", () => {
     applyI18n();
   });
 
+  // Hint chips setup
+  const hintChipsEl = $("hint-chips");
+  if (hintChipsEl) {
+    hintChipsEl.innerHTML = HINT_CHIPS.map((c) =>
+      `<button class="hint-chip" data-text="${escapeHtml(c.text)}">${escapeHtml(c.label)}</button>`
+    ).join("");
+    hintChipsEl.querySelectorAll(".hint-chip").forEach((btn) => {
+      (btn as HTMLElement).addEventListener("click", () => {
+        const text = (btn as HTMLElement).dataset.text ?? "";
+        const inputEl = $<HTMLInputElement>("chatInput");
+        inputEl.value = text;
+        handleChatInput(text);
+        inputEl.value = "";
+      });
+    });
+  }
+
   // Chat input
   const chatInputEl = $<HTMLInputElement>("chatInput");
   const chatSendBtnEl = $<HTMLButtonElement>("chatSendBtn");
+  chatInputEl.addEventListener("input", () => hideHintChips());
   chatInputEl.addEventListener("keydown", (e) => {
     if (e.key === "Enter" && chatInputEl.value.trim()) {
       handleChatInput(chatInputEl.value.trim());
@@ -2338,6 +2378,10 @@ function handleFramesSelected(frames: FrameInfo[]) {
     chatAnalyzing = false;
   }
 
+  // Reset chips for the new conversation
+  chipsHidden = false;
+  showHintChips();
+
   // Capture previous session state before reset
   const hadPreviousResult = contextStack.results.length > 0;
   const previousIntent = contextStack.intent;
@@ -2773,6 +2817,7 @@ function handleChatAction(action: string) {
 
 async function handleChatInput(text: string) {
   if (!text.trim() || chatAnalyzing) return;
+  hideHintChips();
 
   if (!contextStack.frames.length) {
     addMsg({ id: chatId(), role: "bot", content: "먼저 Figma에서 프레임을 선택해주세요." });
@@ -2834,6 +2879,8 @@ function resetChat() {
   contextStack.lastReport = null;
   contextStack.pipeline = [];
   contextStack.results = [];
+  chipsHidden = false;
+  showHintChips();
   renderMessages();
 
   if (contextStack.frames.length > 0) {

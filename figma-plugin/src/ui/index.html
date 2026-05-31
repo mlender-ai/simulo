@@ -566,6 +566,28 @@
     .feedback-submit { margin-top: 6px; padding: 7px; width: 100%; background: #e5e5e5; color: #0d0d0d; border: none; border-radius: 6px; font-size: 12px; font-weight: 600; cursor: pointer; font-family: inherit; }
     .feedback-submit:disabled { opacity: 0.3; cursor: not-allowed; }
     .feedback-done { font-size: 11px; color: #555; text-align: center; padding: 8px 0; }
+
+    /* ── Hint chips ── */
+    #hint-chips {
+      display: flex;
+      flex-wrap: wrap;
+      gap: 6px;
+      padding: 8px 12px;
+      flex-shrink: 0;
+    }
+    #hint-chips.hidden { display: none; }
+    .hint-chip {
+      background: #1a1a1a;
+      border: 1px solid #2a2a2a;
+      border-radius: 9999px;
+      padding: 4px 12px;
+      font-size: 12px;
+      color: #aaaaaa;
+      cursor: pointer;
+      font-family: inherit;
+      transition: background 0.12s, border-color 0.12s, color 0.12s;
+    }
+    .hint-chip:hover { background: #222; border-color: #3a3a3a; color: #fff; }
   </style>
 </head>
 <body>
@@ -621,6 +643,9 @@
     <!-- Chat messages (shown after frame selected) -->
     <div class="chat-messages hidden" id="chatMessages"></div>
   </div>
+
+  <!-- Hint chips (shown in empty state, before first user message) -->
+  <div id="hint-chips"></div>
 
   <!-- Chat input bar (always visible) -->
   <div class="chat-input-bar">
