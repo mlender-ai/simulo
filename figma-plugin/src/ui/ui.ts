@@ -446,6 +446,16 @@ function applyI18n() {
 }
 
 window.addEventListener("DOMContentLoaded", () => {
+  // Restore previous chat session
+  const restored = loadChatHistory();
+  if (restored.length > 0) {
+    chatMessages = [
+      { id: chatId(), role: "system" as const, content: "── 이전 세션 ──" },
+      ...restored,
+    ];
+    renderMessages();
+  }
+
   // Load settings from plugin storage
   parent.postMessage({ pluginMessage: { type: "load-api-key" } }, "*");
   parent.postMessage({ pluginMessage: { type: "load-simulo-url" } }, "*");
@@ -2190,12 +2200,38 @@ function chatId(): string {
 function addMsg(msg: ChatMessage) {
   chatMessages.push(msg);
   renderMessages();
+  saveChatHistory();
+}
+
+function saveChatHistory() {
+  try {
+    const toSave = chatMessages
+      .filter((m) => !m.streaming)
+      .slice(-15);
+    localStorage.setItem("simulo_chat_history", JSON.stringify(toSave));
+  } catch { /* quota exceeded or unavailable */ }
+}
+
+function loadChatHistory(): ChatMessage[] {
+  try {
+    const saved = localStorage.getItem("simulo_chat_history");
+    if (saved) {
+      const parsed = JSON.parse(saved) as ChatMessage[];
+      if (Array.isArray(parsed) && parsed.length > 0) return parsed;
+    }
+  } catch { /* parse error */ }
+  return [];
+}
+
+function clearChatHistory() {
+  try { localStorage.removeItem("simulo_chat_history"); } catch {}
 }
 
 function updateMsg(id: string, patch: Partial<ChatMessage>) {
   const idx = chatMessages.findIndex((m) => m.id === id);
   if (idx !== -1) chatMessages[idx] = { ...chatMessages[idx], ...patch };
   renderMessages();
+  saveChatHistory();
 }
 
 function renderMessages() {
@@ -2367,6 +2403,7 @@ function handleFramesDeselected() {
 
 function handleTooManyFrames(count: number) {
   chatMessages = [];
+  clearChatHistory();
   contextStack.frames = [];
   renderMessages();
   addMsg({
@@ -2787,6 +2824,7 @@ function applyIntentAndAnalyze(result: IntentDetectionResult, originalText: stri
 function resetChat() {
   chatAbortController?.abort();
   chatMessages = [];
+  clearChatHistory();
   contextStack.intent = null;
   contextStack.subContext = null;
   contextStack.selectedCategory = null;
