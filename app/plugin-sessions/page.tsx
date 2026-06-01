@@ -186,6 +186,8 @@ export default function PluginSessionsPage() {
   const [sessions, setSessions] = useState<ChatSession[]>([]);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
+  const [query, setQuery] = useState("");
+  const [intentFilter, setIntentFilter] = useState<string | null>(null);
 
   useEffect(() => {
     fetch("/api/chat/sessions")
@@ -202,6 +204,19 @@ export default function PluginSessionsPage() {
         setLoading(false);
       });
   }, []);
+
+  const uniqueIntents = Array.from(
+    new Set(sessions.map((s) => s.intent).filter(Boolean))
+  ) as string[];
+
+  const filtered = sessions.filter((s) => {
+    const matchQuery =
+      !query ||
+      s.frameName.toLowerCase().includes(query.toLowerCase()) ||
+      (s.quickSummary ?? "").toLowerCase().includes(query.toLowerCase());
+    const matchIntent = !intentFilter || s.intent === intentFilter;
+    return matchQuery && matchIntent;
+  });
 
   return (
     <div className="max-w-3xl mx-auto px-6 py-10">
@@ -229,11 +244,58 @@ export default function PluginSessionsPage() {
       )}
 
       {!loading && !error && sessions.length > 0 && (
-        <div className="space-y-3">
-          {sessions.map((s) => (
-            <SessionCard key={s.id} session={s} />
-          ))}
-        </div>
+        <>
+          <div className="mb-4">
+            <input
+              type="text"
+              value={query}
+              onChange={(e) => setQuery(e.target.value)}
+              placeholder="프레임 이름 검색…"
+              className="w-full bg-transparent border border-[var(--border)] rounded-lg px-4 py-2.5 text-sm text-white placeholder:text-[var(--muted)] focus:outline-none focus:border-white/30 transition-colors"
+            />
+          </div>
+
+          {uniqueIntents.length > 0 && (
+            <div className="flex flex-wrap gap-2 mb-6">
+              <button
+                onClick={() => setIntentFilter(null)}
+                className={`text-xs mono px-3 py-1 rounded-full border transition-colors ${
+                  intentFilter === null
+                    ? "border-white/40 text-white bg-white/10"
+                    : "border-[var(--border)] text-[var(--muted)] hover:border-white/30 hover:text-white"
+                }`}
+              >
+                전체
+              </button>
+              {uniqueIntents.map((intent) => (
+                <button
+                  key={intent}
+                  onClick={() => setIntentFilter(intentFilter === intent ? null : intent)}
+                  className={`text-xs mono px-3 py-1 rounded-full border transition-colors ${
+                    intentFilter === intent
+                      ? "border-white/40 text-white bg-white/10"
+                      : "border-[var(--border)] text-[var(--muted)] hover:border-white/30 hover:text-white"
+                  }`}
+                >
+                  {intent}
+                </button>
+              ))}
+            </div>
+          )}
+
+          {filtered.length === 0 ? (
+            <div className="text-center py-20 text-[var(--muted)]">
+              <div className="mono text-2xl mb-4 opacity-40">◆</div>
+              <p className="text-sm">검색 결과 없음</p>
+            </div>
+          ) : (
+            <div className="space-y-3">
+              {filtered.map((s) => (
+                <SessionCard key={s.id} session={s} />
+              ))}
+            </div>
+          )}
+        </>
       )}
     </div>
   );
