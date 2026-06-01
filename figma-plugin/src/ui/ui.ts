@@ -171,6 +171,7 @@ const KEYWORD_INTENT_MAP: Array<{ keywords: string[]; intent: string; axis?: str
   { keywords: ["상태 누락", "빈 화면", "empty state", "에러 상태", "로딩 상태", "상태 커버리지", "빠진 상태", "상태 감사", "상태 점검"], intent: "state-audit" },
   { keywords: ["일관성", "텍스트 통일", "같은 표현", "용어 혼용", "표현 불일치", "텍스트 일관", "워딩 통일"], intent: "text-consistency" },
   { keywords: ["타이포", "텍스트 위계", "글자 위계", "폰트 위계", "위계 역전", "시각 가중치", "위계 오류", "위계 검증", "장식 텍스트", "CTA보다 큰", "중요도 역전"], intent: "typography-hierarchy" },
+  { keywords: ["첫인상", "5초", "기억", "눈에 띄", "먼저 보이", "시선", "주목", "first impression", "기억에 남", "처음 봤을 때"], intent: "first-impression" },
 ];
 
 const INTENT_TO_CATEGORY: Record<string, string> = {
@@ -183,6 +184,7 @@ const INTENT_TO_CATEGORY: Record<string, string> = {
   "state-audit":           "scan",
   "text-consistency":      "scan",
   "typography-hierarchy":  "scan",
+  "first-impression":      "scan",
   "flow-analysis":         "scan",
   "compound":           "scan",
   "usability":          "usability",
@@ -242,6 +244,7 @@ ${convSummary || "(없음)"}
 - suggestion: 구체적 개선안 요청
 - flow-analysis: 여러 화면 흐름 분석
 - typography-hierarchy: 타이포그래피 시각 위계 검증 (폰트 크기·굵기 vs 정보 중요도 역전 탐지)
+- first-impression: 5초 첫인상 시뮬레이션 (사용자가 5초 안에 기억할 요소 예측, 의도한 핵심 메시지와의 갭 진단)
 
 JSON만 응답:
 {"intent":"...","axis":"ad-buffer|earning-motivation|retention-trigger|exchange-trust|null","subContext":"추출된 맥락 또는 null","confidence":0.0}`;
@@ -302,6 +305,7 @@ function getLabelsForState(ctx: ContextStack): { id: string; name: string }[] {
       { id: "ab-variant",           name: "A/B 변형" },
       { id: "competitor-compare",   name: "경쟁사 비교" },
       { id: "typography-hierarchy", name: "타이포 위계" },
+      { id: "first-impression",    name: "5초 첫인상" },
     ];
   }
 
@@ -2675,6 +2679,7 @@ async function startChatAnalysis(_categoryId: string, followUpContext: string) {
       "state-audit": ["화면 상태들을 점검하고 있어요...", "에러·빈·로딩 상태 누락 여부 확인 중...", "커버리지 결과를 정리하고 있어요..."],
       "text-consistency": ["화면별 텍스트를 비교하고 있어요...", "같은 개념의 다른 표현을 찾는 중...", "불일치 항목을 정리하고 있어요..."],
       "typography-hierarchy": ["텍스트 시각 가중치를 계산하고 있어요...", "의미 카테고리를 분류하는 중...", "위계 역전 패턴을 찾고 있어요..."],
+      "first-impression": ["화면을 5초 관점으로 스캔하고 있어요...", "시각적 가중치 순위를 매기는 중...", "첫인상 갭 리포트를 작성하고 있어요..."],
     };
     const msgs = loadingMsgs[_categoryId] ?? ["분석하고 있어요..."];
     const getLoadMsg = () => msgs[Math.min(Math.floor((Date.now() - streamStart) / 3500), msgs.length - 1)];

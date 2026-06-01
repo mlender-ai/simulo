@@ -104,6 +104,25 @@ function buildSystemPrompt(
         "severity: 3=CTA가 장식보다 작음(심각), 2=핵심정보 가중치 역전, 1=미미한 불균형, 0=위계 양호\n" +
         "fix: 구체적 폰트 크기 조정 수치 포함 (예: 'CTA를 18px→22px, 배경 카피를 24px→16px로 조정')";
       break;
+    case "first-impression":
+      categoryGuide =
+        "이 화면을 처음 보는 사용자가 **5초 안에 기억할 요소**를 예측하세요.\n" +
+        "시각적 가중치(크기·대비·위치·색상·공간 밀도)를 기준으로 주목도 Top 5 요소를 선정하세요.\n\n" +
+        "분석 흐름:\n" +
+        "1. 시각적 가중치 기반 주목도 순위 (Top 5): 각 요소가 왜 눈에 띄는지 근거 명시\n" +
+        "2. 핵심 메시지 전달 여부: CTA, 브랜드, 혜택 수치 등 의도된 핵심 메시지가 Top 5에 포함되는지\n" +
+        "3. 첫인상 갭 진단: 디자이너가 전달하고 싶은 것 vs 실제 눈에 먼저 띄는 것의 차이\n\n" +
+        "criterion 첫 번째 항목은 반드시 '첫인상 스코어'로 하고 0-100점 평가:\n" +
+        "- 100: 핵심 메시지가 즉시 전달됨\n" +
+        "- 70-99: 대체로 전달되지만 경쟁 요소 존재\n" +
+        "- 40-69: 핵심 메시지보다 부차적 요소가 더 눈에 띔\n" +
+        "- 0-39: 핵심 메시지가 묻혀 있음\n\n" +
+        "이후 criterion에 주목도 순위별 요소를 기술하세요:\n" +
+        "- oneLineFinding: '1순위: [요소명] — [눈에 띄는 이유]'\n" +
+        "- detail: 시각적 가중치 근거 + 핵심 메시지와의 관계\n" +
+        "- fix: 핵심 메시지 전달력을 높이기 위한 구체적 조정 방법\n" +
+        "severity: 3=핵심 메시지가 Top 5에 없음, 2=있지만 1순위 아님, 1=양호, 0=우수";
+      break;
     case "state-audit":
       categoryGuide =
         "이 화면의 '상태 완전성'을 감사하세요. 다음 상태가 설계되어 있는지 확인하세요:\n" +
@@ -186,6 +205,7 @@ function selectModel(intent: string): string {
     "state-audit",
     "text-consistency",
     "typography-hierarchy",
+    "first-impression",
   ].includes(intent);
   return needsSonnet
     ? "claude-sonnet-4-20250514"
@@ -199,6 +219,7 @@ function getMaxTokens(intent: string): number {
   if (intent === "state-audit") return 2048;
   if (intent === "text-consistency") return 2048;
   if (intent === "typography-hierarchy") return 1536;
+  if (intent === "first-impression") return 2048;
   return 1024;
 }
 
