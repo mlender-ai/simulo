@@ -104,6 +104,27 @@ function buildSystemPrompt(
         "severity: 3=CTA가 장식보다 작음(심각), 2=핵심정보 가중치 역전, 1=미미한 불균형, 0=위계 양호\n" +
         "fix: 구체적 폰트 크기 조정 수치 포함 (예: 'CTA를 18px→22px, 배경 카피를 24px→16px로 조정')";
       break;
+    case "cognitive-load":
+      categoryGuide =
+        "이 화면의 **인지 부하(Cognitive Load)**를 측정하세요.\n" +
+        "다음 요인들을 종합적으로 평가하세요:\n" +
+        "1. 정보 밀도 — 한 화면에 담긴 텍스트량, 요소 수, 선택지 수\n" +
+        "2. 시각적 복잡도 — 색상 다양성, 레이아웃 불규칙성, 시각적 노이즈\n" +
+        "3. 인지 단계 수 — 사용자가 목표 달성까지 거쳐야 할 판단/선택 횟수\n" +
+        "4. 용어 난이도 — 전문 용어, 약어, 모호한 레이블\n" +
+        "5. 시각적 계층 명확도 — 정보 우선순위가 시각적으로 구분되는 정도\n\n" +
+        "criterion 첫 번째 항목은 반드시 '인지 부하 점수'로 하고 0-100점 평가:\n" +
+        "- 0-30: 가벼움 (미니멀, 즉시 이해 가능)\n" +
+        "- 31-50: 적정 (적절한 정보량)\n" +
+        "- 51-70: 높음 (집중 필요, 시니어에게 부담)\n" +
+        "- 71-100: 과부하 (정보 과잉, 이탈 위험)\n\n" +
+        "이후 criterion에 각 부하 요인을 기술하세요:\n" +
+        "- oneLineFinding: 요인명 + 현황 요약\n" +
+        "- detail: 구체적 근거 (요소 수, 텍스트량 등 정량적 표현 포함)\n" +
+        "- fix: 부하를 줄이기 위한 구체적 개선안 (프로그레시브 디스클로저, 그룹핑, 제거 등)\n" +
+        "severity: 3=과부하(이탈 위험), 2=높음(개선 필요), 1=적정, 0=가벼움\n" +
+        "특히 야핏무브 타깃(4060 여성)의 인지 처리 속도를 고려하여 평가하세요.";
+      break;
     case "first-impression":
       categoryGuide =
         "이 화면을 처음 보는 사용자가 **5초 안에 기억할 요소**를 예측하세요.\n" +
@@ -206,6 +227,7 @@ function selectModel(intent: string): string {
     "text-consistency",
     "typography-hierarchy",
     "first-impression",
+    "cognitive-load",
   ].includes(intent);
   return needsSonnet
     ? "claude-sonnet-4-20250514"
@@ -220,6 +242,7 @@ function getMaxTokens(intent: string): number {
   if (intent === "text-consistency") return 2048;
   if (intent === "typography-hierarchy") return 1536;
   if (intent === "first-impression") return 2048;
+  if (intent === "cognitive-load") return 2048;
   return 1024;
 }
 

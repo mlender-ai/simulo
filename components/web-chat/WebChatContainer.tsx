@@ -53,6 +53,11 @@ const LOADING_MESSAGES: Record<string, string[]> = {
     "시각적 가중치 순위를 매기는 중...",
     "첫인상 갭 리포트를 작성하고 있어요...",
   ],
+  "cognitive-load": [
+    "화면 복잡도를 측정하고 있어요...",
+    "요소 밀도와 시각적 노이즈를 분석 중...",
+    "인지 부하 점수를 산출하고 있어요...",
+  ],
 };
 
 function getLoadingMessage(intent: string, elapsed: number): string {
@@ -90,6 +95,7 @@ const KEYWORD_INTENT_MAP = [
   { keywords: ["상태 누락", "빈 화면", "empty state", "에러 상태", "로딩 상태", "상태 커버리지", "빠진 상태", "상태 감사", "상태 점검"], intent: "state-audit" },
   { keywords: ["일관성", "텍스트 통일", "같은 표현", "용어 혼용", "표현 불일치", "텍스트 일관", "워딩 통일"], intent: "text-consistency" },
   { keywords: ["첫인상", "5초", "기억", "눈에 띄", "먼저 보이", "시선", "주목", "first impression", "기억에 남", "처음 봤을 때"], intent: "first-impression" },
+  { keywords: ["인지 부하", "복잡도", "과부하", "정보량", "화면이 복잡", "요소가 너무", "단순화", "cognitive load", "너무 많", "복잡해"], intent: "cognitive-load" },
 ];
 
 const INTENT_LABELS: Record<string, string> = {
@@ -105,6 +111,7 @@ const INTENT_LABELS: Record<string, string> = {
   "state-audit": "상태 점검",
   "text-consistency": "텍스트 일관성",
   "first-impression": "5초 첫인상",
+  "cognitive-load": "인지 부하",
 };
 
 // ── Persona detection ─────────────────────────────────────────────────────────
@@ -164,6 +171,7 @@ function getInitialLabels(): Label[] {
     { id: "ab-variant", name: "A/B 변형" },
     { id: "competitor-compare", name: "경쟁사 비교" },
     { id: "first-impression", name: "5초 첫인상" },
+    { id: "cognitive-load", name: "인지 부하" },
   ];
 }
 
