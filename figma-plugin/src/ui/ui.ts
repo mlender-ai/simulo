@@ -125,6 +125,7 @@ const HINT_CHIPS = [
   { label: "사용성 점검", text: "사용성 점검해줘" },
   { label: "CTA 분석",  text: "CTA 분석해줘" },
   { label: "개선안 제안", text: "개선안 제안해줘" },
+  { label: "전환 마찰",  text: "전환 경로 마찰 분석해줘" },
 ];
 
 let chipsHidden = false;
@@ -173,6 +174,7 @@ const KEYWORD_INTENT_MAP: Array<{ keywords: string[]; intent: string; axis?: str
   { keywords: ["타이포", "텍스트 위계", "글자 위계", "폰트 위계", "위계 역전", "시각 가중치", "위계 오류", "위계 검증", "장식 텍스트", "CTA보다 큰", "중요도 역전"], intent: "typography-hierarchy" },
   { keywords: ["첫인상", "5초", "기억", "눈에 띄", "먼저 보이", "시선", "주목", "first impression", "기억에 남", "처음 봤을 때"], intent: "first-impression" },
   { keywords: ["인지 부하", "복잡도", "과부하", "정보량", "화면이 복잡", "요소가 너무", "단순화", "cognitive load", "너무 많", "복잡해"], intent: "cognitive-load" },
+  { keywords: ["전환 경로", "마찰", "이탈", "conversion friction", "전환 흐름", "전환 장벽", "전환 방해", "흐름 분석", "마찰 점수"], intent: "conversion-friction" },
 ];
 
 const INTENT_TO_CATEGORY: Record<string, string> = {
@@ -187,6 +189,7 @@ const INTENT_TO_CATEGORY: Record<string, string> = {
   "typography-hierarchy":  "scan",
   "first-impression":      "scan",
   "cognitive-load":        "scan",
+  "conversion-friction":   "scan",
   "flow-analysis":         "scan",
   "compound":           "scan",
   "usability":          "usability",
@@ -248,6 +251,7 @@ ${convSummary || "(없음)"}
 - typography-hierarchy: 타이포그래피 시각 위계 검증 (폰트 크기·굵기 vs 정보 중요도 역전 탐지)
 - first-impression: 5초 첫인상 시뮬레이션 (사용자가 5초 안에 기억할 요소 예측, 의도한 핵심 메시지와의 갭 진단)
 - cognitive-load: 인지 부하 측정 (화면 복잡도 점수화, 정보 과부하 구간 탐지)
+- conversion-friction: 전환 경로 마찰 분석 (단계별 이탈 위험 점수, CTA 명확도, 불필요한 입력·단계 탐지)
 
 JSON만 응답:
 {"intent":"...","axis":"ad-buffer|earning-motivation|retention-trigger|exchange-trust|null","subContext":"추출된 맥락 또는 null","confidence":0.0}`;
@@ -310,6 +314,7 @@ function getLabelsForState(ctx: ContextStack): { id: string; name: string }[] {
       { id: "typography-hierarchy", name: "타이포 위계" },
       { id: "first-impression",    name: "5초 첫인상" },
       { id: "cognitive-load",      name: "인지 부하" },
+      { id: "conversion-friction", name: "전환 마찰" },
     ];
   }
 
@@ -2685,6 +2690,7 @@ async function startChatAnalysis(_categoryId: string, followUpContext: string) {
       "typography-hierarchy": ["텍스트 시각 가중치를 계산하고 있어요...", "의미 카테고리를 분류하는 중...", "위계 역전 패턴을 찾고 있어요..."],
       "first-impression": ["화면을 5초 관점으로 스캔하고 있어요...", "시각적 가중치 순위를 매기는 중...", "첫인상 갭 리포트를 작성하고 있어요..."],
       "cognitive-load": ["화면 복잡도를 측정하고 있어요...", "요소 밀도와 시각적 노이즈를 분석 중...", "인지 부하 점수를 산출하고 있어요..."],
+      "conversion-friction": ["전환 경로를 따라가고 있어요...", "단계별 마찰 요소를 찾고 있어요...", "이탈 위험 점수를 계산하고 있어요..."],
     };
     const msgs = loadingMsgs[_categoryId] ?? ["분석하고 있어요..."];
     const getLoadMsg = () => msgs[Math.min(Math.floor((Date.now() - streamStart) / 3500), msgs.length - 1)];

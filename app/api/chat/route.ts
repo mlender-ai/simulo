@@ -144,6 +144,27 @@ function buildSystemPrompt(
         "- fix: 핵심 메시지 전달력을 높이기 위한 구체적 조정 방법\n" +
         "severity: 3=핵심 메시지가 Top 5에 없음, 2=있지만 1순위 아님, 1=양호, 0=우수";
       break;
+    case "conversion-friction":
+      categoryGuide =
+        "선택된 화면 흐름에서 **전환 경로 마찰**을 분석하세요.\n" +
+        "전환 목표(가입, 미션 완료, 포인트 교환 등)를 향해 가는 각 단계에서:\n" +
+        "1. 인지 부하 — 화면당 결정·입력·읽기 요구량이 적정한가\n" +
+        "2. CTA 명확도 — 다음 행동이 즉시 명확한가, 레이블이 행동을 예측 가능하게 하는가\n" +
+        "3. 불필요한 입력·단계 — 목표 달성에 불필요한 정보 수집·확인 단계가 있는가\n" +
+        "4. 신뢰 저하 요소 — 불안, 혼란, 의심을 유발하는 텍스트·디자인이 있는가\n\n" +
+        "criterion 첫 번째 항목은 반드시 '이탈 위험 점수'로 하고 0–100점 산출:\n" +
+        "- 0–20: 마찰 없음 (전환 경로 매끄러움)\n" +
+        "- 21–40: 경미한 마찰 (개선 권장)\n" +
+        "- 41–60: 중간 마찰 (이탈 가능, 개선 필요)\n" +
+        "- 61–80: 높은 마찰 (이탈 위험 높음)\n" +
+        "- 81–100: 심각한 마찰 (전환 실패 위험)\n\n" +
+        "이후 criterion에 마찰이 가장 높은 단계부터 기술하세요:\n" +
+        "- oneLineFinding: '화면 N — [마찰 유형]: [한 줄 요약]'\n" +
+        "- detail: 어떤 요소가 어떻게 이탈을 유발하는지 구체적 근거\n" +
+        "- fix: 마찰을 줄이기 위한 구체적 개선안 (레이블 변경, 단계 제거, 배치 변경 등)\n" +
+        "severity: 3=이탈 유발(심각), 2=마찰 높음(개선 필요), 1=경미, 0=마찰 없음\n" +
+        "야핏무브 타깃(4060 여성)의 기술 친숙도를 고려하여 복잡한 흐름에 더 높은 마찰 점수를 부여하세요.";
+      break;
     case "state-audit":
       categoryGuide =
         "이 화면의 '상태 완전성'을 감사하세요. 다음 상태가 설계되어 있는지 확인하세요:\n" +
@@ -228,6 +249,7 @@ function selectModel(intent: string): string {
     "typography-hierarchy",
     "first-impression",
     "cognitive-load",
+    "conversion-friction",
   ].includes(intent);
   return needsSonnet
     ? "claude-sonnet-4-20250514"
@@ -243,6 +265,7 @@ function getMaxTokens(intent: string): number {
   if (intent === "typography-hierarchy") return 1536;
   if (intent === "first-impression") return 2048;
   if (intent === "cognitive-load") return 2048;
+  if (intent === "conversion-friction") return 2048;
   return 1024;
 }
 
