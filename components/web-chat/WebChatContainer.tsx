@@ -514,7 +514,10 @@ export function WebChatContainer() {
         }
         const raw = String(err);
         let friendly = "분석 중 오류가 발생했어요. 다시 시도해주세요.";
-        if (/401|authentication|invalid x-api-key/i.test(raw)) {
+        if (/credit balance is too low|insufficient/i.test(raw)) {
+          friendly =
+            "API 크레딧이 부족해요. Anthropic 콘솔의 Plans & Billing에서 크레딧을 충전해주세요.";
+        } else if (/401|authentication|invalid x-api-key/i.test(raw)) {
           friendly =
             "API 키 인증에 실패했어요. 설정에서 본인 API 키를 등록하거나, 서버 키가 만료되었을 수 있어요.";
         } else if (/429|rate.?limit|overloaded|529/i.test(raw)) {
