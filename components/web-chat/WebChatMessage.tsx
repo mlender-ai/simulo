@@ -14,6 +14,7 @@ export interface ChatMsg {
   actions?: Array<{ id: string; label: string; primary?: boolean }>;
   miniReport?: MiniReportData;
   streaming?: boolean;
+  images?: string[];
 }
 
 interface Props {
@@ -66,10 +67,25 @@ export function WebChatMessage({ msg, onLabelClick, onActionClick }: Props) {
   // User message
   if (msg.role === "user") {
     return (
-      <div className="chat-anim-user flex justify-end">
-        <div className="max-w-[80%] px-4 py-2.5 rounded-2xl rounded-br-sm bg-white/10 text-sm text-white/90">
-          {msg.content}
-        </div>
+      <div className="chat-anim-user flex flex-col items-end gap-1.5">
+        {msg.images && msg.images.length > 0 && (
+          <div className="flex flex-wrap gap-1.5 justify-end max-w-[80%]">
+            {msg.images.map((src, i) => (
+              // eslint-disable-next-line @next/next/no-img-element
+              <img
+                key={i}
+                src={src}
+                alt={`업로드 이미지 ${i + 1}`}
+                className="max-h-40 rounded-xl border border-white/10 object-contain"
+              />
+            ))}
+          </div>
+        )}
+        {msg.content && (
+          <div className="max-w-[80%] px-4 py-2.5 rounded-2xl rounded-br-sm bg-white/10 text-sm text-white/90">
+            {msg.content}
+          </div>
+        )}
       </div>
     );
   }

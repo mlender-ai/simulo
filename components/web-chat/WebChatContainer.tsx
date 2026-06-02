@@ -200,6 +200,7 @@ export function WebChatContainer() {
   const [recentSessions, setRecentSessions] = useState<
     Array<{ frameName: string; intent: string | null }>
   >([]);
+  const [mounted, setMounted] = useState(false);
   const abortRef = useRef<AbortController | null>(null);
   const listRef = useRef<HTMLDivElement>(null);
   const endRef = useRef<HTMLDivElement>(null);
@@ -281,11 +282,13 @@ export function WebChatContainer() {
       Promise.all(readFiles).then((newFrames) => {
         setFrames(newFrames);
 
-        const names = newFrames.map((f) => f.nodeName).join(", ");
         addMsg({
           id: chatId(),
-          role: "system",
-          content: `${newFrames.length}개 이미지 업로드됨: ${names}`,
+          role: "user",
+          content: "",
+          images: newFrames.map(
+            (f) => `data:${f.mimeType ?? "image/png"};base64,${f.imageBase64}`
+          ),
         });
         addMsg({
           id: chatId(),
@@ -375,6 +378,7 @@ export function WebChatContainer() {
         const reader = res.body?.getReader();
         const decoder = new TextDecoder();
         let accumulated = "";
+        let sseBuffer = "";
         const streamStart = Date.now();
 
         // Loading message rotation interval
@@ -394,48 +398,86 @@ export function WebChatContainer() {
           streaming: true,
         });
 
+        let streamError: string | null = null;
         while (reader) {
           const { done, value } = await reader.read();
           if (done) break;
-          const chunk = decoder.decode(value);
-          for (const line of chunk.split("\n")) {
+          // Buffer chunks: SSE lines can be split across reads on Vercel.
+          sseBuffer += decoder.decode(value, { stream: true });
+          const lines = sseBuffer.split("\n");
+          // Keep the last (possibly partial) line in the buffer.
+          sseBuffer = lines.pop() ?? "";
+          for (const line of lines) {
             if (!line.startsWith("data: ")) continue;
-            const data = line.slice(6);
-            if (data === "[DONE]") break;
+            const data = line.slice(6).trim();
+            if (!data || data === "[DONE]") continue;
             try {
               const parsed = JSON.parse(data) as {
                 text?: string;
                 error?: string;
               };
-              if (parsed.error) throw new Error(parsed.error);
+              if (parsed.error) {
+                streamError = parsed.error;
+                continue;
+              }
               if (parsed.text) {
                 accumulated += parsed.text;
               }
             } catch {
-              /* partial JSON */
+              /* incomplete JSON — will be retried with next chunk */
             }
           }
         }
+        if (streamError) throw new Error(streamError);
 
         clearInterval(loadingInterval);
 
         let miniReport: MiniReportData | null = null;
         try {
-          const m = accumulated.match(/\{[\s\S]*\}/);
+          // Strip markdown code fences if the model wrapped JSON.
+          const cleaned = accumulated
+            .replace(/```json\s*/gi, "")
+            .replace(/```/g, "")
+            .trim();
+          const m = cleaned.match(/\{[\s\S]*\}/);
           if (m) miniReport = JSON.parse(m[0]) as MiniReportData;
         } catch {
           /* parse error */
         }
 
+        // No content at all → genuine failure. Avoid showing broken JSON.
+        if (!miniReport && !accumulated.trim()) {
+          updateMsg(msgId, {
+            content: "분석 결과를 받지 못했어요. 다시 시도해주세요.",
+            streaming: false,
+            actions: [{ id: "retry", label: "다시 시도" }],
+          });
+          setAnalyzing(false);
+          return;
+        }
+
+        // Got text but JSON parse failed → show plain text, never raw JSON fragments.
+        const fallbackText = (() => {
+          const t = accumulated.trim();
+          if (!t) return "분석을 마쳤어요.";
+          // If it looks like JSON but failed to parse, give a friendly message.
+          if (t.startsWith("{") || t.startsWith("[")) {
+            return "분석 결과를 정리하는 중 문제가 생겼어요. 다시 시도해주세요.";
+          }
+          return t.slice(0, 200);
+        })();
+
         updateMsg(msgId, {
-          content: miniReport?.quickSummary ?? accumulated.slice(0, 80),
+          content: miniReport?.quickSummary ?? fallbackText,
           streaming: false,
           miniReport: miniReport ?? undefined,
-          actions: [
-            { id: "copy", label: "결과 복사", primary: true },
-            { id: "rescan", label: "다시 분석" },
-          ],
-          labels: getPostResultLabels(),
+          actions: miniReport
+            ? [
+                { id: "copy", label: "결과 복사", primary: true },
+                { id: "rescan", label: "다시 분석" },
+              ]
+            : [{ id: "retry", label: "다시 시도" }],
+          labels: miniReport ? getPostResultLabels() : undefined,
         });
 
         setConversationHistory((prev) => [
@@ -584,6 +626,7 @@ export function WebChatContainer() {
   // ── Cleanup on unmount ────────────────────────────────────────────────────────
 
   useEffect(() => {
+    setMounted(true);
     return () => {
       abortRef.current?.abort();
     };
@@ -615,7 +658,14 @@ export function WebChatContainer() {
           setDragOverArea(false);
         }
       }}
-      onDrop={(e) => { e.preventDefault(); setDragOverArea(false); }}
+      onDrop={(e) => {
+        e.preventDefault();
+        setDragOverArea(false);
+        const files = Array.from(e.dataTransfer.files).filter((f) =>
+          f.type.startsWith("image/")
+        );
+        if (files.length > 0) handleImagesUploaded(files);
+      }}
     >
       {/* Drag overlay */}
       {dragOverArea && (
@@ -634,8 +684,8 @@ export function WebChatContainer() {
           /* Empty state */
           <div className="flex flex-col items-center justify-center h-full px-6 text-center">
             <div className="text-4xl opacity-20 mb-4">S</div>
-            <h2 className="text-lg font-semibold text-white/80 mb-2">
-              {getGreeting()}
+            <h2 className="text-lg font-semibold text-white/80 mb-2 min-h-[1.75rem]" suppressHydrationWarning>
+              {mounted ? getGreeting() : ""}
             </h2>
             <p className="text-sm text-white/40 mb-8 max-w-sm">
               분석할 화면을 드래그하거나 업로드하세요.
