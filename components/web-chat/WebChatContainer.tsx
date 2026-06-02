@@ -512,8 +512,16 @@ export function WebChatContainer() {
           });
           return;
         }
+        const raw = String(err);
+        let friendly = "분석 중 오류가 발생했어요. 다시 시도해주세요.";
+        if (/401|authentication|invalid x-api-key/i.test(raw)) {
+          friendly =
+            "API 키 인증에 실패했어요. 설정에서 본인 API 키를 등록하거나, 서버 키가 만료되었을 수 있어요.";
+        } else if (/429|rate.?limit|overloaded|529/i.test(raw)) {
+          friendly = "요청이 많아 잠시 지연되고 있어요. 잠시 후 다시 시도해주세요.";
+        }
         updateMsg(msgId, {
-          content: "오류: " + String(err),
+          content: friendly,
           streaming: false,
           actions: [{ id: "retry", label: "다시 시도" }],
         });
