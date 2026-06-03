@@ -90,6 +90,7 @@ interface ChatMessage {
   miniReport?: LiveMiniReport | null;
   actions?: { id: string; label: string; primary?: boolean }[];
   streaming?: boolean;
+  errorType?: "network" | "server" | "timeout";
 }
 
 interface LiveMiniReport {
@@ -2369,6 +2370,8 @@ function renderMsgHTML(msg: ChatMessage): string {
   let inner = "";
   if (msg.streaming && !msg.content) {
     inner = `<div class="typing-indicator"><span class="typing-dot-plugin"></span><span class="typing-dot-plugin"></span><span class="typing-dot-plugin"></span></div>`;
+  } else if (msg.errorType) {
+    inner = `<div class="error-bubble">${escapeHtml(msg.content)}</div>`;
   } else {
     inner = `<div class="chat-bubble${msg.streaming ? " streaming-cursor" : ""}">${escapeHtml(msg.content)}</div>`;
   }
@@ -2389,9 +2392,12 @@ function renderMsgHTML(msg: ChatMessage): string {
   if (msg.miniReport) inner += renderMiniReportHTML(msg.miniReport);
 
   if (msg.actions && msg.actions.length > 0) {
-    inner += `<div class="chat-actions">${msg.actions.map((a) =>
-      `<button class="chat-action-btn${a.primary ? " primary" : ""}" data-action="${a.id}">${escapeHtml(a.label)}</button>`
-    ).join("")}</div>`;
+    inner += `<div class="chat-actions">${msg.actions.map((a) => {
+      if (msg.errorType && a.id === "retry") {
+        return `<button class="retry-btn chat-action-btn" data-action="${a.id}">${escapeHtml(a.label)}</button>`;
+      }
+      return `<button class="chat-action-btn${a.primary ? " primary" : ""}" data-action="${a.id}">${escapeHtml(a.label)}</button>`;
+    }).join("")}</div>`;
   }
 
   return `<div class="chat-msg ${cls}">${inner}</div>`;
@@ -2661,13 +2667,17 @@ async function startChatAnalysis(_categoryId: string, followUpContext: string) {
 
     if (!res.ok) {
       const err = await res.json().catch(() => ({})) as { error?: string };
+      const isServerErr = res.status >= 500;
       const errMsg = res.status === 401
         ? "API 키가 유효하지 않아요. 설정에서 확인해주세요."
         : res.status === 429
         ? "요청이 너무 많아요. 잠시 후 다시 시도해주세요."
+        : isServerErr
+        ? "서버에 일시적인 문제가 있어요. 잠시 후 다시 시도해 주세요."
         : err?.error ?? "분석 중 오류가 발생했습니다.";
       updateMsg(msgId, {
         content: errMsg, streaming: false,
+        errorType: isServerErr ? "server" : undefined,
         actions: [{ id: "retry", label: "↺ 다시 시도" }],
       });
       chatAnalyzing = false;
@@ -2771,8 +2781,9 @@ async function startChatAnalysis(_categoryId: string, followUpContext: string) {
       const isTimeout = chatMessages.find((m) => m.id === msgId)?.streaming;
       if (isTimeout) {
         updateMsg(msgId, {
-          content: "응답이 너무 오래 걸려요. 다시 시도해주세요.",
+          content: "분석이 너무 오래 걸렸어요. 프레임을 더 작게 선택해보세요.",
           streaming: false,
+          errorType: "timeout",
           actions: [{ id: "retry", label: "↺ 다시 시도" }],
         });
       } else {
@@ -2782,12 +2793,13 @@ async function startChatAnalysis(_categoryId: string, followUpContext: string) {
       }
       return;
     }
-    const isNetworkError = (err as Error)?.message?.includes("fetch") || (err as Error)?.message?.includes("network");
+    const isNetworkError = err instanceof TypeError;
     updateMsg(msgId, {
       content: isNetworkError
-        ? "서버 연결 실패. 인터넷 연결을 확인해주세요."
-        : "오류: " + String(err),
+        ? "인터넷 연결을 확인해 주세요."
+        : "서버에 일시적인 문제가 있어요. 잠시 후 다시 시도해 주세요.",
       streaming: false,
+      errorType: isNetworkError ? "network" : "server",
       actions: [{ id: "retry", label: "↺ 다시 시도" }],
     });
   } finally {

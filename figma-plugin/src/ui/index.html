@@ -235,6 +235,30 @@
       font-weight: 500;
     }
     .chat-action-btn.primary:hover { border-color: #4a7a4a; color: #ccff66; background: #142a14; }
+    .error-bubble {
+      background: #1a0a0a;
+      border: 1px solid #3d1515;
+      color: #ff6b6b;
+      border-radius: 8px;
+      padding: 10px 12px;
+      font-size: 12px;
+      line-height: 1.55;
+      margin: 4px 0;
+    }
+    .retry-btn {
+      background: transparent;
+      border: 1px solid #3d1515;
+      color: #ff6b6b;
+      cursor: pointer;
+      padding: 4px 10px;
+      border-radius: 4px;
+      font-size: 11px;
+      margin-top: 6px;
+      font-family: inherit;
+      transition: background 0.12s;
+    }
+    .retry-btn:hover { background: #3d1515; }
+    .retry-btn:disabled { opacity: 0.5; cursor: not-allowed; }
 
     /* ── Animations ── */
     @keyframes msgFadeIn {
