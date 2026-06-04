@@ -90,6 +90,7 @@ interface ChatMessage {
   miniReport?: LiveMiniReport | null;
   actions?: { id: string; label: string; primary?: boolean }[];
   streaming?: boolean;
+  errorType?: "network" | "server" | "timeout";
 }
 
 interface LiveMiniReport {
@@ -125,6 +126,7 @@ const HINT_CHIPS = [
   { label: "사용성 점검", text: "사용성 점검해줘" },
   { label: "CTA 분석",  text: "CTA 분석해줘" },
   { label: "개선안 제안", text: "개선안 제안해줘" },
+  { label: "전환 마찰",  text: "전환 경로 마찰 분석해줘" },
 ];
 
 let chipsHidden = false;
@@ -173,6 +175,7 @@ const KEYWORD_INTENT_MAP: Array<{ keywords: string[]; intent: string; axis?: str
   { keywords: ["타이포", "텍스트 위계", "글자 위계", "폰트 위계", "위계 역전", "시각 가중치", "위계 오류", "위계 검증", "장식 텍스트", "CTA보다 큰", "중요도 역전"], intent: "typography-hierarchy" },
   { keywords: ["첫인상", "5초", "기억", "눈에 띄", "먼저 보이", "시선", "주목", "first impression", "기억에 남", "처음 봤을 때"], intent: "first-impression" },
   { keywords: ["인지 부하", "복잡도", "과부하", "정보량", "화면이 복잡", "요소가 너무", "단순화", "cognitive load", "너무 많", "복잡해"], intent: "cognitive-load" },
+  { keywords: ["전환 경로", "마찰", "이탈", "conversion friction", "전환 흐름", "전환 장벽", "전환 방해", "흐름 분석", "마찰 점수"], intent: "conversion-friction" },
 ];
 
 const INTENT_TO_CATEGORY: Record<string, string> = {
@@ -187,6 +190,7 @@ const INTENT_TO_CATEGORY: Record<string, string> = {
   "typography-hierarchy":  "scan",
   "first-impression":      "scan",
   "cognitive-load":        "scan",
+  "conversion-friction":   "scan",
   "flow-analysis":         "scan",
   "compound":           "scan",
   "usability":          "usability",
@@ -248,6 +252,7 @@ ${convSummary || "(없음)"}
 - typography-hierarchy: 타이포그래피 시각 위계 검증 (폰트 크기·굵기 vs 정보 중요도 역전 탐지)
 - first-impression: 5초 첫인상 시뮬레이션 (사용자가 5초 안에 기억할 요소 예측, 의도한 핵심 메시지와의 갭 진단)
 - cognitive-load: 인지 부하 측정 (화면 복잡도 점수화, 정보 과부하 구간 탐지)
+- conversion-friction: 전환 경로 마찰 분석 (단계별 이탈 위험 점수, CTA 명확도, 불필요한 입력·단계 탐지)
 
 JSON만 응답:
 {"intent":"...","axis":"ad-buffer|earning-motivation|retention-trigger|exchange-trust|null","subContext":"추출된 맥락 또는 null","confidence":0.0}`;
@@ -310,6 +315,7 @@ function getLabelsForState(ctx: ContextStack): { id: string; name: string }[] {
       { id: "typography-hierarchy", name: "타이포 위계" },
       { id: "first-impression",    name: "5초 첫인상" },
       { id: "cognitive-load",      name: "인지 부하" },
+      { id: "conversion-friction", name: "전환 마찰" },
     ];
   }
 
@@ -2356,6 +2362,27 @@ function renderMessages() {
     finding.addEventListener("click", () => finding.classList.toggle("mini-finding-collapsed"));
   });
 
+  container.querySelectorAll(".copy-md-btn").forEach((btn) => {
+    (btn as HTMLElement).addEventListener("click", () => {
+      const msgId = (btn as HTMLElement).dataset.msgId!;
+      const msg = chatMessages.find((m) => m.id === msgId);
+      if (!msg) return;
+      const frameName = contextStack.frames[0]?.nodeName ?? "프레임";
+      const intent = contextStack.intent ?? "분석";
+      const now = new Date();
+      const dateStr = `${now.getFullYear()}-${String(now.getMonth() + 1).padStart(2, "0")}-${String(now.getDate()).padStart(2, "0")} ${String(now.getHours()).padStart(2, "0")}:${String(now.getMinutes()).padStart(2, "0")}`;
+      const markdown = `## [${frameName}] 분석 결과 — ${intent}\n> 분석 일시: ${dateStr}\n\n${msg.content}`;
+      navigator.clipboard.writeText(markdown).then(() => {
+        (btn as HTMLElement).textContent = "복사됨 ✓";
+        (btn as HTMLElement).classList.add("copied");
+        setTimeout(() => {
+          (btn as HTMLElement).textContent = "마크다운 복사";
+          (btn as HTMLElement).classList.remove("copied");
+        }, 2000);
+      });
+    });
+  });
+
   container.scrollTop = container.scrollHeight;
 }
 
@@ -2364,6 +2391,8 @@ function renderMsgHTML(msg: ChatMessage): string {
   let inner = "";
   if (msg.streaming && !msg.content) {
     inner = `<div class="typing-indicator"><span class="typing-dot-plugin"></span><span class="typing-dot-plugin"></span><span class="typing-dot-plugin"></span></div>`;
+  } else if (msg.errorType) {
+    inner = `<div class="error-bubble">${escapeHtml(msg.content)}</div>`;
   } else {
     inner = `<div class="chat-bubble${msg.streaming ? " streaming-cursor" : ""}">${escapeHtml(msg.content)}</div>`;
   }
@@ -2384,9 +2413,16 @@ function renderMsgHTML(msg: ChatMessage): string {
   if (msg.miniReport) inner += renderMiniReportHTML(msg.miniReport);
 
   if (msg.actions && msg.actions.length > 0) {
-    inner += `<div class="chat-actions">${msg.actions.map((a) =>
-      `<button class="chat-action-btn${a.primary ? " primary" : ""}" data-action="${a.id}">${escapeHtml(a.label)}</button>`
-    ).join("")}</div>`;
+    inner += `<div class="chat-actions">${msg.actions.map((a) => {
+      if (msg.errorType && a.id === "retry") {
+        return `<button class="retry-btn chat-action-btn" data-action="${a.id}">${escapeHtml(a.label)}</button>`;
+      }
+      return `<button class="chat-action-btn${a.primary ? " primary" : ""}" data-action="${a.id}">${escapeHtml(a.label)}</button>`;
+    }).join("")}</div>`;
+  }
+
+  if (msg.role === "bot" && !msg.streaming && !msg.errorType && msg.content) {
+    inner += `<button class="copy-md-btn" data-msg-id="${msg.id}">마크다운 복사</button>`;
   }
 
   return `<div class="chat-msg ${cls}">${inner}</div>`;
@@ -2656,13 +2692,17 @@ async function startChatAnalysis(_categoryId: string, followUpContext: string) {
 
     if (!res.ok) {
       const err = await res.json().catch(() => ({})) as { error?: string };
+      const isServerErr = res.status >= 500;
       const errMsg = res.status === 401
         ? "API 키가 유효하지 않아요. 설정에서 확인해주세요."
         : res.status === 429
         ? "요청이 너무 많아요. 잠시 후 다시 시도해주세요."
+        : isServerErr
+        ? "서버에 일시적인 문제가 있어요. 잠시 후 다시 시도해 주세요."
         : err?.error ?? "분석 중 오류가 발생했습니다.";
       updateMsg(msgId, {
         content: errMsg, streaming: false,
+        errorType: isServerErr ? "server" : undefined,
         actions: [{ id: "retry", label: "↺ 다시 시도" }],
       });
       chatAnalyzing = false;
@@ -2685,6 +2725,7 @@ async function startChatAnalysis(_categoryId: string, followUpContext: string) {
       "typography-hierarchy": ["텍스트 시각 가중치를 계산하고 있어요...", "의미 카테고리를 분류하는 중...", "위계 역전 패턴을 찾고 있어요..."],
       "first-impression": ["화면을 5초 관점으로 스캔하고 있어요...", "시각적 가중치 순위를 매기는 중...", "첫인상 갭 리포트를 작성하고 있어요..."],
       "cognitive-load": ["화면 복잡도를 측정하고 있어요...", "요소 밀도와 시각적 노이즈를 분석 중...", "인지 부하 점수를 산출하고 있어요..."],
+      "conversion-friction": ["전환 경로를 따라가고 있어요...", "단계별 마찰 요소를 찾고 있어요...", "이탈 위험 점수를 계산하고 있어요..."],
     };
     const msgs = loadingMsgs[_categoryId] ?? ["분석하고 있어요..."];
     const getLoadMsg = () => msgs[Math.min(Math.floor((Date.now() - streamStart) / 3500), msgs.length - 1)];
@@ -2765,8 +2806,9 @@ async function startChatAnalysis(_categoryId: string, followUpContext: string) {
       const isTimeout = chatMessages.find((m) => m.id === msgId)?.streaming;
       if (isTimeout) {
         updateMsg(msgId, {
-          content: "응답이 너무 오래 걸려요. 다시 시도해주세요.",
+          content: "분석이 너무 오래 걸렸어요. 프레임을 더 작게 선택해보세요.",
           streaming: false,
+          errorType: "timeout",
           actions: [{ id: "retry", label: "↺ 다시 시도" }],
         });
       } else {
@@ -2776,12 +2818,13 @@ async function startChatAnalysis(_categoryId: string, followUpContext: string) {
       }
       return;
     }
-    const isNetworkError = (err as Error)?.message?.includes("fetch") || (err as Error)?.message?.includes("network");
+    const isNetworkError = err instanceof TypeError;
     updateMsg(msgId, {
       content: isNetworkError
-        ? "서버 연결 실패. 인터넷 연결을 확인해주세요."
-        : "오류: " + String(err),
+        ? "인터넷 연결을 확인해 주세요."
+        : "서버에 일시적인 문제가 있어요. 잠시 후 다시 시도해 주세요.",
       streaming: false,
+      errorType: isNetworkError ? "network" : "server",
       actions: [{ id: "retry", label: "↺ 다시 시도" }],
     });
   } finally {
