@@ -572,10 +572,20 @@ export function WebChatContainer() {
         const r = lastReport.miniReport;
         const sevEmoji = ["OK", "INFO", "WARN", "ERR", "CRIT"];
         const text = r.findings
-          .map(
-            (f) =>
-              `[${sevEmoji[Math.min(4, f.severity)]}] ${f.criterion}: ${f.oneLineFinding}\n  -> ${f.fix}`
-          )
+          .map((f) => {
+            const head = `[${sevEmoji[Math.min(4, f.severity)]}] ${f.criterion}`;
+            // type별 보조 필드를 반영해 빈약한 복사 방지
+            const lines: string[] = [];
+            if (f.oneLineFinding) lines.push(f.oneLineFinding);
+            if (f.before || f.after) lines.push(`현재: ${f.before ?? "-"} → 제안: ${f.after ?? "-"}`);
+            if (f.hypothesis) lines.push(`가설: ${f.hypothesis}`);
+            if (f.control || f.variant) lines.push(`A: ${f.control ?? "-"} / B: ${f.variant ?? "-"}`);
+            if (f.us || f.competitor) lines.push(`야핏: ${f.us ?? "-"} / 경쟁사: ${f.competitor ?? "-"}`);
+            if (f.gap) lines.push(`격차: ${f.gap}`);
+            if (f.impact || f.effort) lines.push(`임팩트 ${f.impact ?? "-"} / 노력 ${f.effort ?? "-"}`);
+            if (f.fix) lines.push(`-> ${f.fix}`);
+            return `${head}\n  ${lines.join("\n  ")}`;
+          })
           .join("\n\n");
         navigator.clipboard
           .writeText(`Simulo - ${r.quickSummary}\n\n${text}`)

@@ -25,6 +25,8 @@ export interface StreamLLMParams {
   clientAnthropicKey?: string;
   /** Anthropic 사용 시 모델 (provider가 anthropic일 때만 의미) */
   anthropicModel: string;
+  /** 순수 JSON 출력 강제 (Groq: response_format, Anthropic: prefill) */
+  jsonMode?: boolean;
 }
 
 export type Provider = "groq" | "anthropic";
@@ -91,20 +93,33 @@ async function* streamGroq(
     { role: "user", content: userContent },
   ];
 
-  const res = await fetch("https://api.groq.com/openai/v1/chat/completions", {
-    method: "POST",
-    headers: {
-      Authorization: `Bearer ${apiKey}`,
-      "Content-Type": "application/json",
-    },
-    body: JSON.stringify({
-      model: GROQ_VISION_MODEL,
-      messages,
-      max_tokens: p.maxTokens,
-      temperature: 0.4,
-      stream: true,
-    }),
-  });
+  const baseBody: Record<string, unknown> = {
+    model: GROQ_VISION_MODEL,
+    messages,
+    max_tokens: p.maxTokens,
+    temperature: 0.4,
+    stream: true,
+  };
+
+  async function callGroq(withJsonMode: boolean): Promise<Response> {
+    const body = withJsonMode
+      ? { ...baseBody, response_format: { type: "json_object" } }
+      : baseBody;
+    return fetch("https://api.groq.com/openai/v1/chat/completions", {
+      method: "POST",
+      headers: {
+        Authorization: `Bearer ${apiKey}`,
+        "Content-Type": "application/json",
+      },
+      body: JSON.stringify(body),
+    });
+  }
+
+  // JSON mode + streaming은 모델별 지원 여부가 불확실 → 거부 시(400) JSON mode 빼고 재시도
+  let res = await callGroq(!!p.jsonMode);
+  if (!res.ok && p.jsonMode && res.status === 400) {
+    res = await callGroq(false);
+  }
 
   if (!res.ok || !res.body) {
     const errBody = await res.text().catch(() => "");

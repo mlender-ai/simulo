@@ -195,7 +195,9 @@ function buildSystemPrompt(
 
   return `당신은 야핏무브 팀의 시니어 UX 동료입니다. 야핏무브(만보기 리워드 앱, 4060 여성 타깃)의 Figma 화면을 같이 보면서 이야기합니다.
 
-⚠ 환각 금지: 화면에 실제로 보이는 UI 요소만 분석하세요. 없는 버튼·텍스트를 추론하거나 가정하지 마세요.
+⚠ 환각 금지: 첨부된 화면 이미지를 반드시 직접 보고, 실제로 보이는 UI 요소만 분석하세요. 없는 버튼·텍스트를 추론하거나 가정하지 마세요.
+⚠ 이미지 근거 의무: 각 finding의 detail에는 화면에서 실제로 보이는 텍스트·버튼·숫자를 최소 1개 그대로 인용하세요(예: "'포인트 교환하기' 버튼"). 화면과 무관한 일반론만 쓰면 안 됩니다.
+⚠ 언어: 모든 출력 값(criterion, oneLineFinding, detail, fix 등)은 반드시 한국어로 작성하세요. 영어 휴리스틱명 금지 — 예: "Visibility of system status"(X) → "시스템 상태 가시성"(O), "User control and freedom"(X) → "사용자 제어와 자유"(O).
 
 ## 대화 톤 규칙
 외부 컨설턴트가 아니라 옆자리에서 같이 화면을 보는 동료처럼 말하세요.
@@ -211,23 +213,95 @@ ${ocrBlock}${personaBlock}
 응답 형식 (반드시 순수 JSON, 마크다운 코드 블록 없음):
 {
   "type": "${getResponseType(intent)}",
-  "quickSummary": "동료에게 말하듯 핵심 발견 한 줄 (40자 이내). 예: '전체적으로 깔끔한데 CTA가 좀 묻혀 있어요'",
+  "quickSummary": "동료에게 말하듯 핵심 발견 한 줄 (40자 이내, 한국어). 예: '전체적으로 깔끔한데 CTA가 좀 묻혀 있어요'",
   "findings": [
     {
-      "criterion": "평가 기준명",
-      "severity": 0,
-      "oneLineFinding": "발견 요약 25자 이내",
-      "detail": "상세 설명 2~3문장. 화면에서 실제 보이는 요소를 근거로 명시.",
-      "fix": "구체적 수정 방법: 어떤 요소를 어떻게 변경. 모호한 표현 금지."
+${getOutputSchema(intent).itemFields}
     }
   ],
   "nextQuestion": "후속 질문. 설문이 아닌 대화 이어가기. 예: '카피를 좀 다듬으면 느낌이 확 달라질 것 같은데, 봐볼까요?' / null이면 생략"
 }
 
+${getOutputSchema(intent).example}
+
 severity: 0=우수, 1=참고, 2=개선필요, 3=심각, 4=치명적
 findings: severity 높은 순, 최대 ${maxFindings}개.
 nextQuestion 규칙: "다음 작업을 선택해주세요" 같은 설문 말투 금지. "혹시 ~가 궁금한 거예요?", "이 부분이 좀 아쉬운데, 개선안을 같이 볼까요?" 식의 자연어 대화.
-반드시 순수 JSON만 반환. \`\`\`json 블록 절대 사용 금지.`;
+반드시 순수 JSON만 반환. 모든 값은 한국어. \`\`\`json 블록 절대 사용 금지.`;
+}
+
+// intent(=응답 type)별로 findings 항목의 필드 스키마와 few-shot 예시를 반환.
+// 약한 모델이 intent를 다른 과업으로 인식하도록 필드명 자체를 차별화한다.
+function getOutputSchema(intent: string): { itemFields: string; example: string } {
+  const type = getResponseType(intent);
+  switch (type) {
+    case "suggestion":
+      return {
+        itemFields:
+          '      "criterion": "개선 항목명 (한국어)",\n' +
+          '      "severity": 2,\n' +
+          '      "oneLineFinding": "개선 포인트 요약 25자 이내 (한국어)",\n' +
+          '      "impact": "높음 | 중간 | 낮음",\n' +
+          '      "effort": "높음 | 중간 | 낮음",\n' +
+          '      "detail": "왜 개선이 필요한지, 화면의 실제 요소를 인용해 (한국어)",\n' +
+          '      "fix": "구체적 실행 방법 (한국어)"',
+        example:
+          '예시 findings 항목(이 형식·언어를 그대로 따르되 내용은 실제 화면 기준):\n' +
+          '{"criterion":"적립 버튼 강조","severity":2,"oneLineFinding":"받기 버튼이 작아 눈에 안 띔","impact":"높음","effort":"낮음","detail":"화면 중앙 \'탭하여 받기\' 버튼이 주변 카드보다 작아 적립 행동 유도가 약합니다.","fix":"버튼 높이를 56px로 키우고 라임색 배경으로 대비를 높이세요."}\n' +
+          'impact/effort 기준으로 Quick Win(임팩트 높고 노력 낮음)을 앞쪽에 배치하세요.',
+      };
+    case "copy":
+      return {
+        itemFields:
+          '      "criterion": "카피 위치/역할 (한국어, 예: \'CTA 버튼\', \'메인 헤드라인\')",\n' +
+          '      "severity": 1,\n' +
+          '      "oneLineFinding": "현재 카피의 문제 25자 이내 (한국어)",\n' +
+          '      "before": "화면에 실제로 보이는 현재 카피를 그대로 인용",\n' +
+          '      "after": "개선 카피 제안 (한국어)",\n' +
+          '      "detail": "왜 이렇게 바꾸는지 (한국어)"',
+        example:
+          '예시 findings 항목(before는 반드시 화면 실제 텍스트를 인용):\n' +
+          '{"criterion":"메인 헤드라인","severity":1,"oneLineFinding":"문구가 길어 한눈에 안 들어옴","before":"꿈의편지를 읽고 깊게 숙면해요","after":"편지 읽고 꿀잠 자기","detail":"4060 사용자에게는 짧고 구체적인 동사형이 더 빠르게 읽힙니다."}',
+      };
+    case "ab":
+      return {
+        itemFields:
+          '      "criterion": "테스트 요소 (한국어, 예: \'CTA 문구\', \'버튼 위치\')",\n' +
+          '      "severity": 1,\n' +
+          '      "hypothesis": "가설 (한국어, \'~하면 ~가 오를 것이다\')",\n' +
+          '      "control": "현재 안 — 화면 실제 상태를 인용",\n' +
+          '      "variant": "변형 안 (한국어)",\n' +
+          '      "detail": "예상 효과와 근거 (한국어)"',
+        example:
+          '예시 findings 항목(control은 화면 실제 상태를 인용):\n' +
+          '{"criterion":"적립 CTA 문구","severity":1,"hypothesis":"행동을 명시하면 적립 전환이 오를 것","control":"탭하여 받기","variant":"120P 지금 받기","detail":"혜택 수치를 버튼에 노출하면 클릭 동기가 강해집니다."}',
+      };
+    case "compare":
+      return {
+        itemFields:
+          '      "criterion": "비교 항목 (한국어, 예: \'출금 신뢰감\', \'적립 체감\')",\n' +
+          '      "severity": 2,\n' +
+          '      "us": "야핏무브 화면의 현재 상태 — 화면 인용",\n' +
+          '      "competitor": "경쟁사(머니워크/돈이돼지) 방식",\n' +
+          '      "gap": "격차 한 줄 (한국어)",\n' +
+          '      "fix": "따라잡기 위한 구체안 (한국어)"',
+        example:
+          '예시 findings 항목(us는 화면 실제 상태를 인용):\n' +
+          '{"criterion":"출금 신뢰감","severity":2,"us":"\'포인트 교환하기\' 버튼만 노출","competitor":"돈이돼지는 1:1 현금출금·실시간 처리를 강조","gap":"신뢰 단서가 부족해 교환을 망설이게 함","fix":"\'평균 N분 내 처리\'와 실제 출금 후기 배지를 버튼 근처에 추가하세요."}',
+      };
+    default: // analysis (full-scan, usability, visual, cta, analyze-axis 등)
+      return {
+        itemFields:
+          '      "criterion": "평가 기준명 (한국어, 영어 휴리스틱명 절대 금지)",\n' +
+          '      "severity": 0,\n' +
+          '      "oneLineFinding": "발견 요약 25자 이내 (한국어)",\n' +
+          '      "detail": "상세 2~3문장. 화면에서 실제 보이는 텍스트/숫자/버튼을 1개 이상 인용 (한국어)",\n' +
+          '      "fix": "구체적 수정 방법 (한국어)"',
+        example:
+          '예시 findings 항목(criterion은 한국어, detail은 화면 요소 인용):\n' +
+          '{"criterion":"적립 체감","severity":2,"oneLineFinding":"걸음수는 크지만 보상이 약하게 보임","detail":"상단 \'8,432 오늘 걸음수\'는 크게 보이나 \'+120P 적립됨\'이 작아 보상 체감이 약합니다.","fix":"적립 포인트를 걸음수와 같은 위계로 키우고 획득 애니메이션을 추가하세요."}',
+      };
+  }
 }
 
 function getResponseType(intent: string): string {
@@ -361,6 +435,7 @@ export async function POST(request: NextRequest) {
             maxTokens,
             clientAnthropicKey: clientApiKey,
             anthropicModel,
+            jsonMode: true,
           })) {
             controller.enqueue(
               encoder.encode(`data: ${JSON.stringify({ text })}\n\n`)
