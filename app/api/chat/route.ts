@@ -241,11 +241,12 @@ function getOutputSchema(intent: string): { itemFields: string; example: string 
           '      "criterion": "개선 항목명 (한국어)",\n' +
           '      "severity": 2,\n' +
           '      "oneLineFinding": "개선 포인트 요약 25자 이내 (한국어)",\n' +
-          '      "impact": "높음 | 중간 | 낮음",\n' +
-          '      "effort": "높음 | 중간 | 낮음",\n' +
+          '      "impact": "【필수】 높음 | 중간 | 낮음 중 하나. 절대 비우지 말 것",\n' +
+          '      "effort": "【필수】 높음 | 중간 | 낮음 중 하나. 절대 비우지 말 것",\n' +
           '      "detail": "왜 개선이 필요한지, 화면의 실제 요소를 인용해 (한국어)",\n' +
           '      "fix": "구체적 실행 방법 (한국어)"',
         example:
+          '⚠ suggestion 분석은 각 항목에 impact와 effort를 반드시 채워야 합니다. 이 두 필드가 없으면 잘못된 응답입니다.\n' +
           '예시 findings 항목(이 형식·언어를 그대로 따르되 내용은 실제 화면 기준):\n' +
           '{"criterion":"적립 버튼 강조","severity":2,"oneLineFinding":"받기 버튼이 작아 눈에 안 띔","impact":"높음","effort":"낮음","detail":"화면 중앙 \'탭하여 받기\' 버튼이 주변 카드보다 작아 적립 행동 유도가 약합니다.","fix":"버튼 높이를 56px로 키우고 라임색 배경으로 대비를 높이세요."}\n' +
           'impact/effort 기준으로 Quick Win(임팩트 높고 노력 낮음)을 앞쪽에 배치하세요.',
@@ -255,13 +256,13 @@ function getOutputSchema(intent: string): { itemFields: string; example: string 
         itemFields:
           '      "criterion": "카피 위치/역할 (한국어, 예: \'CTA 버튼\', \'메인 헤드라인\')",\n' +
           '      "severity": 1,\n' +
-          '      "oneLineFinding": "현재 카피의 문제 25자 이내 (한국어)",\n' +
-          '      "before": "화면에 실제로 보이는 현재 카피를 그대로 인용",\n' +
-          '      "after": "개선 카피 제안 (한국어)",\n' +
+          '      "before": "【필수】 화면에 실제로 보이는 현재 카피를 그대로 인용. 절대 비우지 말 것",\n' +
+          '      "after": "【필수】 개선 카피 제안 (한국어). 절대 비우지 말 것",\n' +
           '      "detail": "왜 이렇게 바꾸는지 (한국어)"',
         example:
+          '⚠ copy 분석은 각 항목에 before(현재 카피)와 after(개선 카피)를 반드시 채워야 합니다. 이 두 필드가 없으면 잘못된 응답입니다.\n' +
           '예시 findings 항목(before는 반드시 화면 실제 텍스트를 인용):\n' +
-          '{"criterion":"메인 헤드라인","severity":1,"oneLineFinding":"문구가 길어 한눈에 안 들어옴","before":"꿈의편지를 읽고 깊게 숙면해요","after":"편지 읽고 꿀잠 자기","detail":"4060 사용자에게는 짧고 구체적인 동사형이 더 빠르게 읽힙니다."}',
+          '{"criterion":"메인 헤드라인","severity":1,"before":"꿈의편지를 읽고 깊게 숙면해요","after":"편지 읽고 꿀잠 자기","detail":"4060 사용자에게는 짧고 구체적인 동사형이 더 빠르게 읽힙니다."}',
       };
     case "ab":
       return {
@@ -269,10 +270,11 @@ function getOutputSchema(intent: string): { itemFields: string; example: string 
           '      "criterion": "테스트 요소 (한국어, 예: \'CTA 문구\', \'버튼 위치\')",\n' +
           '      "severity": 1,\n' +
           '      "hypothesis": "가설 (한국어, \'~하면 ~가 오를 것이다\')",\n' +
-          '      "control": "현재 안 — 화면 실제 상태를 인용",\n' +
-          '      "variant": "변형 안 (한국어)",\n' +
+          '      "control": "【필수】 현재 안 — 화면 실제 상태를 인용. 절대 비우지 말 것",\n' +
+          '      "variant": "【필수】 변형 안 (한국어). 절대 비우지 말 것",\n' +
           '      "detail": "예상 효과와 근거 (한국어)"',
         example:
+          '⚠ ab 분석은 각 항목에 control(현재)과 variant(변형)를 반드시 채워야 합니다.\n' +
           '예시 findings 항목(control은 화면 실제 상태를 인용):\n' +
           '{"criterion":"적립 CTA 문구","severity":1,"hypothesis":"행동을 명시하면 적립 전환이 오를 것","control":"탭하여 받기","variant":"120P 지금 받기","detail":"혜택 수치를 버튼에 노출하면 클릭 동기가 강해집니다."}',
       };
@@ -281,11 +283,12 @@ function getOutputSchema(intent: string): { itemFields: string; example: string 
         itemFields:
           '      "criterion": "비교 항목 (한국어, 예: \'출금 신뢰감\', \'적립 체감\')",\n' +
           '      "severity": 2,\n' +
-          '      "us": "야핏무브 화면의 현재 상태 — 화면 인용",\n' +
-          '      "competitor": "경쟁사(머니워크/돈이돼지) 방식",\n' +
+          '      "us": "【필수】 야핏무브 화면의 현재 상태 — 화면 인용. 절대 비우지 말 것",\n' +
+          '      "competitor": "【필수】 경쟁사(머니워크/돈이돼지) 방식. 절대 비우지 말 것",\n' +
           '      "gap": "격차 한 줄 (한국어)",\n' +
           '      "fix": "따라잡기 위한 구체안 (한국어)"',
         example:
+          '⚠ compare 분석은 각 항목에 us(야핏)와 competitor(경쟁사)를 반드시 채워야 합니다.\n' +
           '예시 findings 항목(us는 화면 실제 상태를 인용):\n' +
           '{"criterion":"출금 신뢰감","severity":2,"us":"\'포인트 교환하기\' 버튼만 노출","competitor":"돈이돼지는 1:1 현금출금·실시간 처리를 강조","gap":"신뢰 단서가 부족해 교환을 망설이게 함","fix":"\'평균 N분 내 처리\'와 실제 출금 후기 배지를 버튼 근처에 추가하세요."}',
       };
