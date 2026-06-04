@@ -1,15 +1,17 @@
 import { NextRequest, NextResponse } from "next/server";
-import Anthropic from "@anthropic-ai/sdk";
+import { completeLLM, type LLMImage } from "@/lib/llm";
 import { MODELS } from "@/lib/models";
 
 export const maxDuration = 120;
 
-const anthropic = new Anthropic({
-  apiKey: process.env.ANTHROPIC_API_KEY,
-});
+// 서버 사이드 LLM 프록시 — 무료 모드용
+// 플러그인에서 API 키가 없거나 초과 시 이 엔드포인트를 통해 분석.
+// provider 우선순위: GROQ_API_KEY → ANTHROPIC_API_KEY (lib/llm.ts)
+type AnthropicBlock =
+  | { type: "image"; source?: { data?: string; media_type?: string } }
+  | { type: "text"; text?: string }
+  | { role?: string; content?: unknown };
 
-// 서버 사이드 Anthropic API 프록시 — 무료 모드용
-// 플러그인에서 API 키가 없거나 초과 시 이 엔드포인트를 통해 분석
 export async function POST(req: NextRequest) {
   try {
     const { mode, systemPrompt, content, frameName } = await req.json();
@@ -21,27 +23,41 @@ export async function POST(req: NextRequest) {
       );
     }
 
-    // 무료 모드는 항상 Haiku (가장 저렴한 모델)
-    const model = MODELS.haiku;
+    // content(Anthropic content block 배열)에서 이미지/텍스트 추출
+    const blocks: AnthropicBlock[] = Array.isArray(content)
+      ? (content as AnthropicBlock[])
+      : [{ type: "text", text: String(content) }];
 
-    const messages =
-      Array.isArray(content) && content[0]?.role
-        ? content
-        : [{ role: "user" as const, content }];
+    const images: LLMImage[] = [];
+    let userText = "";
+    for (const b of blocks) {
+      if ("type" in b && b.type === "image" && b.source?.data) {
+        images.push({
+          base64: b.source.data,
+          mimeType: b.source.media_type || "image/png",
+        });
+      } else if ("type" in b && b.type === "text" && b.text) {
+        userText += b.text + "\n";
+      }
+    }
+    if (!userText.trim()) userText = "위 화면을 분석해주세요.";
 
-    const response = await anthropic.messages.create({
-      model,
-      max_tokens: 4096,
-      temperature: mode === "writing" ? 0.2 : undefined,
-      system: [{ type: "text", text: systemPrompt, cache_control: { type: "ephemeral" } }],
-      messages,
+    const raw = await completeLLM({
+      system: systemPrompt,
+      history: [],
+      images,
+      userText,
+      maxTokens: 4096,
+      // Anthropic fallback 시 가장 저렴한 모델
+      anthropicModel: MODELS.haiku,
     });
 
-    const raw = response.content?.[0]?.type === "text" ? response.content[0].text : "";
-    const cleaned = raw.replace(/```json\n?/g, "").replace(/```\n?/g, "").trim();
+    const cleaned = raw
+      .replace(/```json\n?/g, "")
+      .replace(/```\n?/g, "")
+      .trim();
     const result = JSON.parse(cleaned);
 
-    // writing 모드일 때 frameName 추가
     if (mode === "writing" && frameName) {
       result.frameName = frameName;
     }

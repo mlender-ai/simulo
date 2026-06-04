@@ -4,7 +4,9 @@
 // Accepts intent + subContext + frames[], returns SSE stream.
 
 import { NextRequest } from "next/server";
-import Anthropic from "@anthropic-ai/sdk";
+import { streamLLM, type LLMMessage, type LLMImage } from "@/lib/llm";
+
+export const maxDuration = 120;
 
 // ── Intent → System Prompt ────────────────────────────────────────────────────
 
@@ -276,7 +278,7 @@ export async function POST(request: NextRequest) {
       frames?: FramePayload[];
       intent?: string;
       subContext?: string;
-      conversationHistory?: Anthropic.MessageParam[];
+      conversationHistory?: LLMMessage[];
       userMessage?: string;
       apiKey?: string;
       ocrContext?: string;
@@ -300,70 +302,46 @@ export async function POST(request: NextRequest) {
       return Response.json({ error: "프레임이 없습니다" }, { status: 400 });
     }
 
-    const apiKey = clientApiKey || process.env.ANTHROPIC_API_KEY;
-    if (!apiKey) {
-      return Response.json({ error: "API 키가 없습니다" }, { status: 401 });
-    }
-
     const firstFrame = resolvedFrames[0];
     const frameName = firstFrame.nodeName ?? "선택된 프레임";
     const systemPrompt = buildSystemPrompt(resolvedIntent, resolvedSubContext, ocrContext, persona);
-    const model = selectModel(resolvedIntent);
+    const anthropicModel = selectModel(resolvedIntent);
     const maxTokens = getMaxTokens(resolvedIntent);
-
-    const client = new Anthropic({ apiKey });
-
-    // Build user content: up to 3 frame images + text
-    const VALID_MEDIA_TYPES = ["image/png", "image/jpeg", "image/gif", "image/webp"] as const;
-    type MediaType = typeof VALID_MEDIA_TYPES[number];
-
-    const imageBlocks: Anthropic.ImageBlockParam[] = resolvedFrames
-      .slice(0, 3)
-      .map((f) => ({
-        type: "image" as const,
-        source: {
-          type: "base64" as const,
-          media_type: (VALID_MEDIA_TYPES.includes(f.mimeType as MediaType) ? f.mimeType : "image/png") as MediaType,
-          data: f.imageBase64,
-        },
-      }));
 
     const textPrompt = userMessage
       ? `화면: "${frameName}"\n\n유저 요청: ${userMessage}`
       : `화면: "${frameName}"을 분석해주세요.`;
 
-    const userContent: Anthropic.ContentBlockParam[] = [
-      ...imageBlocks,
-      { type: "text" as const, text: textPrompt },
-    ];
+    // conversationHistory는 텍스트 메시지만 통과 (이미지 없는 과거 대화)
+    const history: LLMMessage[] = (conversationHistory ?? [])
+      .filter(
+        (m): m is LLMMessage =>
+          typeof m?.content === "string" &&
+          (m.role === "user" || m.role === "assistant")
+      )
+      .map((m) => ({ role: m.role, content: m.content }));
 
-    const messages: Anthropic.MessageParam[] = [
-      ...conversationHistory,
-      { role: "user", content: userContent },
-    ];
-
-    const stream = await client.messages.stream({
-      model,
-      max_tokens: maxTokens,
-      system: systemPrompt,
-      messages,
-    });
+    const images: LLMImage[] = resolvedFrames.map((f) => ({
+      base64: f.imageBase64,
+      mimeType: f.mimeType ?? "image/png",
+    }));
 
     const encoder = new TextEncoder();
     const readable = new ReadableStream({
       async start(controller) {
         try {
-          for await (const event of stream) {
-            if (
-              event.type === "content_block_delta" &&
-              event.delta.type === "text_delta"
-            ) {
-              controller.enqueue(
-                encoder.encode(
-                  `data: ${JSON.stringify({ text: event.delta.text })}\n\n`
-                )
-              );
-            }
+          for await (const text of streamLLM({
+            system: systemPrompt,
+            history,
+            images,
+            userText: textPrompt,
+            maxTokens,
+            clientAnthropicKey: clientApiKey,
+            anthropicModel,
+          })) {
+            controller.enqueue(
+              encoder.encode(`data: ${JSON.stringify({ text })}\n\n`)
+            );
           }
           controller.enqueue(encoder.encode("data: [DONE]\n\n"));
         } catch (err) {

@@ -1,7 +1,8 @@
 import { NextRequest, NextResponse } from "next/server";
-import Anthropic from "@anthropic-ai/sdk";
+import { completeLLM } from "@/lib/llm";
+import { MODELS } from "@/lib/models";
 
-const anthropic = new Anthropic();
+export const maxDuration = 30;
 
 export async function POST(request: NextRequest) {
   const body = await request.json();
@@ -35,13 +36,14 @@ JSON만 응답:
 {"intent":"...","axis":"ad-buffer|earning-motivation|retention-trigger|exchange-trust|null","subContext":"추출된 맥락 또는 null","confidence":0.0}`;
 
   try {
-    const message = await anthropic.messages.create({
-      model: "claude-haiku-4-5-20251001",
-      max_tokens: 200,
-      messages: [{ role: "user", content: prompt }],
+    const raw = await completeLLM({
+      system: "당신은 의도 분류기입니다. 반드시 순수 JSON만 반환하세요.",
+      history: [],
+      images: [],
+      userText: prompt,
+      maxTokens: 200,
+      anthropicModel: MODELS.haiku,
     });
-
-    const raw = (message.content[0] as { text: string }).text ?? "{}";
     const cleaned = raw.replace(/```json\n?/g, "").replace(/```\n?/g, "").trim();
     const parsed = JSON.parse(cleaned);
     return NextResponse.json({
