@@ -2362,6 +2362,27 @@ function renderMessages() {
     finding.addEventListener("click", () => finding.classList.toggle("mini-finding-collapsed"));
   });
 
+  container.querySelectorAll(".copy-md-btn").forEach((btn) => {
+    (btn as HTMLElement).addEventListener("click", () => {
+      const msgId = (btn as HTMLElement).dataset.msgId!;
+      const msg = chatMessages.find((m) => m.id === msgId);
+      if (!msg) return;
+      const frameName = contextStack.frames[0]?.nodeName ?? "프레임";
+      const intent = contextStack.intent ?? "분석";
+      const now = new Date();
+      const dateStr = `${now.getFullYear()}-${String(now.getMonth() + 1).padStart(2, "0")}-${String(now.getDate()).padStart(2, "0")} ${String(now.getHours()).padStart(2, "0")}:${String(now.getMinutes()).padStart(2, "0")}`;
+      const markdown = `## [${frameName}] 분석 결과 — ${intent}\n> 분석 일시: ${dateStr}\n\n${msg.content}`;
+      navigator.clipboard.writeText(markdown).then(() => {
+        (btn as HTMLElement).textContent = "복사됨 ✓";
+        (btn as HTMLElement).classList.add("copied");
+        setTimeout(() => {
+          (btn as HTMLElement).textContent = "마크다운 복사";
+          (btn as HTMLElement).classList.remove("copied");
+        }, 2000);
+      });
+    });
+  });
+
   container.scrollTop = container.scrollHeight;
 }
 
@@ -2398,6 +2419,10 @@ function renderMsgHTML(msg: ChatMessage): string {
       }
       return `<button class="chat-action-btn${a.primary ? " primary" : ""}" data-action="${a.id}">${escapeHtml(a.label)}</button>`;
     }).join("")}</div>`;
+  }
+
+  if (msg.role === "bot" && !msg.streaming && !msg.errorType && msg.content) {
+    inner += `<button class="copy-md-btn" data-msg-id="${msg.id}">마크다운 복사</button>`;
   }
 
   return `<div class="chat-msg ${cls}">${inner}</div>`;
