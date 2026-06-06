@@ -101,6 +101,11 @@ interface LiveMiniReport {
     oneLineFinding: string;
     detail: string;
     fix: string;
+    // iteration-compare specific
+    beforeScore?: number;
+    afterScore?: number;
+    delta?: number;
+    direction?: "improved" | "regressed" | "unchanged";
   }>;
   nextQuestion: string | null;
 }
@@ -168,6 +173,7 @@ const KEYWORD_INTENT_MAP: Array<{ keywords: string[]; intent: string; axis?: str
   { keywords: ["교환", "출금", "기프티콘", "환전", "마일리지샵"], intent: "analyze-axis", axis: "exchange-trust" },
   { keywords: ["카피", "문구", "워딩", "다듬", "텍스트 고쳐", "바꿔줘", "라이팅", "문장 고쳐"], intent: "copy-rewrite" },
   { keywords: ["A/B", "a/b", "ab", "변형", "테스트", "실험안"], intent: "ab-variant" },
+  { keywords: ["이터레이션", "이전이랑", "개선됐어", "달라진", "이전 버전", "버전 비교", "개선 효과", "이전과 비교", "전후 비교", "before after", "v1", "v2"], intent: "iteration-compare" },
   { keywords: ["비교", "경쟁사", "머니워크", "돈이돼지", "타사", "competitor"], intent: "competitor-compare" },
   { keywords: ["개선안", "개선해줘", "어떻게 고치", "솔루션", "제안해줘"], intent: "suggestion" },
   { keywords: ["상태 누락", "빈 화면", "empty state", "에러 상태", "로딩 상태", "상태 커버리지", "빠진 상태", "상태 감사", "상태 점검"], intent: "state-audit" },
@@ -192,6 +198,7 @@ const INTENT_TO_CATEGORY: Record<string, string> = {
   "cognitive-load":        "scan",
   "conversion-friction":   "scan",
   "flow-analysis":         "scan",
+  "iteration-compare":     "scan",
   "compound":           "scan",
   "usability":          "usability",
   "visual":             "visual",
@@ -253,6 +260,7 @@ ${convSummary || "(없음)"}
 - first-impression: 5초 첫인상 시뮬레이션 (사용자가 5초 안에 기억할 요소 예측, 의도한 핵심 메시지와의 갭 진단)
 - cognitive-load: 인지 부하 측정 (화면 복잡도 점수화, 정보 과부하 구간 탐지)
 - conversion-friction: 전환 경로 마찰 분석 (단계별 이탈 위험 점수, CTA 명확도, 불필요한 입력·단계 탐지)
+- iteration-compare: 두 프레임을 이전/이후 버전으로 비교하여 4축 개선 효과 측정 (이터레이션, 이전이랑, 달라진, 버전 비교, before/after 등)
 
 JSON만 응답:
 {"intent":"...","axis":"ad-buffer|earning-motivation|retention-trigger|exchange-trust|null","subContext":"추출된 맥락 또는 null","confidence":0.0}`;
@@ -2429,6 +2437,41 @@ function renderMsgHTML(msg: ChatMessage): string {
 }
 
 function renderMiniReportHTML(report: LiveMiniReport): string {
+  // iteration-compare: 테이블 형식으로 렌더링
+  const isIteration = report.findings.some((f) => f.beforeScore !== undefined);
+  if (isIteration) {
+    const tableRows = report.findings.map((f) => {
+      const delta = f.delta ?? ((f.afterScore ?? 0) - (f.beforeScore ?? 0));
+      const direction = f.direction ?? (delta > 0.05 ? "improved" : delta < -0.05 ? "regressed" : "unchanged");
+      const deltaStr = delta > 0 ? `▲ +${delta.toFixed(1)}` : delta < 0 ? `▼ ${delta.toFixed(1)}` : `─ 0.0`;
+      const deltaColor = direction === "improved" ? "#22c55e" : direction === "regressed" ? "#ef4444" : "#888";
+      const warn = direction === "regressed" ? " ⚠️" : "";
+      return `<tr>
+        <td style="padding:5px 8px;color:#ccc">${escapeHtml(f.criterion)}</td>
+        <td style="padding:5px 8px;text-align:center;color:#aaa">${f.beforeScore !== undefined ? f.beforeScore.toFixed(1) : "-"} / 5</td>
+        <td style="padding:5px 8px;text-align:center;color:#e5e5e5">${f.afterScore !== undefined ? f.afterScore.toFixed(1) : "-"} / 5</td>
+        <td style="padding:5px 8px;text-align:center;color:${deltaColor};font-weight:600">${deltaStr}${warn}</td>
+      </tr>`;
+    }).join("");
+    const improved = report.findings.filter((f) => f.direction === "improved" || (f.delta !== undefined && f.delta > 0.05));
+    const regressed = report.findings.filter((f) => f.direction === "regressed" || (f.delta !== undefined && f.delta < -0.05));
+    return `<div class="mini-report">
+      <div class="mini-report-summary">${escapeHtml(report.quickSummary)}</div>
+      <table style="width:100%;border-collapse:collapse;margin:8px 0;font-size:12px;background:#111;border-radius:6px;overflow:hidden">
+        <thead><tr style="background:#1a1a1a">
+          <th style="padding:5px 8px;text-align:left;color:#666;font-weight:500;font-size:11px"></th>
+          <th style="padding:5px 8px;text-align:center;color:#666;font-weight:500;font-size:11px">이전 (v1)</th>
+          <th style="padding:5px 8px;text-align:center;color:#666;font-weight:500;font-size:11px">현재 (v2)</th>
+          <th style="padding:5px 8px;text-align:center;color:#666;font-weight:500;font-size:11px">변화</th>
+        </tr></thead>
+        <tbody>${tableRows}</tbody>
+      </table>
+      ${improved.length > 0 ? `<div style="font-size:11px;color:#22c55e;margin-top:4px">✅ 개선: ${improved.map((f) => escapeHtml(f.oneLineFinding)).join(" / ")}</div>` : ""}
+      ${regressed.length > 0 ? `<div style="font-size:11px;color:#ef4444;margin-top:2px">⚠️ 퇴보: ${regressed.map((f) => escapeHtml(f.oneLineFinding)).join(" / ")}</div>` : ""}
+      ${report.nextQuestion ? `<div style="font-size:11px;color:#555;margin-top:6px">💬 ${escapeHtml(report.nextQuestion)}</div>` : ""}
+    </div>`;
+  }
+
   const sevCls = ["sev-0", "sev-1", "sev-2", "sev-3", "sev-4"];
   const findings = report.findings.map((f) => {
     const s = Math.min(4, Math.max(0, f.severity));
@@ -2498,11 +2541,11 @@ function handleFramesSelected(frames: FrameInfo[]) {
     addMsg({ id: chatId(), role: "system", content: `${frames.length}개 프레임 선택됨: ${names}` });
     addMsg({
       id: chatId(), role: "bot",
-      content: `${frames.length}개 화면을 선택했네요.`,
+      content: "2개 프레임이 선택됐어요. 이터레이션 비교로 개선 효과를 측정할까요?",
       labels: [
-        { id: "mode-compare",  name: "Before/After 비교" },
-        { id: "mode-flow",     name: "플로우로 분석" },
-        { id: "mode-separate", name: "각각 따로 분석" },
+        { id: "iteration-compare", name: "이터레이션 비교" },
+        { id: "mode-flow",         name: "플로우로 분석" },
+        { id: "mode-separate",     name: "각각 따로 분석" },
       ],
     });
   } else {
@@ -2593,8 +2636,11 @@ function handleIntentLabel(labelId: string) {
   contextStack.pipeline = [labelId];
 
   // Get label display name
+  const EXTRA_LABEL_NAMES: Record<string, string> = {
+    "iteration-compare": "이터레이션 비교",
+  };
   const allLabels = getLabelsForState({ ...contextStack, intent: null, results: [] });
-  const name = allLabels.find((l) => l.id === labelId)?.name ?? labelId;
+  const name = allLabels.find((l) => l.id === labelId)?.name ?? EXTRA_LABEL_NAMES[labelId] ?? labelId;
   addMsg({ id: chatId(), role: "user", content: name });
 
   // Check for follow-up tree
@@ -2643,6 +2689,16 @@ async function startChatAnalysis(_categoryId: string, followUpContext: string) {
   chatAnalyzing = true;
 
   const msgId = chatId();
+
+  // iteration-compare는 프레임 2개 필요
+  if (contextStack.intent === "iteration-compare" && contextStack.frames.length < 2) {
+    addMsg({
+      id: msgId, role: "bot",
+      content: "이터레이션 비교는 프레임 2개가 필요해요. Figma에서 비교할 프레임 2개를 Shift+클릭으로 선택해주세요.",
+    });
+    chatAnalyzing = false;
+    return;
+  }
   addMsg({ id: msgId, role: "bot", content: "", streaming: true });
 
   // Artificial delay for "thinking" feel (400~700ms)
@@ -2726,6 +2782,7 @@ async function startChatAnalysis(_categoryId: string, followUpContext: string) {
       "first-impression": ["화면을 5초 관점으로 스캔하고 있어요...", "시각적 가중치 순위를 매기는 중...", "첫인상 갭 리포트를 작성하고 있어요..."],
       "cognitive-load": ["화면 복잡도를 측정하고 있어요...", "요소 밀도와 시각적 노이즈를 분석 중...", "인지 부하 점수를 산출하고 있어요..."],
       "conversion-friction": ["전환 경로를 따라가고 있어요...", "단계별 마찰 요소를 찾고 있어요...", "이탈 위험 점수를 계산하고 있어요..."],
+      "iteration-compare": ["두 프레임을 비교하고 있어요...", "4축 기준으로 채점하는 중...", "개선·퇴보 항목을 정리하고 있어요..."],
     };
     const msgs = loadingMsgs[_categoryId] ?? ["분석하고 있어요..."];
     const getLoadMsg = () => msgs[Math.min(Math.floor((Date.now() - streamStart) / 3500), msgs.length - 1)];
@@ -2890,6 +2947,7 @@ function handleChatAction(action: string) {
       "first-impression": "👁 5초 첫인상",
       "cognitive-load": "🧠 인지 부하",
       "conversion-friction": "⚡ 전환 마찰",
+      "iteration-compare": "📊 이터레이션 비교",
     };
     const frameName = contextStack.frames[0]?.nodeName ?? "선택된 프레임";
     const lines: string[] = [

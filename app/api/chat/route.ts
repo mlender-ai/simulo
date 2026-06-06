@@ -167,6 +167,18 @@ function buildSystemPrompt(
         "severity: 3=이탈 유발(심각), 2=마찰 높음(개선 필요), 1=경미, 0=마찰 없음\n" +
         "야핏무브 타깃(4060 여성)의 기술 친숙도를 고려하여 복잡한 흐름에 더 높은 마찰 점수를 부여하세요.";
       break;
+    case "iteration-compare":
+      categoryGuide =
+        "제공된 두 이미지는 같은 화면의 **이전(v1)과 이후(v2) 버전**입니다.\n" +
+        "야핏무브 UX 4축 기준으로 각 버전을 5점 만점으로 채점하고 개선/퇴보를 측정하세요.\n" +
+        "4축:\n" +
+        "- 광고 완충(ad-buffer): 광고 후 이탈 방지, 보상 즉시성, 심리적 완충 요소\n" +
+        "- 수익 동기(earning-motivation): 포인트 가시성, 적립 체감, 목표 달성 욕구\n" +
+        "- 리텐션 트리거(retention-trigger): 재방문 유도, 스트릭, FOMO 설계\n" +
+        "- 교환 신뢰(exchange-trust): 출금/교환 단계 투명성, 안전감, 신뢰 단서\n\n" +
+        "findings에 4축 각각의 비교 데이터를 포함하세요 (반드시 4개).\n" +
+        "severity: 0=큰 개선, 1=소폭 개선, 2=변화 없음, 3=소폭 퇴보, 4=큰 퇴보";
+      break;
     case "state-audit":
       categoryGuide =
         "이 화면의 '상태 완전성'을 감사하세요. 다음 상태가 설계되어 있는지 확인하세요:\n" +
@@ -292,6 +304,23 @@ function getOutputSchema(intent: string): { itemFields: string; example: string 
           '예시 findings 항목(us는 화면 실제 상태를 인용):\n' +
           '{"criterion":"출금 신뢰감","severity":2,"us":"\'포인트 교환하기\' 버튼만 노출","competitor":"돈이돼지는 1:1 현금출금·실시간 처리를 강조","gap":"신뢰 단서가 부족해 교환을 망설이게 함","fix":"\'평균 N분 내 처리\'와 실제 출금 후기 배지를 버튼 근처에 추가하세요."}',
       };
+    case "iteration":
+      return {
+        itemFields:
+          '      "criterion": "4축 중 하나: 광고 완충 | 수익 동기 | 리텐션 트리거 | 교환 신뢰",\n' +
+          '      "severity": 0,\n' +
+          '      "beforeScore": 3.2,\n' +
+          '      "afterScore": 4.1,\n' +
+          '      "delta": 0.9,\n' +
+          '      "direction": "improved | regressed | unchanged",\n' +
+          '      "oneLineFinding": "변화 요약 25자 이내 (한국어)",\n' +
+          '      "detail": "v1→v2 변화의 구체적 근거. 화면 요소를 인용해서 설명 (한국어)",\n' +
+          '      "fix": "퇴보 시 개선안 / 개선 시 강화 방법 (한국어)"',
+        example:
+          '⚠ iteration 분석: findings는 반드시 4축 모두 포함 (4개). beforeScore/afterScore/delta/direction 필수.\n' +
+          'beforeScore/afterScore: 0.0~5.0 소수점 1자리. delta = afterScore - beforeScore.\n' +
+          '예시: {"criterion":"광고 완충","severity":1,"beforeScore":3.2,"afterScore":4.1,"delta":0.9,"direction":"improved","oneLineFinding":"광고 후 보상 유도 강화","detail":"v1에는 광고 직후 빈 화면이었으나 v2에서 \'120P 받기\' 버튼이 추가되어 이탈 방지가 개선됨","fix":"현재 방향 유지. 보상 수치를 더 크게 표시하면 효과 강화 가능"}',
+      };
     default: // analysis (full-scan, usability, visual, cta, analyze-axis 등)
       return {
         itemFields:
@@ -312,6 +341,7 @@ function getResponseType(intent: string): string {
   if (intent === "ab-variant") return "ab";
   if (intent === "competitor-compare") return "compare";
   if (intent === "suggestion") return "suggestion";
+  if (intent === "iteration-compare") return "iteration";
   return "analysis";
 }
 
@@ -329,6 +359,7 @@ function selectModel(intent: string): string {
     "first-impression",
     "cognitive-load",
     "conversion-friction",
+    "iteration-compare",
   ].includes(intent);
   return needsSonnet
     ? "claude-sonnet-4-20250514"
@@ -345,6 +376,7 @@ function getMaxTokens(intent: string): number {
   if (intent === "first-impression") return 2048;
   if (intent === "cognitive-load") return 2048;
   if (intent === "conversion-friction") return 2048;
+  if (intent === "iteration-compare") return 2048;
   return 1024;
 }
 
@@ -408,7 +440,9 @@ export async function POST(request: NextRequest) {
     const anthropicModel = selectModel(resolvedIntent);
     const maxTokens = getMaxTokens(resolvedIntent);
 
-    const textPrompt = userMessage
+    const textPrompt = resolvedIntent === "iteration-compare" && resolvedFrames.length >= 2
+      ? `첫 번째 이미지(이전 v1): "${resolvedFrames[0].nodeName}"\n두 번째 이미지(이후 v2): "${resolvedFrames[1].nodeName}"\n\n두 프레임을 4축 기준으로 이터레이션 비교 분석해주세요.`
+      : userMessage
       ? `화면: "${frameName}"\n\n유저 요청: ${userMessage}`
       : `화면: "${frameName}"을 분석해주세요.`;
 
