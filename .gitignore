@@ -33,6 +33,7 @@ yarn-error.log*
 
 # figma plugin
 /figma-plugin/node_modules
+/figma-plugin/src/**/*.js
 
 # vercel
 .vercel
