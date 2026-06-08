@@ -29,7 +29,7 @@ export interface StreamLLMParams {
   jsonMode?: boolean;
 }
 
-export type Provider = "groq" | "anthropic";
+export type Provider = "openrouter" | "groq" | "anthropic";
 
 const VALID_MEDIA_TYPES = [
   "image/png",
@@ -43,14 +43,49 @@ function safeMime(m: string | undefined): MediaType {
   return VALID_MEDIA_TYPES.includes(m as MediaType) ? (m as MediaType) : "image/png";
 }
 
-// Groq 비전 지원 모델 (이미지 입력 가능한 유일 옵션)
+// 비전 지원 모델
 export const GROQ_VISION_MODEL = "meta-llama/llama-4-scout-17b-16e-instruct";
+// OpenRouter 1순위 비전 모델 — Qwen2.5-VL 72B(무료). scout(17B) 대비 비전·지시준수·한국어 우위.
+export const OPENROUTER_VISION_MODEL = "qwen/qwen2.5-vl-72b-instruct:free";
+// 무료 모델 가용성 변동 대비 fallback 체인 (OpenRouter가 순서대로 라우팅)
+const OPENROUTER_FALLBACKS = [
+  "qwen/qwen2.5-vl-32b-instruct:free",
+  "meta-llama/llama-3.2-11b-vision-instruct:free",
+];
+
+interface CompatCfg {
+  baseUrl: string;
+  model: string;
+  label: string;
+  fallbackModels?: string[];
+  extraHeaders?: Record<string, string>;
+}
+
+// OpenAI 호환 provider 설정 (OpenRouter, Groq 공유)
+const OPENAI_COMPAT: Record<"openrouter" | "groq", CompatCfg> = {
+  openrouter: {
+    baseUrl: "https://openrouter.ai/api/v1/chat/completions",
+    model: OPENROUTER_VISION_MODEL,
+    fallbackModels: OPENROUTER_FALLBACKS,
+    label: "OpenRouter",
+    extraHeaders: {
+      "HTTP-Referer": "https://simulo.vercel.app",
+      "X-Title": "Simulo",
+    },
+  },
+  groq: {
+    baseUrl: "https://api.groq.com/openai/v1/chat/completions",
+    model: GROQ_VISION_MODEL,
+    label: "Groq",
+  },
+};
 
 /**
- * provider 결정 규칙:
+ * provider 결정 규칙 (품질·비용 순):
  * 1. 사용자가 본인 Anthropic 키를 줬으면 → anthropic (그 키)
- * 2. GROQ_API_KEY 있으면 → groq
- * 3. ANTHROPIC_API_KEY(서버) 있으면 → anthropic
+ * 2. OPENROUTER_API_KEY 있으면 → openrouter (무료·고품질 비전 Qwen-VL 72B)
+ * 3. GROQ_API_KEY 있으면 → groq (무료·저품질 비전 scout, 폴백)
+ * 4. ANTHROPIC_API_KEY(서버) 있으면 → anthropic
  */
 export function resolveProvider(clientAnthropicKey?: string): {
   provider: Provider;
@@ -58,6 +93,9 @@ export function resolveProvider(clientAnthropicKey?: string): {
 } | null {
   if (clientAnthropicKey) {
     return { provider: "anthropic", apiKey: clientAnthropicKey };
+  }
+  if (process.env.OPENROUTER_API_KEY) {
+    return { provider: "openrouter", apiKey: process.env.OPENROUTER_API_KEY };
   }
   if (process.env.GROQ_API_KEY) {
     return { provider: "groq", apiKey: process.env.GROQ_API_KEY };
@@ -68,17 +106,19 @@ export function resolveProvider(clientAnthropicKey?: string): {
   return null;
 }
 
-// ── Groq (OpenAI 호환) 스트리밍 ──────────────────────────────────────────────
+// ── OpenAI 호환 스트리밍 (OpenRouter, Groq 공유) ──────────────────────────────
 
-async function* streamGroq(
+async function* streamOpenAICompat(
+  which: "openrouter" | "groq",
   apiKey: string,
   p: StreamLLMParams
 ): AsyncGenerator<string> {
+  const cfg = OPENAI_COMPAT[which];
   const userContent: Array<
     | { type: "text"; text: string }
     | { type: "image_url"; image_url: { url: string } }
   > = [];
-  // Groq는 최대 5장, base64 4MB 제한
+  // 최대 5장
   for (const img of p.images.slice(0, 5)) {
     userContent.push({
       type: "image_url",
@@ -94,36 +134,41 @@ async function* streamGroq(
   ];
 
   const baseBody: Record<string, unknown> = {
-    model: GROQ_VISION_MODEL,
+    model: cfg.model,
+    // OpenRouter: 무료 모델 가용성 변동 대비 fallback 라우팅
+    ...(cfg.fallbackModels
+      ? { models: [cfg.model, ...cfg.fallbackModels] }
+      : {}),
     messages,
     max_tokens: p.maxTokens,
     temperature: 0.4,
     stream: true,
   };
 
-  async function callGroq(withJsonMode: boolean): Promise<Response> {
+  async function call(withJsonMode: boolean): Promise<Response> {
     const body = withJsonMode
       ? { ...baseBody, response_format: { type: "json_object" } }
       : baseBody;
-    return fetch("https://api.groq.com/openai/v1/chat/completions", {
+    return fetch(cfg.baseUrl, {
       method: "POST",
       headers: {
         Authorization: `Bearer ${apiKey}`,
         "Content-Type": "application/json",
+        ...(cfg.extraHeaders ?? {}),
       },
       body: JSON.stringify(body),
     });
   }
 
-  // JSON mode + streaming은 모델별 지원 여부가 불확실 → 거부 시(400) JSON mode 빼고 재시도
-  let res = await callGroq(!!p.jsonMode);
+  // JSON mode + streaming은 provider별 지원 여부가 불확실 → 거부 시(400) JSON mode 빼고 재시도
+  let res = await call(!!p.jsonMode);
   if (!res.ok && p.jsonMode && res.status === 400) {
-    res = await callGroq(false);
+    res = await call(false);
   }
 
   if (!res.ok || !res.body) {
     const errBody = await res.text().catch(() => "");
-    throw new Error(`Groq ${res.status}: ${errBody.slice(0, 300)}`);
+    throw new Error(`${cfg.label} ${res.status}: ${errBody.slice(0, 300)}`);
   }
 
   const reader = res.body.getReader();
@@ -145,7 +190,7 @@ async function* streamGroq(
           choices?: Array<{ delta?: { content?: string } }>;
           error?: { message?: string };
         };
-        if (json.error) throw new Error(json.error.message || "Groq error");
+        if (json.error) throw new Error(json.error.message || `${cfg.label} error`);
         const text = json.choices?.[0]?.delta?.content;
         if (text) yield text;
       } catch {
@@ -207,11 +252,11 @@ export async function* streamLLM(
   const resolved = resolveProvider(p.clientAnthropicKey);
   if (!resolved) {
     throw new Error(
-      "분석에 사용할 API 키가 없어요. GROQ_API_KEY 또는 ANTHROPIC_API_KEY를 설정해주세요."
+      "분석에 사용할 API 키가 없어요. OPENROUTER_API_KEY, GROQ_API_KEY 또는 ANTHROPIC_API_KEY를 설정해주세요."
     );
   }
-  if (resolved.provider === "groq") {
-    yield* streamGroq(resolved.apiKey, p);
+  if (resolved.provider === "openrouter" || resolved.provider === "groq") {
+    yield* streamOpenAICompat(resolved.provider, resolved.apiKey, p);
   } else {
     yield* streamAnthropic(resolved.apiKey, p);
   }
