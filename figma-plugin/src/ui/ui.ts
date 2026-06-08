@@ -142,6 +142,24 @@ let contextStack: ContextStack = {
 };
 let chatAnalyzing = false;
 let chatAbortController: AbortController | null = null;
+let chatCancelledByUser = false;
+
+// 분석 상태 변경 시 send(↑)/stop(■) 버튼 토글
+function setChatAnalyzing(v: boolean) {
+  chatAnalyzing = v;
+  const send = document.getElementById("chatSendBtn");
+  const stop = document.getElementById("chatStopBtn");
+  if (send) send.style.display = v ? "none" : "";
+  if (stop) stop.style.display = v ? "" : "none";
+}
+
+// 사용자가 분석을 직접 중단 (Stop 버튼 / ESC)
+function cancelChatAnalysis() {
+  if (!chatAnalyzing) return;
+  chatCancelledByUser = true;
+  chatAbortController?.abort();
+  setChatAnalyzing(false);
+}
 
 // ── Phase B: Intent Router ──
 
@@ -606,6 +624,12 @@ window.addEventListener("DOMContentLoaded", () => {
       handleChatInput(chatInputEl.value.trim());
       chatInputEl.value = "";
     }
+  });
+
+  // Stop button — 분석 중단 (#230)
+  $<HTMLButtonElement>("chatStopBtn").addEventListener("click", cancelChatAnalysis);
+  document.addEventListener("keydown", (e) => {
+    if (e.key === "Escape" && chatAnalyzing) cancelChatAnalysis();
   });
 
   // Reset button
@@ -2473,7 +2497,7 @@ function handleFramesSelected(frames: FrameInfo[]) {
     chatAbortController.abort();
     // Remove any dangling streaming message
     chatMessages = chatMessages.filter((m) => !m.streaming);
-    chatAnalyzing = false;
+    setChatAnalyzing(false);
   }
 
   // Reset chips for the new conversation
@@ -2493,7 +2517,7 @@ function handleFramesSelected(frames: FrameInfo[]) {
     results: [],
     conversationHistory: [], lastReport: null, selectedCategory: null,
   };
-  chatAnalyzing = false;
+  setChatAnalyzing(false);
 
   const initialLabels = getLabelsForState(contextStack);
 
@@ -2658,7 +2682,7 @@ const ANALYSIS_TIMEOUT_MS = 60_000; // 60s
 
 async function startChatAnalysis(_categoryId: string, followUpContext: string) {
   if (!contextStack.frames.length) return;
-  chatAnalyzing = true;
+  setChatAnalyzing(true);
 
   const msgId = chatId();
   addMsg({ id: msgId, role: "bot", content: "", streaming: true });
@@ -2723,7 +2747,7 @@ async function startChatAnalysis(_categoryId: string, followUpContext: string) {
         errorType: isServerErr ? "server" : undefined,
         actions: [{ id: "retry", label: "↺ 다시 시도" }],
       });
-      chatAnalyzing = false;
+      setChatAnalyzing(false);
       return;
     }
 
@@ -2823,7 +2847,17 @@ async function startChatAnalysis(_categoryId: string, followUpContext: string) {
     ];
   } catch (err) {
     if ((err as Error)?.name === "AbortError") {
-      // Timeout vs user-triggered abort
+      // 사용자가 Stop/ESC로 직접 중단한 경우
+      if (chatCancelledByUser) {
+        chatCancelledByUser = false;
+        const cur = chatMessages.find((m) => m.id === msgId);
+        updateMsg(msgId, {
+          content: (cur?.content?.trim() ? cur.content + " " : "") + "(취소됨)",
+          streaming: false,
+        });
+        return;
+      }
+      // Timeout vs frame-change abort
       const isTimeout = chatMessages.find((m) => m.id === msgId)?.streaming;
       if (isTimeout) {
         updateMsg(msgId, {
@@ -2850,7 +2884,7 @@ async function startChatAnalysis(_categoryId: string, followUpContext: string) {
     });
   } finally {
     clearTimeout(timeoutId);
-    chatAnalyzing = false;
+    setChatAnalyzing(false);
   }
 }
 
@@ -2873,7 +2907,7 @@ function handleChatAction(action: string) {
     contextStack.lastReport = null;
     contextStack.pipeline = [];
     contextStack.results = [];
-    chatAnalyzing = false;
+    setChatAnalyzing(false);
     addMsg({ id: chatId(), role: "bot", content: "이 화면에서 뭘 해볼까요?", labels: getLabelsForState(contextStack) });
   } else if (action === "comment") {
     if (!contextStack.lastReport) return;
