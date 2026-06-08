@@ -119,14 +119,10 @@ interface ContextStack {
 }
 
 const HINT_CHIPS = [
-  { label: "전체 분석",  text: "전체 분석해줘" },
-  { label: "A/B 변형",  text: "A/B 변형 만들어줘" },
-  { label: "카피 다듬기", text: "카피 다듬어줘" },
-  { label: "경쟁사 비교", text: "경쟁사와 비교해줘" },
-  { label: "사용성 점검", text: "사용성 점검해줘" },
-  { label: "CTA 분석",  text: "CTA 분석해줘" },
-  { label: "개선안 제안", text: "개선안 제안해줘" },
-  { label: "전환 마찰",  text: "전환 경로 마찰 분석해줘" },
+  { label: "전체 분석",  intentId: "full-scan" },
+  { label: "카피 다듬기", intentId: "copy-rewrite" },
+  { label: "전환 마찰",  intentId: "conversion-friction" },
+  { label: "개선안 제안", intentId: "suggestion" },
 ];
 
 let chipsHidden = false;
@@ -147,6 +143,7 @@ let chatCancelledByUser = false;
 // 분석 상태 변경 시 send(↑)/stop(■) 버튼 토글
 function setChatAnalyzing(v: boolean) {
   chatAnalyzing = v;
+  if (v) hideHintChips();
   const send = document.getElementById("chatSendBtn");
   const stop = document.getElementById("chatStopBtn");
   if (send) send.style.display = v ? "none" : "";
@@ -596,15 +593,13 @@ window.addEventListener("DOMContentLoaded", () => {
   const hintChipsEl = $("hint-chips");
   if (hintChipsEl) {
     hintChipsEl.innerHTML = HINT_CHIPS.map((c) =>
-      `<button class="hint-chip" data-text="${escapeHtml(c.text)}">${escapeHtml(c.label)}</button>`
+      `<button class="hint-chip" data-intent="${escapeHtml(c.intentId)}">${escapeHtml(c.label)}</button>`
     ).join("");
     hintChipsEl.querySelectorAll(".hint-chip").forEach((btn) => {
       (btn as HTMLElement).addEventListener("click", () => {
-        const text = (btn as HTMLElement).dataset.text ?? "";
-        const inputEl = $<HTMLInputElement>("chatInput");
-        inputEl.value = text;
-        handleChatInput(text);
-        inputEl.value = "";
+        if (chatAnalyzing || !contextStack.frames.length) return;
+        const intentId = (btn as HTMLElement).dataset.intent ?? "";
+        if (intentId) handleIntentLabel(intentId);
       });
     });
   }
@@ -612,7 +607,6 @@ window.addEventListener("DOMContentLoaded", () => {
   // Chat input
   const chatInputEl = $<HTMLInputElement>("chatInput");
   const chatSendBtnEl = $<HTMLButtonElement>("chatSendBtn");
-  chatInputEl.addEventListener("input", () => hideHintChips());
   chatInputEl.addEventListener("keydown", (e) => {
     if (e.key === "Enter" && chatInputEl.value.trim()) {
       handleChatInput(chatInputEl.value.trim());
@@ -2500,9 +2494,14 @@ function handleFramesSelected(frames: FrameInfo[]) {
     setChatAnalyzing(false);
   }
 
-  // Reset chips for the new conversation
+  // Reset chips — show only for single frame selection
   chipsHidden = false;
-  showHintChips();
+  if (frames.length === 1) {
+    showHintChips();
+  } else {
+    chipsHidden = true;
+    $("hint-chips")?.classList.add("hidden");
+  }
 
   // Capture previous session state before reset
   const hadPreviousResult = contextStack.results.length > 0;
