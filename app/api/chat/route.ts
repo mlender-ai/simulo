@@ -167,6 +167,46 @@ function buildSystemPrompt(
         "severity: 3=이탈 유발(심각), 2=마찰 높음(개선 필요), 1=경미, 0=마찰 없음\n" +
         "야핏무브 타깃(4060 여성)의 기술 친숙도를 고려하여 복잡한 흐름에 더 높은 마찰 점수를 부여하세요.";
       break;
+    case "dark-pattern":
+      categoryGuide =
+        "이 화면에서 **다크 패턴(사용자 기만 디자인)**을 탐지하세요. 다음 7가지 유형을 점검하세요:\n" +
+        "1. 컨펌 셰이밍 — 거부 CTA에 죄책감 유발 문구 ('괜찮아요, 혜택 포기할게요')\n" +
+        "2. 거짓 긴급성 — 실제 마감 없는 카운트다운·'마지막 기회' 문구\n" +
+        "3. 숨겨진 비용 — 최종 확인 전까지 숨겨진 요금/조건\n" +
+        "4. 로치 모텔 — 가입은 쉽지만 해지·이탈이 어려운 플로우\n" +
+        "5. 미스디렉션 — 주 CTA와 보조 CTA의 시각적 위계를 의도적으로 역전\n" +
+        "6. 트릭 질문 — 이중 부정·혼란스러운 동의 체크박스\n" +
+        "7. 소셜 프루프 조작 — 과장되거나 맥락 없는 사용자 수·리뷰 수치\n" +
+        "criterion 첫 번째 항목은 반드시 '윤리성 점수'로 하고 0-100점 평가(100=완전 깨끗, 0=심각한 기만):\n" +
+        "각 탐지 항목의 criterion에 다크 패턴 유형명을 쓰고, detail에 화면의 실제 문구/배치를 인용하세요.\n" +
+        "severity: 4=명백한 기만(규제 리스크), 3=의심스러움, 2=경계, 1=경미, 0=문제 없음\n" +
+        "다크 패턴이 하나도 없으면 quickSummary에 '깨끗한 디자인이에요'라고 명시하세요. " +
+        "야핏무브처럼 전환율 압박이 큰 리워드 앱에서 광고·적립 유도가 기만으로 넘어가지 않았는지 특히 주의하세요.";
+      break;
+    case "tone-consistency":
+      categoryGuide =
+        "화면 내 모든 텍스트의 **UX 라이팅 톤 일관성**을 감사하세요. 3가지 차원을 점검하세요:\n" +
+        "1. 격식 레벨 — 반말 / 평어(해체) / 존댓말(해요체) / 격식체(합쇼체)가 혼용되는지\n" +
+        "2. CTA 패턴 — 동사형('시작하기') / 명사형('시작') / 영어('GO') / 이모지 혼합이 섞이는지\n" +
+        "3. 설명 문체 — 능동형 / 수동형 / 질문형이 일관성 없이 혼재하는지\n" +
+        "text-consistency(같은 개념→다른 용어)와 달리, 이건 '동일 레벨 UI 요소→다른 문체/격식' 문제입니다.\n" +
+        "criterion에 차원명(예: '격식 레벨 혼용', 'CTA 형태 불일치')을 쓰고, " +
+        "detail에 화면에서 실제 발견된 표현들을 그대로 인용해 나열하세요(예: \"'시작하기'와 '시작'이 섞임\").\n" +
+        "fix에 통일 방향을 1개 제시하세요(예: '전체 해요체+동사형 CTA로 통일').\n" +
+        "severity: 3=사용자 혼란·신뢰 저하, 2=눈에 띄는 불일치, 1=사소, 0=일관적";
+      break;
+    case "color-contrast":
+      categoryGuide =
+        "이 화면의 **접근성 색상 대비(WCAG)**를 점검하세요. 텍스트와 그 배경의 색상 쌍을 보고 대비를 판정하세요.\n" +
+        "기준: WCAG AA = 일반 텍스트 4.5:1 / 큰 텍스트(18pt+ 또는 14pt+ 볼드) 3:1. AAA = 7:1 / 4.5:1.\n" +
+        "criterion 첫 번째 항목은 '대비 종합 판정'으로 하고 AA 통과/실패 요소 개수를 요약하세요.\n" +
+        "이후 각 항목의 criterion에 텍스트 위치(예: 'CTA 버튼 라벨', '본문 안내문')를 쓰고, " +
+        "detail에 추정 색상(밝은 회색 글씨/흰 배경 등)과 대비가 낮아 보이는 근거를 명시하세요.\n" +
+        "fix에 구체적 개선(예: '글자색을 #888→#444로 어둡게')을 제시하세요.\n" +
+        "severity: 3=AA 실패(가독성 심각), 2=AA 경계, 1=AAA 미달, 0=충분.\n" +
+        "야핏무브 타깃(4060 여성)은 노안으로 저대비 텍스트 가독성이 더 떨어지므로 엄격히 판정하세요.\n" +
+        "⚠ 정확한 색상값을 확신할 수 없으면 추정임을 밝히되, 명백히 흐릿한 텍스트는 지적하세요.";
+      break;
     case "state-audit":
       categoryGuide =
         "이 화면의 '상태 완전성'을 감사하세요. 다음 상태가 설계되어 있는지 확인하세요:\n" +
@@ -329,6 +369,9 @@ function selectModel(intent: string): string {
     "first-impression",
     "cognitive-load",
     "conversion-friction",
+    "dark-pattern",
+    "tone-consistency",
+    "color-contrast",
   ].includes(intent);
   return needsSonnet
     ? "claude-sonnet-4-20250514"
@@ -345,6 +388,9 @@ function getMaxTokens(intent: string): number {
   if (intent === "first-impression") return 2048;
   if (intent === "cognitive-load") return 2048;
   if (intent === "conversion-friction") return 2048;
+  if (intent === "dark-pattern") return 2048;
+  if (intent === "tone-consistency") return 2048;
+  if (intent === "color-contrast") return 1536;
   return 1024;
 }
 

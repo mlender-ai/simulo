@@ -58,6 +58,21 @@ const LOADING_MESSAGES: Record<string, string[]> = {
     "요소 밀도와 시각적 노이즈를 분석 중...",
     "인지 부하 점수를 산출하고 있어요...",
   ],
+  "dark-pattern": [
+    "기만 디자인 패턴을 점검하고 있어요...",
+    "CTA·문구·플로우를 윤리성 기준으로 보는 중...",
+    "다크 패턴 탐지 결과를 정리하고 있어요...",
+  ],
+  "tone-consistency": [
+    "화면 텍스트의 격식·문체를 분석하고 있어요...",
+    "CTA 형태와 어투 혼용을 찾는 중...",
+    "톤 일관성 결과를 정리하고 있어요...",
+  ],
+  "color-contrast": [
+    "텍스트·배경 색상 쌍을 추출하고 있어요...",
+    "WCAG 대비 기준으로 판정하는 중...",
+    "접근성 결과를 정리하고 있어요...",
+  ],
 };
 
 function getLoadingMessage(intent: string, elapsed: number): string {
@@ -96,6 +111,9 @@ const KEYWORD_INTENT_MAP = [
   { keywords: ["일관성", "텍스트 통일", "같은 표현", "용어 혼용", "표현 불일치", "텍스트 일관", "워딩 통일"], intent: "text-consistency" },
   { keywords: ["첫인상", "5초", "기억", "눈에 띄", "먼저 보이", "시선", "주목", "first impression", "기억에 남", "처음 봤을 때"], intent: "first-impression" },
   { keywords: ["인지 부하", "복잡도", "과부하", "정보량", "화면이 복잡", "요소가 너무", "단순화", "cognitive load", "너무 많", "복잡해"], intent: "cognitive-load" },
+  { keywords: ["다크 패턴", "기만", "함정", "어두운 패턴", "dark pattern", "속임", "꼼수", "컨펌 셰이밍", "거짓 긴급"], intent: "dark-pattern" },
+  { keywords: ["톤 일관", "문체", "격식", "반말", "존댓말", "해요체", "보이스", "어투", "말투", "톤앤매너"], intent: "tone-consistency" },
+  { keywords: ["색상 대비", "대비", "명도", "contrast", "wcag", "접근성", "가독성 색", "색 대비", "저시력"], intent: "color-contrast" },
 ];
 
 const INTENT_LABELS: Record<string, string> = {
@@ -112,6 +130,9 @@ const INTENT_LABELS: Record<string, string> = {
   "text-consistency": "텍스트 일관성",
   "first-impression": "5초 첫인상",
   "cognitive-load": "인지 부하",
+  "dark-pattern": "다크 패턴",
+  "tone-consistency": "톤 일관성",
+  "color-contrast": "색상 대비",
 };
 
 // ── Persona detection ─────────────────────────────────────────────────────────
@@ -172,6 +193,8 @@ function getInitialLabels(): Label[] {
     { id: "competitor-compare", name: "경쟁사 비교" },
     { id: "first-impression", name: "5초 첫인상" },
     { id: "cognitive-load", name: "인지 부하" },
+    { id: "dark-pattern", name: "다크 패턴" },
+    { id: "color-contrast", name: "색상 대비" },
   ];
 }
 

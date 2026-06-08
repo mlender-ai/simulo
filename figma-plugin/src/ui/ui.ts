@@ -176,6 +176,9 @@ const KEYWORD_INTENT_MAP: Array<{ keywords: string[]; intent: string; axis?: str
   { keywords: ["첫인상", "5초", "기억", "눈에 띄", "먼저 보이", "시선", "주목", "first impression", "기억에 남", "처음 봤을 때"], intent: "first-impression" },
   { keywords: ["인지 부하", "복잡도", "과부하", "정보량", "화면이 복잡", "요소가 너무", "단순화", "cognitive load", "너무 많", "복잡해"], intent: "cognitive-load" },
   { keywords: ["전환 경로", "마찰", "이탈", "conversion friction", "전환 흐름", "전환 장벽", "전환 방해", "흐름 분석", "마찰 점수"], intent: "conversion-friction" },
+  { keywords: ["다크 패턴", "기만", "함정", "어두운 패턴", "dark pattern", "속임", "꼼수", "컨펌 셰이밍", "거짓 긴급"], intent: "dark-pattern" },
+  { keywords: ["톤 일관", "문체", "격식", "반말", "존댓말", "해요체", "보이스", "어투", "말투", "톤앤매너"], intent: "tone-consistency" },
+  { keywords: ["색상 대비", "대비", "명도", "contrast", "wcag", "접근성", "가독성 색", "색 대비", "저시력"], intent: "color-contrast" },
 ];
 
 const INTENT_TO_CATEGORY: Record<string, string> = {
@@ -191,6 +194,9 @@ const INTENT_TO_CATEGORY: Record<string, string> = {
   "first-impression":      "scan",
   "cognitive-load":        "scan",
   "conversion-friction":   "scan",
+  "dark-pattern":          "scan",
+  "tone-consistency":      "scan",
+  "color-contrast":        "scan",
   "flow-analysis":         "scan",
   "compound":           "scan",
   "usability":          "usability",
@@ -253,6 +259,9 @@ ${convSummary || "(없음)"}
 - first-impression: 5초 첫인상 시뮬레이션 (사용자가 5초 안에 기억할 요소 예측, 의도한 핵심 메시지와의 갭 진단)
 - cognitive-load: 인지 부하 측정 (화면 복잡도 점수화, 정보 과부하 구간 탐지)
 - conversion-friction: 전환 경로 마찰 분석 (단계별 이탈 위험 점수, CTA 명확도, 불필요한 입력·단계 탐지)
+- dark-pattern: 다크 패턴 탐지 (컨펌 셰이밍·거짓 긴급성·숨겨진 비용 등 사용자 기만 디자인)
+- tone-consistency: UX 라이팅 톤 일관성 감사 (격식 레벨·CTA 형태·문체 혼용 탐지)
+- color-contrast: WCAG 색상 대비 점검 (텍스트/배경 대비 AA·AAA 판정)
 
 JSON만 응답:
 {"intent":"...","axis":"ad-buffer|earning-motivation|retention-trigger|exchange-trust|null","subContext":"추출된 맥락 또는 null","confidence":0.0}`;
@@ -316,6 +325,8 @@ function getLabelsForState(ctx: ContextStack): { id: string; name: string }[] {
       { id: "first-impression",    name: "5초 첫인상" },
       { id: "cognitive-load",      name: "인지 부하" },
       { id: "conversion-friction", name: "전환 마찰" },
+      { id: "dark-pattern",        name: "다크 패턴" },
+      { id: "color-contrast",      name: "색상 대비" },
     ];
   }
 
@@ -2733,6 +2744,9 @@ async function startChatAnalysis(_categoryId: string, followUpContext: string) {
       "first-impression": ["화면을 5초 관점으로 스캔하고 있어요...", "시각적 가중치 순위를 매기는 중...", "첫인상 갭 리포트를 작성하고 있어요..."],
       "cognitive-load": ["화면 복잡도를 측정하고 있어요...", "요소 밀도와 시각적 노이즈를 분석 중...", "인지 부하 점수를 산출하고 있어요..."],
       "conversion-friction": ["전환 경로를 따라가고 있어요...", "단계별 마찰 요소를 찾고 있어요...", "이탈 위험 점수를 계산하고 있어요..."],
+      "dark-pattern": ["기만 디자인 패턴을 점검하고 있어요...", "CTA·문구를 윤리성 기준으로 보는 중...", "다크 패턴 결과를 정리하고 있어요..."],
+      "tone-consistency": ["격식·문체를 분석하고 있어요...", "CTA 형태와 어투 혼용을 찾는 중...", "톤 일관성 결과를 정리하고 있어요..."],
+      "color-contrast": ["텍스트·배경 색상을 추출하고 있어요...", "WCAG 대비 기준으로 판정하는 중...", "접근성 결과를 정리하고 있어요..."],
     };
     const msgs = loadingMsgs[_categoryId] ?? ["분석하고 있어요..."];
     const getLoadMsg = () => msgs[Math.min(Math.floor((Date.now() - streamStart) / 3500), msgs.length - 1)];
@@ -2897,6 +2911,9 @@ function handleChatAction(action: string) {
       "first-impression": "👁 5초 첫인상",
       "cognitive-load": "🧠 인지 부하",
       "conversion-friction": "⚡ 전환 마찰",
+      "dark-pattern": "🕳 다크 패턴",
+      "tone-consistency": "🗣 톤 일관성",
+      "color-contrast": "🌗 색상 대비",
     };
     const frameName = contextStack.frames[0]?.nodeName ?? "선택된 프레임";
     const lines: string[] = [
