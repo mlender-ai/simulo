@@ -2361,6 +2361,13 @@ function renderMessages() {
   container.querySelectorAll(".mini-finding").forEach((finding) => {
     finding.addEventListener("click", () => finding.classList.toggle("mini-finding-collapsed"));
   });
+  container.querySelectorAll(".next-question-btn").forEach((btn) => {
+    (btn as HTMLElement).addEventListener("click", () => {
+      if (chatAnalyzing) return;
+      const q = (btn as HTMLElement).dataset.question!;
+      handleChatInput(q);
+    });
+  });
 
   container.querySelectorAll(".copy-md-btn").forEach((btn) => {
     (btn as HTMLElement).addEventListener("click", () => {
@@ -2445,7 +2452,7 @@ function renderMiniReportHTML(report: LiveMiniReport): string {
   return `<div class="mini-report">
     <div class="mini-report-summary">${escapeHtml(report.quickSummary)}</div>
     ${findings}
-    ${report.nextQuestion ? `<div style="font-size:11px;color:#555;margin-top:2px;">💬 ${escapeHtml(report.nextQuestion)}</div>` : ""}
+    ${report.nextQuestion ? `<button class="next-question-btn" data-question="${escapeHtml(report.nextQuestion)}">💬 ${escapeHtml(report.nextQuestion)}</button>` : ""}
   </div>`;
 }
 
@@ -2881,6 +2888,15 @@ function handleChatAction(action: string) {
       "analyze-axis": "📊 축 분석",
       "competitor-compare": "🔎 경쟁사 비교",
       "suggestion": "💡 개선 제안",
+      "usability": "🧪 사용성 검증",
+      "visual": "🎨 시각 분석",
+      "cta": "🎯 CTA 분석",
+      "state-audit": "🗂 상태 감사",
+      "text-consistency": "🔤 텍스트 일관성",
+      "typography-hierarchy": "🔠 타이포 위계",
+      "first-impression": "👁 5초 첫인상",
+      "cognitive-load": "🧠 인지 부하",
+      "conversion-friction": "⚡ 전환 마찰",
     };
     const frameName = contextStack.frames[0]?.nodeName ?? "선택된 프레임";
     const lines: string[] = [
@@ -2890,7 +2906,7 @@ function handleChatAction(action: string) {
     ];
     for (const turn of contextStack.results) {
       if (!turn.output) continue;
-      lines.push(`## ${intentLabel[turn.intent] ?? turn.intent}`);
+      lines.push(`## ${intentLabel[turn.intent] ?? `📄 ${turn.intent}`}`);
       lines.push(turn.output.quickSummary);
       lines.push("");
       for (const f of turn.output.findings) {
