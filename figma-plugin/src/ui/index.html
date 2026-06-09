@@ -381,6 +381,17 @@
     .mini-finding-collapsed .mini-finding-detail,
     .mini-finding-collapsed .mini-finding-fix { display: none; }
 
+    /* ── Iteration compare findings ── */
+    .mini-finding-iter .mini-finding-header { margin-bottom: 6px; }
+    .iter-verdict-badge { font-size: 9px; font-weight: 700; padding: 1px 7px; border-radius: 3px; margin-left: auto; }
+    .iter-improved { background: rgba(74,222,128,0.15); color: #4ade80; border: 1px solid rgba(74,222,128,0.3); }
+    .iter-degraded { background: rgba(248,113,113,0.15); color: #f87171; border: 1px solid rgba(248,113,113,0.3); }
+    .iter-same { background: rgba(156,163,175,0.12); color: #9ca3af; border: 1px solid rgba(156,163,175,0.25); }
+    .iter-compare-rows { display: flex; flex-direction: column; gap: 4px; }
+    .iter-row { display: flex; gap: 8px; align-items: flex-start; }
+    .iter-label { font-size: 9px; font-weight: 700; color: #555; padding: 1px 5px; background: #1a1a1a; border-radius: 2px; min-width: 18px; text-align: center; flex-shrink: 0; margin-top: 2px; }
+    .iter-text { font-size: 11px; color: #ccc; line-height: 1.5; }
+
     /* ── Live comment popup ── */
     .live-comment-overlay {
       position: fixed;

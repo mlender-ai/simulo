@@ -35,7 +35,7 @@ function buildSystemPrompt(
   const cleanSubContext = subContext.replace(/axis:\S+\s*/g, "").trim();
 
   let categoryGuide = "";
-  const maxFindings = intent === "full-scan" || intent === "analyze-axis" ? 6 : 4;
+  const maxFindings = intent === "full-scan" || intent === "analyze-axis" || intent === "iteration-compare" ? 6 : 4;
 
   switch (intent) {
     case "full-scan":
@@ -207,6 +207,13 @@ function buildSystemPrompt(
         "야핏무브 타깃(4060 여성)은 노안으로 저대비 텍스트 가독성이 더 떨어지므로 엄격히 판정하세요.\n" +
         "⚠ 정확한 색상값을 확신할 수 없으면 추정임을 밝히되, 명백히 흐릿한 텍스트는 지적하세요.";
       break;
+    case "iteration-compare":
+      categoryGuide =
+        "첫 번째 이미지가 v1(이전), 두 번째 이미지가 v2(현재)입니다. " +
+        "두 화면의 UX 변화를 4축(광고 완충·적립 체감·재방문 트리거·교환 전환) 및 전반적 사용성 관점에서 비교하세요. " +
+        "개선된 항목(improved), 퇴보한 항목(degraded), 유지된 항목(same)을 명확히 구분하세요. " +
+        "각 항목의 verdict는 반드시 improved / degraded / same 중 하나로 판정하세요.";
+      break;
     case "state-audit":
       categoryGuide =
         "이 화면의 '상태 완전성'을 감사하세요. 다음 상태가 설계되어 있는지 확인하세요:\n" +
@@ -332,6 +339,20 @@ function getOutputSchema(intent: string): { itemFields: string; example: string 
           '예시 findings 항목(us는 화면 실제 상태를 인용):\n' +
           '{"criterion":"출금 신뢰감","severity":2,"us":"\'포인트 교환하기\' 버튼만 노출","competitor":"돈이돼지는 1:1 현금출금·실시간 처리를 강조","gap":"신뢰 단서가 부족해 교환을 망설이게 함","fix":"\'평균 N분 내 처리\'와 실제 출금 후기 배지를 버튼 근처에 추가하세요."}',
       };
+    case "iteration":
+      return {
+        itemFields:
+          '      "criterion": "비교 항목 (한국어, 예: \'적립 체감\', \'CTA 명확도\')",\n' +
+          '      "severity": 1,\n' +
+          '      "v1": "【필수】 v1(이전) 화면의 해당 항목 상태. 실제 보이는 요소 인용. 절대 비우지 말 것",\n' +
+          '      "v2": "【필수】 v2(현재) 화면의 해당 항목 상태. 실제 보이는 요소 인용. 절대 비우지 말 것",\n' +
+          '      "delta": "변화 요약 한 줄 (한국어)",\n' +
+          '      "verdict": "【필수】 improved | degraded | same 중 하나. 절대 비우지 말 것"',
+        example:
+          '⚠ iteration 분석은 각 항목에 v1, v2, verdict를 반드시 채워야 합니다.\n' +
+          '예시 findings 항목(v1/v2는 화면 실제 상태를 인용):\n' +
+          '{"criterion":"적립 체감","severity":2,"v1":"\'탭하여 받기\' 버튼만, 포인트 수치 미노출","v2":"\'120P 지금 받기\' 버튼에 혜택 수치 노출","delta":"포인트 가시성 개선으로 적립 동기 강화","verdict":"improved"}',
+      };
     default: // analysis (full-scan, usability, visual, cta, analyze-axis 등)
       return {
         itemFields:
@@ -351,6 +372,7 @@ function getResponseType(intent: string): string {
   if (intent === "copy-rewrite") return "copy";
   if (intent === "ab-variant") return "ab";
   if (intent === "competitor-compare") return "compare";
+  if (intent === "iteration-compare") return "iteration";
   if (intent === "suggestion") return "suggestion";
   return "analysis";
 }
@@ -362,6 +384,7 @@ function selectModel(intent: string): string {
     "analyze-axis",
     "ab-variant",
     "flow-analysis",
+    "iteration-compare",
     "suggestion",
     "state-audit",
     "text-consistency",
@@ -381,6 +404,7 @@ function selectModel(intent: string): string {
 function getMaxTokens(intent: string): number {
   if (intent === "full-scan") return 2048;
   if (intent === "analyze-axis") return 2048;
+  if (intent === "iteration-compare") return 2048;
   if (intent === "ab-variant") return 1536;
   if (intent === "state-audit") return 2048;
   if (intent === "text-consistency") return 2048;
@@ -454,7 +478,9 @@ export async function POST(request: NextRequest) {
     const anthropicModel = selectModel(resolvedIntent);
     const maxTokens = getMaxTokens(resolvedIntent);
 
-    const textPrompt = userMessage
+    const textPrompt = resolvedIntent === "iteration-compare" && resolvedFrames.length >= 2
+      ? `v1 화면: "${resolvedFrames[0].nodeName}", v2 화면: "${resolvedFrames[1].nodeName}"\n\n두 화면의 UX 변화를 비교 분석해주세요.`
+      : userMessage
       ? `화면: "${frameName}"\n\n유저 요청: ${userMessage}`
       : `화면: "${frameName}"을 분석해주세요.`;
 

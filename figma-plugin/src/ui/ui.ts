@@ -98,9 +98,14 @@ interface LiveMiniReport {
   findings: Array<{
     criterion: string;
     severity: number;
-    oneLineFinding: string;
-    detail: string;
-    fix: string;
+    oneLineFinding?: string;
+    detail?: string;
+    fix?: string;
+    // iteration-compare
+    v1?: string;
+    v2?: string;
+    delta?: string;
+    verdict?: "improved" | "degraded" | "same";
   }>;
   nextQuestion: string | null;
 }
@@ -197,6 +202,7 @@ const KEYWORD_INTENT_MAP: Array<{ keywords: string[]; intent: string; axis?: str
   { keywords: ["다크 패턴", "기만", "함정", "어두운 패턴", "dark pattern", "속임", "꼼수", "컨펌 셰이밍", "거짓 긴급"], intent: "dark-pattern" },
   { keywords: ["톤 일관", "문체", "격식", "반말", "존댓말", "해요체", "보이스", "어투", "말투", "톤앤매너"], intent: "tone-consistency" },
   { keywords: ["색상 대비", "대비", "명도", "contrast", "wcag", "접근성", "가독성 색", "색 대비", "저시력"], intent: "color-contrast" },
+  { keywords: ["이터레이션", "이전이랑", "달라진 게", "뭐가 바뀌", "버전 비교", "v1", "v2", "이전 버전과", "개선됐어", "바뀐 거", "이전과 비교"], intent: "iteration-compare" },
 ];
 
 const INTENT_TO_CATEGORY: Record<string, string> = {
@@ -215,6 +221,7 @@ const INTENT_TO_CATEGORY: Record<string, string> = {
   "dark-pattern":          "scan",
   "tone-consistency":      "scan",
   "color-contrast":        "scan",
+  "iteration-compare":     "scan",
   "flow-analysis":         "scan",
   "compound":           "scan",
   "usability":          "usability",
@@ -280,6 +287,7 @@ ${convSummary || "(없음)"}
 - dark-pattern: 다크 패턴 탐지 (컨펌 셰이밍·거짓 긴급성·숨겨진 비용 등 사용자 기만 디자인)
 - tone-consistency: UX 라이팅 톤 일관성 감사 (격식 레벨·CTA 형태·문체 혼용 탐지)
 - color-contrast: WCAG 색상 대비 점검 (텍스트/배경 대비 AA·AAA 판정)
+- iteration-compare: 이터레이션 비교 — v1(이전)과 v2(현재) 두 화면을 4축 기준으로 비교, 개선/퇴보/유지 판정
 
 JSON만 응답:
 {"intent":"...","axis":"ad-buffer|earning-motivation|retention-trigger|exchange-trust|null","subContext":"추출된 맥락 또는 null","confidence":0.0}`;
@@ -2474,14 +2482,30 @@ function renderMiniReportHTML(report: LiveMiniReport): string {
   const sevCls = ["sev-0", "sev-1", "sev-2", "sev-3", "sev-4"];
   const findings = report.findings.map((f) => {
     const s = Math.min(4, Math.max(0, f.severity));
+    if (f.v1 !== undefined && f.v2 !== undefined) {
+      const verdictCls = f.verdict === "improved" ? "iter-improved" : f.verdict === "degraded" ? "iter-degraded" : "iter-same";
+      const verdictLabel = f.verdict === "improved" ? "↑ 개선" : f.verdict === "degraded" ? "↓ 퇴보" : "→ 유지";
+      return `<div class="mini-finding mini-finding-iter">
+        <div class="mini-finding-header">
+          <div class="sev-dot ${sevCls[s]}"></div>
+          <span class="mini-finding-criterion">${escapeHtml(f.criterion)}</span>
+          <span class="iter-verdict-badge ${verdictCls}">${verdictLabel}</span>
+        </div>
+        <div class="iter-compare-rows">
+          <div class="iter-row"><span class="iter-label">v1</span><span class="iter-text">${escapeHtml(f.v1)}</span></div>
+          <div class="iter-row"><span class="iter-label">v2</span><span class="iter-text">${escapeHtml(f.v2)}</span></div>
+        </div>
+        ${f.delta ? `<div class="mini-finding-fix"><span class="mini-finding-fix-label">변화</span>${escapeHtml(f.delta)}</div>` : ""}
+      </div>`;
+    }
     return `<div class="mini-finding mini-finding-collapsed">
       <div class="mini-finding-header">
         <div class="sev-dot ${sevCls[s]}"></div>
         <span class="mini-finding-criterion">${escapeHtml(f.criterion)}</span>
-        <span class="mini-finding-oneliner">${escapeHtml(f.oneLineFinding)}</span>
+        <span class="mini-finding-oneliner">${escapeHtml(f.oneLineFinding ?? "")}</span>
       </div>
-      <div class="mini-finding-detail">${escapeHtml(f.detail)}</div>
-      <div class="mini-finding-fix"><span class="mini-finding-fix-label">수정</span>${escapeHtml(f.fix)}</div>
+      <div class="mini-finding-detail">${escapeHtml(f.detail ?? "")}</div>
+      <div class="mini-finding-fix"><span class="mini-finding-fix-label">수정</span>${escapeHtml(f.fix ?? "")}</div>
     </div>`;
   }).join("");
   return `<div class="mini-report">
@@ -2542,9 +2566,10 @@ function handleFramesSelected(frames: FrameInfo[]) {
       id: chatId(), role: "bot",
       content: `${frames.length}개 화면을 선택했네요.`,
       labels: [
-        { id: "mode-compare",  name: "Before/After 비교" },
-        { id: "mode-flow",     name: "플로우로 분석" },
-        { id: "mode-separate", name: "각각 따로 분석" },
+        { id: "iteration-compare", name: "이터레이션 비교" },
+        { id: "mode-compare",      name: "Before/After 비교" },
+        { id: "mode-flow",         name: "플로우로 분석" },
+        { id: "mode-separate",     name: "각각 따로 분석" },
       ],
     });
   } else {
@@ -2628,6 +2653,11 @@ function handleIntentLabel(labelId: string) {
 
   if (!contextStack.frames.length) return;
   document.querySelectorAll(".chat-label-chip").forEach((c) => c.classList.add("disabled"));
+
+  // iteration-compare: auto-set compare mode for 2-frame context
+  if (labelId === "iteration-compare") {
+    contextStack.frameMode = "compare";
+  }
 
   // Set intent
   contextStack.intent = labelId;
@@ -2771,6 +2801,7 @@ async function startChatAnalysis(_categoryId: string, followUpContext: string) {
       "dark-pattern": ["기만 디자인 패턴을 점검하고 있어요...", "CTA·문구를 윤리성 기준으로 보는 중...", "다크 패턴 결과를 정리하고 있어요..."],
       "tone-consistency": ["격식·문체를 분석하고 있어요...", "CTA 형태와 어투 혼용을 찾는 중...", "톤 일관성 결과를 정리하고 있어요..."],
       "color-contrast": ["텍스트·배경 색상을 추출하고 있어요...", "WCAG 대비 기준으로 판정하는 중...", "접근성 결과를 정리하고 있어요..."],
+      "iteration-compare": ["v1/v2 화면을 나란히 보고 있어요...", "4축 변화를 추적하는 중...", "개선·퇴보 항목을 정리하고 있어요..."],
     };
     const msgs = loadingMsgs[_categoryId] ?? ["분석하고 있어요..."];
     const getLoadMsg = () => msgs[Math.min(Math.floor((Date.now() - streamStart) / 3500), msgs.length - 1)];
@@ -2948,6 +2979,7 @@ function handleChatAction(action: string) {
       "dark-pattern": "🕳 다크 패턴",
       "tone-consistency": "🗣 톤 일관성",
       "color-contrast": "🌗 색상 대비",
+      "iteration-compare": "🔁 이터레이션 비교",
     };
     const frameName = contextStack.frames[0]?.nodeName ?? "선택된 프레임";
     const lines: string[] = [
@@ -2962,8 +2994,15 @@ function handleChatAction(action: string) {
       lines.push("");
       for (const f of turn.output.findings) {
         const e = sevEmoji[Math.min(4, f.severity)];
-        lines.push(`${e} **[${f.criterion}]** ${f.oneLineFinding}`);
-        lines.push(`→ ${f.fix}`);
+        if (f.v1 !== undefined && f.v2 !== undefined) {
+          const verdictMark = f.verdict === "improved" ? "↑" : f.verdict === "degraded" ? "↓" : "→";
+          lines.push(`${e} **[${f.criterion}]** ${verdictMark} ${f.delta ?? ""}`);
+          lines.push(`  v1: ${f.v1}`);
+          lines.push(`  v2: ${f.v2}`);
+        } else {
+          lines.push(`${e} **[${f.criterion}]** ${f.oneLineFinding ?? ""}`);
+          lines.push(`→ ${f.fix ?? ""}`);
+        }
       }
       lines.push("");
     }
