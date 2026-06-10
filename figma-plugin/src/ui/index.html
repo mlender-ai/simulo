@@ -648,6 +648,45 @@
     .copy-md-btn:hover { color: #aaa; border-color: #444; }
     .copy-md-btn.copied { color: #4ade80; border-color: #166534; }
 
+    .intent-switch-btn {
+      display: inline-block;
+      margin-top: 4px;
+      margin-left: 4px;
+      padding: 3px 8px;
+      background: transparent;
+      border: 1px solid #333;
+      border-radius: 4px;
+      font-size: 10px;
+      font-family: monospace;
+      color: #888;
+      cursor: pointer;
+      transition: color 0.12s, border-color 0.12s;
+    }
+    .intent-switch-btn:hover { color: #ccc; border-color: #555; }
+    .intent-switch-dropdown {
+      position: relative;
+      background: #1a1a1a;
+      border: 1px solid #333;
+      border-radius: 6px;
+      padding: 4px 0;
+      min-width: 180px;
+      z-index: 100;
+      margin-top: 4px;
+    }
+    .intent-option {
+      display: block;
+      width: 100%;
+      text-align: left;
+      padding: 6px 12px;
+      font-size: 11px;
+      color: #ccc;
+      background: transparent;
+      border: none;
+      cursor: pointer;
+      font-family: inherit;
+    }
+    .intent-option:hover { background: #2a2a2a; color: #fff; }
+
     /* ── Hint chips ── */
     #hint-chips {
       display: flex;

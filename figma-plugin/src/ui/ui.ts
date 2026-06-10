@@ -173,7 +173,7 @@ interface IntentDetectionResult {
   axis?: string;
   subContext?: string;
   confidence: number;
-  source: "keyword" | "haiku";
+  source: "keyword" | "haiku" | "manual";
 }
 
 interface TurnResult {
@@ -227,6 +227,29 @@ const INTENT_TO_CATEGORY: Record<string, string> = {
   "usability":          "usability",
   "visual":             "visual",
   "cta":                "cta",
+};
+
+const INTENT_LABEL: Record<string, string> = {
+  "full-scan": "🔍 전체 스캔",
+  "analyze-axis": "📊 축 분석",
+  "copy-rewrite": "✍️ 카피 리라이팅",
+  "ab-variant": "🔀 A/B 변형",
+  "competitor-compare": "🔎 경쟁사 비교",
+  "suggestion": "💡 개선 제안",
+  "usability": "🧪 사용성 검증",
+  "visual": "🎨 시각 분석",
+  "cta": "🎯 CTA 분석",
+  "state-audit": "🗂 상태 감사",
+  "text-consistency": "🔤 텍스트 일관성",
+  "typography-hierarchy": "🔠 타이포 위계",
+  "first-impression": "👁 5초 첫인상",
+  "cognitive-load": "🧠 인지 부하",
+  "conversion-friction": "⚡ 전환 마찰",
+  "dark-pattern": "🕳 다크 패턴",
+  "tone-consistency": "🗣 톤 일관성",
+  "color-contrast": "🌗 색상 대비",
+  "iteration-compare": "🔁 이터레이션 비교",
+  "flow-analysis": "🔄 플로우 분석",
 };
 
 const DIRECTION_CHANGE_KEYWORDS = ["잠깐", "아니", "아 그게 아니라", "다시 봐줘", "다른 걸로", "바꿔서", "쪽으로 봐줘", "말고", "대신에"];
@@ -637,7 +660,16 @@ window.addEventListener("DOMContentLoaded", () => {
   // Stop button — 분석 중단 (#230)
   $<HTMLButtonElement>("chatStopBtn").addEventListener("click", cancelChatAnalysis);
   document.addEventListener("keydown", (e) => {
-    if (e.key === "Escape" && chatAnalyzing) cancelChatAnalysis();
+    if (e.key === "Escape") {
+      if (chatAnalyzing) cancelChatAnalysis();
+      document.querySelectorAll(".intent-switch-dropdown").forEach((d) => d.remove());
+    }
+  });
+
+  document.addEventListener("click", (e) => {
+    if (!(e.target as Element).closest(".intent-switch-btn, .intent-switch-dropdown")) {
+      document.querySelectorAll(".intent-switch-dropdown").forEach((d) => d.remove());
+    }
   });
 
   // Reset button
@@ -2380,7 +2412,10 @@ function renderMessages() {
   }
   if (emptyState) emptyState.classList.add("hidden");
   container.classList.remove("hidden");
-  container.innerHTML = chatMessages.map(renderMsgHTML).join("");
+  const lastAnalysisMsgId = [...chatMessages].reverse().find(
+    (m) => m.role === "bot" && !m.streaming && !m.errorType && m.miniReport
+  )?.id ?? null;
+  container.innerHTML = chatMessages.map((m) => renderMsgHTML(m, lastAnalysisMsgId)).join("");
 
   // Attach event listeners
   container.querySelectorAll(".chat-label-chip:not(.disabled)").forEach((chip) => {
@@ -2433,10 +2468,35 @@ function renderMessages() {
     });
   });
 
+  container.querySelectorAll(".intent-switch-btn").forEach((btn) => {
+    (btn as HTMLElement).addEventListener("click", (e) => {
+      e.stopPropagation();
+      container.querySelectorAll(".intent-switch-dropdown").forEach((d) => d.remove());
+      if (contextStack.frames.length === 0) return;
+      const msgId = (btn as HTMLElement).dataset.msgId!;
+      btn.insertAdjacentHTML("afterend", buildIntentSwitchDropdown(msgId));
+      container.querySelectorAll(".intent-option").forEach((opt) => {
+        (opt as HTMLElement).addEventListener("click", (ev) => {
+          ev.stopPropagation();
+          const newIntent = (opt as HTMLElement).dataset.intent!;
+          container.querySelectorAll(".intent-switch-dropdown").forEach((d) => d.remove());
+          applyIntentAndAnalyze({ intent: newIntent, confidence: 1.0, source: "manual" }, "");
+        });
+      });
+    });
+  });
+
   container.scrollTop = container.scrollHeight;
 }
 
-function renderMsgHTML(msg: ChatMessage): string {
+function buildIntentSwitchDropdown(msgId: string): string {
+  const intents = Object.keys(INTENT_TO_CATEGORY).filter((k) => k !== "compound");
+  return `<div class="intent-switch-dropdown" data-for="${msgId}">
+    ${intents.map((k) => `<button class="intent-option" data-intent="${k}">${escapeHtml(INTENT_LABEL[k] ?? k)}</button>`).join("")}
+  </div>`;
+}
+
+function renderMsgHTML(msg: ChatMessage, lastAnalysisMsgId?: string | null): string {
   const cls = msg.role === "user" ? "chat-msg-user" : msg.role === "system" ? "chat-msg-system" : "chat-msg-bot";
   let inner = "";
   if (msg.streaming && !msg.content) {
@@ -2473,6 +2533,10 @@ function renderMsgHTML(msg: ChatMessage): string {
 
   if (msg.role === "bot" && !msg.streaming && !msg.errorType && msg.content) {
     inner += `<button class="copy-md-btn" data-msg-id="${msg.id}">마크다운 복사</button>`;
+  }
+
+  if (msg.id === lastAnalysisMsgId && !chatAnalyzing && contextStack.frames.length > 0) {
+    inner += `<button class="intent-switch-btn" data-msg-id="${msg.id}">다른 분석으로 전환 ▼</button>`;
   }
 
   return `<div class="chat-msg ${cls}">${inner}</div>`;
@@ -2959,28 +3023,6 @@ function handleChatAction(action: string) {
     showLiveCommentPopup(fullComment);
   } else if (action === "copy-all") {
     const sevEmoji = ["✅", "💡", "⚠️", "🔴", "🚨"];
-    const intentLabel: Record<string, string> = {
-      "full-scan": "🔍 전체 스캔",
-      "accessibility": "♿ 접근성",
-      "copy-rewrite": "✍️ 카피 리라이팅",
-      "ab-variant": "🔀 A/B 변형",
-      "analyze-axis": "📊 축 분석",
-      "competitor-compare": "🔎 경쟁사 비교",
-      "suggestion": "💡 개선 제안",
-      "usability": "🧪 사용성 검증",
-      "visual": "🎨 시각 분석",
-      "cta": "🎯 CTA 분석",
-      "state-audit": "🗂 상태 감사",
-      "text-consistency": "🔤 텍스트 일관성",
-      "typography-hierarchy": "🔠 타이포 위계",
-      "first-impression": "👁 5초 첫인상",
-      "cognitive-load": "🧠 인지 부하",
-      "conversion-friction": "⚡ 전환 마찰",
-      "dark-pattern": "🕳 다크 패턴",
-      "tone-consistency": "🗣 톤 일관성",
-      "color-contrast": "🌗 색상 대비",
-      "iteration-compare": "🔁 이터레이션 비교",
-    };
     const frameName = contextStack.frames[0]?.nodeName ?? "선택된 프레임";
     const lines: string[] = [
       `# Simulo 분석 리포트 — ${frameName}`,
@@ -2989,7 +3031,7 @@ function handleChatAction(action: string) {
     ];
     for (const turn of contextStack.results) {
       if (!turn.output) continue;
-      lines.push(`## ${intentLabel[turn.intent] ?? `📄 ${turn.intent}`}`);
+      lines.push(`## ${INTENT_LABEL[turn.intent] ?? `📄 ${turn.intent}`}`);
       lines.push(turn.output.quickSummary);
       lines.push("");
       for (const f of turn.output.findings) {
