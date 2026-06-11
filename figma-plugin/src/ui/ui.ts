@@ -550,6 +550,45 @@ function escapeHtml(s: string): string {
     .replace(/'/g, "&#39;");
 }
 
+function parseSections(markdown: string): Array<{ header: string; content: string }> {
+  const lines = markdown.split('\n');
+  const sections: Array<{ header: string; content: string }> = [];
+  let current: { header: string; lines: string[] } | null = null;
+  for (const line of lines) {
+    if (line.startsWith('## ') || line.startsWith('### ')) {
+      if (current) sections.push({ header: current.header, content: current.lines.join('\n') });
+      current = { header: line, lines: [line] };
+    } else if (current) {
+      current.lines.push(line);
+    }
+  }
+  if (current) sections.push({ header: current.header, content: current.lines.join('\n') });
+  return sections;
+}
+
+function renderSectionsHTML(msgId: string, content: string, sections: Array<{ header: string; content: string }>): string {
+  const firstHeaderIdx = content.search(/^(?:## |### )/m);
+  const prelude = firstHeaderIdx > 0 ? content.substring(0, firstHeaderIdx).trim() : '';
+  let html = `<div class="chat-bubble chat-bubble-sections">`;
+  if (prelude) {
+    html += `<div class="chat-section-prelude">${escapeHtml(prelude)}</div>`;
+  }
+  sections.forEach((section, i) => {
+    const headerText = section.header.replace(/^#{2,3}\s+/, '');
+    const bodyStart = section.content.indexOf('\n');
+    const body = bodyStart >= 0 ? section.content.substring(bodyStart + 1).trim() : '';
+    html += `<div class="chat-section">
+      <div class="chat-section-header">
+        <span class="chat-section-title">${escapeHtml(headerText)}</span>
+        <button class="section-copy-btn" data-msg-id="${escapeHtml(msgId)}" data-section-idx="${i}" title="섹션 복사">⎘</button>
+      </div>
+      ${body ? `<div class="chat-section-body">${escapeHtml(body)}</div>` : ''}
+    </div>`;
+  });
+  html += `</div>`;
+  return html;
+}
+
 // -------- Initialization --------
 // -------- i18n helpers --------
 function applyI18n() {
@@ -2468,6 +2507,25 @@ function renderMessages() {
     });
   });
 
+  container.querySelectorAll(".section-copy-btn").forEach((btn) => {
+    (btn as HTMLElement).addEventListener("click", () => {
+      const msgId = (btn as HTMLElement).dataset.msgId!;
+      const sectionIdx = parseInt((btn as HTMLElement).dataset.sectionIdx!);
+      const msg = chatMessages.find((m) => m.id === msgId);
+      if (!msg) return;
+      const sections = parseSections(msg.content);
+      if (isNaN(sectionIdx) || sectionIdx < 0 || sectionIdx >= sections.length) return;
+      navigator.clipboard.writeText(sections[sectionIdx].content).then(() => {
+        (btn as HTMLElement).textContent = "✓";
+        (btn as HTMLElement).classList.add("copied");
+        setTimeout(() => {
+          (btn as HTMLElement).textContent = "⎘";
+          (btn as HTMLElement).classList.remove("copied");
+        }, 1500);
+      });
+    });
+  });
+
   container.querySelectorAll(".intent-switch-btn").forEach((btn) => {
     (btn as HTMLElement).addEventListener("click", (e) => {
       e.stopPropagation();
@@ -2504,7 +2562,16 @@ function renderMsgHTML(msg: ChatMessage, lastAnalysisMsgId?: string | null): str
   } else if (msg.errorType) {
     inner = `<div class="error-bubble">${escapeHtml(msg.content)}</div>`;
   } else {
-    inner = `<div class="chat-bubble${msg.streaming ? " streaming-cursor" : ""}">${escapeHtml(msg.content)}</div>`;
+    if (!msg.streaming && msg.role === "bot" && msg.content) {
+      const sections = parseSections(msg.content);
+      if (sections.length >= 2) {
+        inner = renderSectionsHTML(msg.id, msg.content, sections);
+      } else {
+        inner = `<div class="chat-bubble">${escapeHtml(msg.content)}</div>`;
+      }
+    } else {
+      inner = `<div class="chat-bubble${msg.streaming ? " streaming-cursor" : ""}">${escapeHtml(msg.content)}</div>`;
+    }
   }
 
   if (msg.labels) {
