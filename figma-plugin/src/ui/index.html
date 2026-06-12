@@ -708,6 +708,46 @@
       transition: background 0.12s, border-color 0.12s, color 0.12s;
     }
     .hint-chip:hover { background: #222; border-color: #3a3a3a; color: #fff; }
+
+    /* ── Session restore banner ── */
+    .session-restore-banner {
+      display: none;
+      padding: 7px 12px;
+      background: #0f1a0f;
+      border: 1px solid #1f3d1f;
+      color: #86efac;
+      font-size: 11px;
+      line-height: 1.5;
+      margin: 6px 16px 0;
+      border-radius: 6px;
+      flex-shrink: 0;
+      align-items: center;
+      justify-content: space-between;
+      gap: 8px;
+    }
+    .session-restore-banner.visible { display: flex; }
+    .session-restore-btns { display: flex; gap: 5px; flex-shrink: 0; }
+    .session-restore-btns button {
+      padding: 3px 9px;
+      border-radius: 4px;
+      font-size: 11px;
+      cursor: pointer;
+      font-family: inherit;
+      border: 1px solid;
+      transition: background 0.12s, border-color 0.12s, color 0.12s;
+    }
+    #sessionRestoreBtn {
+      background: #1a3d1a;
+      border-color: #2d5a2d;
+      color: #86efac;
+    }
+    #sessionRestoreBtn:hover { background: #224d22; border-color: #3a6a3a; }
+    #sessionDismissBtn {
+      background: transparent;
+      border-color: #333;
+      color: #555;
+    }
+    #sessionDismissBtn:hover { border-color: #555; color: #888; }
   </style>
 </head>
 <body>
@@ -751,6 +791,9 @@
 
   <!-- Error message -->
   <div class="error-msg" id="errorMsg"></div>
+
+  <!-- Session restore banner -->
+  <div class="session-restore-banner" id="sessionRestoreBanner"></div>
 
   <!-- Chat container -->
   <div class="chat-container">

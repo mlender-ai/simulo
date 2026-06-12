@@ -217,6 +217,8 @@ type PluginMessage =
   | { type: "post-figma-comment"; nodeId: string; comment: string }
   | { type: "scan-empty-texts" }
   | { type: "jump-to-node"; nodeId: string }
+  | { type: "save-session"; session: string }
+  | { type: "load-session" }
   | { type: "close" };
 
 figma.ui.onmessage = async (msg: PluginMessage) => {
@@ -581,6 +583,21 @@ figma.ui.onmessage = async (msg: PluginMessage) => {
     if (node) {
       figma.currentPage.selection = [node];
       figma.viewport.scrollAndZoomIntoView([node]);
+    }
+  }
+
+  if (msg.type === "save-session") {
+    try {
+      await figma.clientStorage.setAsync("simulo_last_session", msg.session);
+    } catch { /* silent */ }
+  }
+
+  if (msg.type === "load-session") {
+    try {
+      const session = await figma.clientStorage.getAsync("simulo_last_session");
+      figma.ui.postMessage({ type: "session-loaded", session: session ?? null });
+    } catch {
+      figma.ui.postMessage({ type: "session-loaded", session: null });
     }
   }
 
