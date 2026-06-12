@@ -110,6 +110,14 @@ interface LiveMiniReport {
   nextQuestion: string | null;
 }
 
+interface SavedSession {
+  frameId: string;
+  frameName: string;
+  intent: string;
+  messages: { role: "user" | "assistant"; content: string }[];
+  timestamp: number;
+}
+
 interface ContextStack {
   frames: FrameInfo[];
   frameMode: "single" | "compare" | "flow" | "separate" | null;
@@ -595,6 +603,7 @@ window.addEventListener("DOMContentLoaded", () => {
   parent.postMessage({ pluginMessage: { type: "load-model" } }, "*");
   parent.postMessage({ pluginMessage: { type: "load-google-tokens" } }, "*");
   parent.postMessage({ pluginMessage: { type: "load-spreadsheet-id" } }, "*");
+  parent.postMessage({ pluginMessage: { type: "load-session" } }, "*");
 
   // Settings toggle
   $("settingsBtn").addEventListener("click", () => {
@@ -797,6 +806,15 @@ window.onmessage = (event) => {
 
   if (msg.type === "spreadsheet-id-loaded") {
     savedSpreadsheetId = (msg.spreadsheetId as string) || "";
+  }
+
+  if (msg.type === "session-loaded") {
+    if (msg.session) {
+      try {
+        const data = JSON.parse(msg.session as string) as SavedSession;
+        showSessionRestoreBanner(data);
+      } catch { /* ignore parse error */ }
+    }
   }
 
   if (msg.type === "error") {
@@ -2340,6 +2358,72 @@ async function exportToGoogleSheets() {
   }
 }
 
+// ──────────────── 세션 저장/복원 ────────────────
+
+function relativeTime(ts: number): string {
+  const mins = Math.round((Date.now() - ts) / 60000);
+  if (mins < 1) return "방금 전";
+  if (mins < 60) return `${mins}분 전`;
+  return `${Math.round(mins / 60)}시간 전`;
+}
+
+function saveSession() {
+  if (!contextStack.frames[0] || !contextStack.intent) return;
+  const msgs = chatMessages
+    .filter((m) => !m.streaming && (m.role === "user" || m.role === "bot"))
+    .slice(-10)
+    .map((m) => ({
+      role: m.role === "bot" ? "assistant" as const : "user" as const,
+      content: m.content,
+    }));
+  const data: SavedSession = {
+    frameId: contextStack.frames[0].nodeId,
+    frameName: contextStack.frames[0].nodeName,
+    intent: contextStack.intent,
+    messages: msgs,
+    timestamp: Date.now(),
+  };
+  const json = JSON.stringify(data);
+  if (json.length > 100 * 1024) return;
+  parent.postMessage({ pluginMessage: { type: "save-session", session: json } }, "*");
+}
+
+function showSessionRestoreBanner(data: SavedSession) {
+  const banner = $("sessionRestoreBanner");
+  if (!banner) return;
+  const timeLabel = relativeTime(data.timestamp);
+  banner.innerHTML = `
+    <span>이전 분석 결과가 있습니다 (${escapeHtml(timeLabel)}).</span>
+    <div class="session-restore-btns">
+      <button id="sessionRestoreBtn">복원</button>
+      <button id="sessionDismissBtn">닫기</button>
+    </div>
+  `;
+  banner.classList.add("visible");
+  $("sessionRestoreBtn").addEventListener("click", () => {
+    restoreSession(data);
+    banner.classList.remove("visible");
+  });
+  $("sessionDismissBtn").addEventListener("click", () => {
+    banner.classList.remove("visible");
+  });
+}
+
+function restoreSession(data: SavedSession) {
+  const timeLabel = relativeTime(data.timestamp);
+  chatMessages = [];
+  chatMessages.push({ id: chatId(), role: "system", content: `📂 이전 세션 복원됨 (${timeLabel})` });
+  for (const m of data.messages) {
+    chatMessages.push({
+      id: chatId(),
+      role: m.role === "assistant" ? "bot" : "user",
+      content: m.content,
+    });
+  }
+  renderMessages();
+  saveChatHistory();
+}
+
 function showFixToast(message: string, type: "success" | "error") {
   // Remove existing toast
   const existing = document.querySelector(".fix-toast");
@@ -2940,6 +3024,7 @@ async function startChatAnalysis(_categoryId: string, followUpContext: string) {
       { role: "user", content: `${contextStack.frames[0]?.nodeName ?? "프레임"} — ${contextStack.intent ?? "scan"} 분석` },
       { role: "assistant", content: accumulated },
     ];
+    saveSession();
   } catch (err) {
     if ((err as Error)?.name === "AbortError") {
       // 사용자가 Stop/ESC로 직접 중단한 경우
