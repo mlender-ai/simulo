@@ -698,7 +698,7 @@
     #hint-chips.hidden { display: none; }
     .hint-chip {
       background: #1a1a1a;
-      border: 1px solid #2a2a2a;
+      border: 1px solid #333;
       border-radius: 9999px;
       padding: 4px 12px;
       font-size: 12px;
@@ -707,7 +707,7 @@
       font-family: inherit;
       transition: background 0.12s, border-color 0.12s, color 0.12s;
     }
-    .hint-chip:hover { background: #222; border-color: #3a3a3a; color: #fff; }
+    .hint-chip:hover { background: #222; border-color: #555; color: #fff; }
   </style>
 </head>
 <body>
@@ -765,7 +765,7 @@
   </div>
 
   <!-- Hint chips (shown in empty state, before first user message) -->
-  <div id="hint-chips"></div>
+  <div id="hint-chips" class="hidden"></div>
 
   <!-- Chat input bar (always visible) -->
   <div class="chat-input-bar">
