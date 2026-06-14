@@ -2572,7 +2572,22 @@ function renderMiniReportHTML(report: LiveMiniReport): string {
   </div>`;
 }
 
+function updateFrameSubheader(frames: FrameInfo[]) {
+  const el = $("frameSubheader") as HTMLElement;
+  if (!frames.length) { el.style.display = "none"; return; }
+  el.style.display = "flex";
+  if (frames.length === 1) {
+    ($("frameSubheaderName") as HTMLElement).textContent = frames[0].nodeName;
+    ($("frameSubheaderSize") as HTMLElement).textContent = `${frames[0].width}×${frames[0].height}`;
+  } else {
+    ($("frameSubheaderName") as HTMLElement).textContent = `${frames.length}개 프레임 선택됨`;
+    ($("frameSubheaderSize") as HTMLElement).textContent = "";
+  }
+}
+
 function handleFramesSelected(frames: FrameInfo[]) {
+  updateFrameSubheader(frames);
+
   // Abort any in-progress analysis and clean up streaming message
   if (chatAbortController) {
     chatAbortController.abort();
@@ -2648,6 +2663,7 @@ function handleFramesSelected(frames: FrameInfo[]) {
 }
 
 function handleFramesDeselected() {
+  updateFrameSubheader([]);
   if (contextStack.frames.length > 0) {
     contextStack.frames = [];
   }

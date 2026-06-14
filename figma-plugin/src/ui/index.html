@@ -42,6 +42,35 @@
     #settingsBtn:hover { color: #aaa; border-color: #333; }
     #settingsBtn.active { color: #e5e5e5; border-color: #444; }
 
+    /* ── Frame subheader ── */
+    #frameSubheader {
+      height: 28px;
+      background: #161616;
+      border-top: 1px solid #1e1e1e;
+      display: flex;
+      align-items: center;
+      justify-content: space-between;
+      padding: 0 12px;
+      flex-shrink: 0;
+    }
+    #frameSubheaderName {
+      font-family: monospace;
+      font-size: 11px;
+      color: #ccc;
+      white-space: nowrap;
+      overflow: hidden;
+      text-overflow: ellipsis;
+      min-width: 0;
+      flex: 1;
+    }
+    #frameSubheaderSize {
+      font-size: 11px;
+      color: #444;
+      flex-shrink: 0;
+      margin-left: 8px;
+      font-family: monospace;
+    }
+
     /* ── Settings panel ── */
     .settings-panel {
       display: none;
@@ -715,6 +744,12 @@
   <div class="header">
     <span class="logo">Simulo</span>
     <button id="settingsBtn">⚙</button>
+  </div>
+
+  <!-- Frame subheader (hidden until frame selected) -->
+  <div id="frameSubheader" style="display:none">
+    <span id="frameSubheaderName"></span>
+    <span id="frameSubheaderSize"></span>
   </div>
 
   <!-- Settings panel (hidden by default) -->
