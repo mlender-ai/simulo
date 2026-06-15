@@ -91,6 +91,8 @@ interface ChatMessage {
   actions?: { id: string; label: string; primary?: boolean }[];
   streaming?: boolean;
   errorType?: "network" | "server" | "timeout";
+  sessionDbId?: string | null;
+  starRating?: number;
 }
 
 interface LiveMiniReport {
@@ -98,9 +100,14 @@ interface LiveMiniReport {
   findings: Array<{
     criterion: string;
     severity: number;
-    oneLineFinding: string;
-    detail: string;
-    fix: string;
+    oneLineFinding?: string;
+    detail?: string;
+    fix?: string;
+    // iteration-compare
+    v1?: string;
+    v2?: string;
+    delta?: string;
+    verdict?: "improved" | "degraded" | "same";
   }>;
   nextQuestion: string | null;
 }
@@ -119,14 +126,10 @@ interface ContextStack {
 }
 
 const HINT_CHIPS = [
-  { label: "전체 분석",  text: "전체 분석해줘" },
-  { label: "A/B 변형",  text: "A/B 변형 만들어줘" },
-  { label: "카피 다듬기", text: "카피 다듬어줘" },
-  { label: "경쟁사 비교", text: "경쟁사와 비교해줘" },
-  { label: "사용성 점검", text: "사용성 점검해줘" },
-  { label: "CTA 분석",  text: "CTA 분석해줘" },
-  { label: "개선안 제안", text: "개선안 제안해줘" },
-  { label: "전환 마찰",  text: "전환 경로 마찰 분석해줘" },
+  { label: "전체 분석",  intentId: "full-scan" },
+  { label: "카피 다듬기", intentId: "copy-rewrite" },
+  { label: "전환 마찰",  intentId: "conversion-friction" },
+  { label: "개선안 제안", intentId: "suggestion" },
 ];
 
 let chipsHidden = false;
@@ -147,6 +150,7 @@ let chatCancelledByUser = false;
 // 분석 상태 변경 시 send(↑)/stop(■) 버튼 토글
 function setChatAnalyzing(v: boolean) {
   chatAnalyzing = v;
+  if (v) hideHintChips();
   const send = document.getElementById("chatSendBtn");
   const stop = document.getElementById("chatStopBtn");
   if (send) send.style.display = v ? "none" : "";
@@ -168,7 +172,7 @@ interface IntentDetectionResult {
   axis?: string;
   subContext?: string;
   confidence: number;
-  source: "keyword" | "haiku";
+  source: "keyword" | "haiku" | "manual";
 }
 
 interface TurnResult {
@@ -197,6 +201,7 @@ const KEYWORD_INTENT_MAP: Array<{ keywords: string[]; intent: string; axis?: str
   { keywords: ["다크 패턴", "기만", "함정", "어두운 패턴", "dark pattern", "속임", "꼼수", "컨펌 셰이밍", "거짓 긴급"], intent: "dark-pattern" },
   { keywords: ["톤 일관", "문체", "격식", "반말", "존댓말", "해요체", "보이스", "어투", "말투", "톤앤매너"], intent: "tone-consistency" },
   { keywords: ["색상 대비", "대비", "명도", "contrast", "wcag", "접근성", "가독성 색", "색 대비", "저시력"], intent: "color-contrast" },
+  { keywords: ["이터레이션", "이전이랑", "달라진 게", "뭐가 바뀌", "버전 비교", "v1", "v2", "이전 버전과", "개선됐어", "바뀐 거", "이전과 비교"], intent: "iteration-compare" },
 ];
 
 const INTENT_TO_CATEGORY: Record<string, string> = {
@@ -215,11 +220,35 @@ const INTENT_TO_CATEGORY: Record<string, string> = {
   "dark-pattern":          "scan",
   "tone-consistency":      "scan",
   "color-contrast":        "scan",
+  "iteration-compare":     "scan",
   "flow-analysis":         "scan",
   "compound":           "scan",
   "usability":          "usability",
   "visual":             "visual",
   "cta":                "cta",
+};
+
+const INTENT_LABEL: Record<string, string> = {
+  "full-scan": "🔍 전체 스캔",
+  "analyze-axis": "📊 축 분석",
+  "copy-rewrite": "✍️ 카피 리라이팅",
+  "ab-variant": "🔀 A/B 변형",
+  "competitor-compare": "🔎 경쟁사 비교",
+  "suggestion": "💡 개선 제안",
+  "usability": "🧪 사용성 검증",
+  "visual": "🎨 시각 분석",
+  "cta": "🎯 CTA 분석",
+  "state-audit": "🗂 상태 감사",
+  "text-consistency": "🔤 텍스트 일관성",
+  "typography-hierarchy": "🔠 타이포 위계",
+  "first-impression": "👁 5초 첫인상",
+  "cognitive-load": "🧠 인지 부하",
+  "conversion-friction": "⚡ 전환 마찰",
+  "dark-pattern": "🕳 다크 패턴",
+  "tone-consistency": "🗣 톤 일관성",
+  "color-contrast": "🌗 색상 대비",
+  "iteration-compare": "🔁 이터레이션 비교",
+  "flow-analysis": "🔄 플로우 분석",
 };
 
 const DIRECTION_CHANGE_KEYWORDS = ["잠깐", "아니", "아 그게 아니라", "다시 봐줘", "다른 걸로", "바꿔서", "쪽으로 봐줘", "말고", "대신에"];
@@ -280,6 +309,7 @@ ${convSummary || "(없음)"}
 - dark-pattern: 다크 패턴 탐지 (컨펌 셰이밍·거짓 긴급성·숨겨진 비용 등 사용자 기만 디자인)
 - tone-consistency: UX 라이팅 톤 일관성 감사 (격식 레벨·CTA 형태·문체 혼용 탐지)
 - color-contrast: WCAG 색상 대비 점검 (텍스트/배경 대비 AA·AAA 판정)
+- iteration-compare: 이터레이션 비교 — v1(이전)과 v2(현재) 두 화면을 4축 기준으로 비교, 개선/퇴보/유지 판정
 
 JSON만 응답:
 {"intent":"...","axis":"ad-buffer|earning-motivation|retention-trigger|exchange-trust|null","subContext":"추출된 맥락 또는 null","confidence":0.0}`;
@@ -596,15 +626,12 @@ window.addEventListener("DOMContentLoaded", () => {
   const hintChipsEl = $("hint-chips");
   if (hintChipsEl) {
     hintChipsEl.innerHTML = HINT_CHIPS.map((c) =>
-      `<button class="hint-chip" data-text="${escapeHtml(c.text)}">${escapeHtml(c.label)}</button>`
+      `<button class="hint-chip" data-intent="${escapeHtml(c.intentId)}">${escapeHtml(c.label)}</button>`
     ).join("");
     hintChipsEl.querySelectorAll(".hint-chip").forEach((btn) => {
       (btn as HTMLElement).addEventListener("click", () => {
-        const text = (btn as HTMLElement).dataset.text ?? "";
-        const inputEl = $<HTMLInputElement>("chatInput");
-        inputEl.value = text;
-        handleChatInput(text);
-        inputEl.value = "";
+        const intentId = (btn as HTMLElement).dataset.intent ?? "";
+        handleIntentLabel(intentId);
       });
     });
   }
@@ -612,7 +639,6 @@ window.addEventListener("DOMContentLoaded", () => {
   // Chat input
   const chatInputEl = $<HTMLInputElement>("chatInput");
   const chatSendBtnEl = $<HTMLButtonElement>("chatSendBtn");
-  chatInputEl.addEventListener("input", () => hideHintChips());
   chatInputEl.addEventListener("keydown", (e) => {
     if (e.key === "Enter" && chatInputEl.value.trim()) {
       handleChatInput(chatInputEl.value.trim());
@@ -629,7 +655,16 @@ window.addEventListener("DOMContentLoaded", () => {
   // Stop button — 분석 중단 (#230)
   $<HTMLButtonElement>("chatStopBtn").addEventListener("click", cancelChatAnalysis);
   document.addEventListener("keydown", (e) => {
-    if (e.key === "Escape" && chatAnalyzing) cancelChatAnalysis();
+    if (e.key === "Escape") {
+      if (chatAnalyzing) cancelChatAnalysis();
+      document.querySelectorAll(".intent-switch-dropdown").forEach((d) => d.remove());
+    }
+  });
+
+  document.addEventListener("click", (e) => {
+    if (!(e.target as Element).closest(".intent-switch-btn, .intent-switch-dropdown")) {
+      document.querySelectorAll(".intent-switch-dropdown").forEach((d) => d.remove());
+    }
   });
 
   // Reset button
@@ -2372,7 +2407,10 @@ function renderMessages() {
   }
   if (emptyState) emptyState.classList.add("hidden");
   container.classList.remove("hidden");
-  container.innerHTML = chatMessages.map(renderMsgHTML).join("");
+  const lastAnalysisMsgId = [...chatMessages].reverse().find(
+    (m) => m.role === "bot" && !m.streaming && !m.errorType && m.miniReport
+  )?.id ?? null;
+  container.innerHTML = chatMessages.map((m) => renderMsgHTML(m, lastAnalysisMsgId)).join("");
 
   // Attach event listeners
   container.querySelectorAll(".chat-label-chip:not(.disabled)").forEach((chip) => {
@@ -2425,10 +2463,68 @@ function renderMessages() {
     });
   });
 
+  container.querySelectorAll(".intent-switch-btn").forEach((btn) => {
+    (btn as HTMLElement).addEventListener("click", (e) => {
+      e.stopPropagation();
+      container.querySelectorAll(".intent-switch-dropdown").forEach((d) => d.remove());
+      if (contextStack.frames.length === 0) return;
+      const msgId = (btn as HTMLElement).dataset.msgId!;
+      btn.insertAdjacentHTML("afterend", buildIntentSwitchDropdown(msgId));
+      container.querySelectorAll(".intent-option").forEach((opt) => {
+        (opt as HTMLElement).addEventListener("click", (ev) => {
+          ev.stopPropagation();
+          const newIntent = (opt as HTMLElement).dataset.intent!;
+          container.querySelectorAll(".intent-switch-dropdown").forEach((d) => d.remove());
+          applyIntentAndAnalyze({ intent: newIntent, confidence: 1.0, source: "manual" }, "");
+        });
+      });
+    });
+  });
+
+  container.querySelectorAll(".rating-star").forEach((star) => {
+    const el = star as HTMLElement;
+    const msgId = el.dataset.msgId!;
+    const value = parseInt(el.dataset.value!);
+    const row = el.parentElement!;
+    const siblings = Array.from(row.querySelectorAll(".rating-star")) as HTMLElement[];
+
+    el.addEventListener("mouseenter", () => {
+      const cur = chatMessages.find(m => m.id === msgId)?.starRating ?? 0;
+      siblings.forEach((s, i) => {
+        s.style.color = i < value ? "#f5c518" : (i < cur ? "#f5c518" : "#555");
+      });
+      siblings.forEach((s, i) => { s.style.color = i < value ? "#f5c518" : "#555"; });
+    });
+    el.addEventListener("mouseleave", () => {
+      const cur = chatMessages.find(m => m.id === msgId)?.starRating ?? 0;
+      siblings.forEach((s, i) => { s.style.color = i < cur ? "#f5c518" : "#555"; });
+    });
+    el.addEventListener("click", () => {
+      const msg = chatMessages.find(m => m.id === msgId);
+      if (!msg?.sessionDbId) return;
+      const prev = msg.starRating ?? 0;
+      updateMsg(msgId, { starRating: value });
+      fetch(`${getSimuloBaseUrl()}/api/sessions/rate`, {
+        method: "PATCH",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ sessionId: msg.sessionDbId, rating: value }),
+      }).catch(() => {
+        updateMsg(msgId, { starRating: prev || undefined });
+      });
+    });
+  });
+
   container.scrollTop = container.scrollHeight;
 }
 
-function renderMsgHTML(msg: ChatMessage): string {
+function buildIntentSwitchDropdown(msgId: string): string {
+  const intents = Object.keys(INTENT_TO_CATEGORY).filter((k) => k !== "compound");
+  return `<div class="intent-switch-dropdown" data-for="${msgId}">
+    ${intents.map((k) => `<button class="intent-option" data-intent="${k}">${escapeHtml(INTENT_LABEL[k] ?? k)}</button>`).join("")}
+  </div>`;
+}
+
+function renderMsgHTML(msg: ChatMessage, lastAnalysisMsgId?: string | null): string {
   const cls = msg.role === "user" ? "chat-msg-user" : msg.role === "system" ? "chat-msg-system" : "chat-msg-bot";
   let inner = "";
   if (msg.streaming && !msg.content) {
@@ -2467,6 +2563,20 @@ function renderMsgHTML(msg: ChatMessage): string {
     inner += `<button class="copy-md-btn" data-msg-id="${msg.id}">마크다운 복사</button>`;
   }
 
+  if (msg.id === lastAnalysisMsgId && !chatAnalyzing && contextStack.frames.length > 0) {
+    inner += `<button class="intent-switch-btn" data-msg-id="${msg.id}">다른 분석으로 전환 ▼</button>`;
+  }
+
+  if (msg.miniReport && !msg.streaming && !msg.errorType) {
+    const selected = msg.starRating ?? 0;
+    const stars = Array.from({ length: 5 }, (_, i) => {
+      const val = i + 1;
+      const color = val <= selected ? "#f5c518" : "#555";
+      return `<span class="rating-star" data-msg-id="${msg.id}" data-value="${val}" style="color:${color}">★</span>`;
+    }).join("");
+    inner += `<div class="rating-row">${stars}</div>`;
+  }
+
   return `<div class="chat-msg ${cls}">${inner}</div>`;
 }
 
@@ -2474,14 +2584,30 @@ function renderMiniReportHTML(report: LiveMiniReport): string {
   const sevCls = ["sev-0", "sev-1", "sev-2", "sev-3", "sev-4"];
   const findings = report.findings.map((f) => {
     const s = Math.min(4, Math.max(0, f.severity));
+    if (f.v1 !== undefined && f.v2 !== undefined) {
+      const verdictCls = f.verdict === "improved" ? "iter-improved" : f.verdict === "degraded" ? "iter-degraded" : "iter-same";
+      const verdictLabel = f.verdict === "improved" ? "↑ 개선" : f.verdict === "degraded" ? "↓ 퇴보" : "→ 유지";
+      return `<div class="mini-finding mini-finding-iter">
+        <div class="mini-finding-header">
+          <div class="sev-dot ${sevCls[s]}"></div>
+          <span class="mini-finding-criterion">${escapeHtml(f.criterion)}</span>
+          <span class="iter-verdict-badge ${verdictCls}">${verdictLabel}</span>
+        </div>
+        <div class="iter-compare-rows">
+          <div class="iter-row"><span class="iter-label">v1</span><span class="iter-text">${escapeHtml(f.v1)}</span></div>
+          <div class="iter-row"><span class="iter-label">v2</span><span class="iter-text">${escapeHtml(f.v2)}</span></div>
+        </div>
+        ${f.delta ? `<div class="mini-finding-fix"><span class="mini-finding-fix-label">변화</span>${escapeHtml(f.delta)}</div>` : ""}
+      </div>`;
+    }
     return `<div class="mini-finding mini-finding-collapsed">
       <div class="mini-finding-header">
         <div class="sev-dot ${sevCls[s]}"></div>
         <span class="mini-finding-criterion">${escapeHtml(f.criterion)}</span>
-        <span class="mini-finding-oneliner">${escapeHtml(f.oneLineFinding)}</span>
+        <span class="mini-finding-oneliner">${escapeHtml(f.oneLineFinding ?? "")}</span>
       </div>
-      <div class="mini-finding-detail">${escapeHtml(f.detail)}</div>
-      <div class="mini-finding-fix"><span class="mini-finding-fix-label">수정</span>${escapeHtml(f.fix)}</div>
+      <div class="mini-finding-detail">${escapeHtml(f.detail ?? "")}</div>
+      <div class="mini-finding-fix"><span class="mini-finding-fix-label">수정</span>${escapeHtml(f.fix ?? "")}</div>
     </div>`;
   }).join("");
   return `<div class="mini-report">
@@ -2500,9 +2626,13 @@ function handleFramesSelected(frames: FrameInfo[]) {
     setChatAnalyzing(false);
   }
 
-  // Reset chips for the new conversation
+  // Reset chips: show only for single-frame
   chipsHidden = false;
-  showHintChips();
+  if (frames.length === 1) {
+    showHintChips();
+  } else {
+    hideHintChips();
+  }
 
   // Capture previous session state before reset
   const hadPreviousResult = contextStack.results.length > 0;
@@ -2542,9 +2672,10 @@ function handleFramesSelected(frames: FrameInfo[]) {
       id: chatId(), role: "bot",
       content: `${frames.length}개 화면을 선택했네요.`,
       labels: [
-        { id: "mode-compare",  name: "Before/After 비교" },
-        { id: "mode-flow",     name: "플로우로 분석" },
-        { id: "mode-separate", name: "각각 따로 분석" },
+        { id: "iteration-compare", name: "이터레이션 비교" },
+        { id: "mode-compare",      name: "Before/After 비교" },
+        { id: "mode-flow",         name: "플로우로 분석" },
+        { id: "mode-separate",     name: "각각 따로 분석" },
       ],
     });
   } else {
@@ -2628,6 +2759,11 @@ function handleIntentLabel(labelId: string) {
 
   if (!contextStack.frames.length) return;
   document.querySelectorAll(".chat-label-chip").forEach((c) => c.classList.add("disabled"));
+
+  // iteration-compare: auto-set compare mode for 2-frame context
+  if (labelId === "iteration-compare") {
+    contextStack.frameMode = "compare";
+  }
 
   // Set intent
   contextStack.intent = labelId;
@@ -2771,6 +2907,7 @@ async function startChatAnalysis(_categoryId: string, followUpContext: string) {
       "dark-pattern": ["기만 디자인 패턴을 점검하고 있어요...", "CTA·문구를 윤리성 기준으로 보는 중...", "다크 패턴 결과를 정리하고 있어요..."],
       "tone-consistency": ["격식·문체를 분석하고 있어요...", "CTA 형태와 어투 혼용을 찾는 중...", "톤 일관성 결과를 정리하고 있어요..."],
       "color-contrast": ["텍스트·배경 색상을 추출하고 있어요...", "WCAG 대비 기준으로 판정하는 중...", "접근성 결과를 정리하고 있어요..."],
+      "iteration-compare": ["v1/v2 화면을 나란히 보고 있어요...", "4축 변화를 추적하는 중...", "개선·퇴보 항목을 정리하고 있어요..."],
     };
     const msgs = loadingMsgs[_categoryId] ?? ["분석하고 있어요..."];
     const getLoadMsg = () => msgs[Math.min(Math.floor((Date.now() - streamStart) / 3500), msgs.length - 1)];
@@ -2811,7 +2948,7 @@ async function startChatAnalysis(_categoryId: string, followUpContext: string) {
       timestamp: Date.now(),
     });
 
-    // Fire-and-forget: save session to DB
+    // Save session to DB and capture ID for star rating
     if (miniReport && contextStack.frames[0]) {
       const sessionPayload = {
         frameId:      contextStack.frames[0].nodeId || contextStack.frames[0].nodeName,
@@ -2820,11 +2957,17 @@ async function startChatAnalysis(_categoryId: string, followUpContext: string) {
         quickSummary: miniReport.quickSummary,
         findings:     miniReport.findings,
       };
+      const capturedMsgId = msgId;
       fetch(`${baseUrl}/api/chat/sessions`, {
         method: "POST",
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify(sessionPayload),
-      }).catch(() => { /* best-effort, ignore errors */ });
+      })
+        .then(r => r.json())
+        .then(data => {
+          if (data.id) updateMsg(capturedMsgId, { sessionDbId: data.id });
+        })
+        .catch(() => { /* best-effort, ignore errors */ });
     }
 
     const completedResults = contextStack.results.filter(r => r.output).length;
@@ -2928,27 +3071,6 @@ function handleChatAction(action: string) {
     showLiveCommentPopup(fullComment);
   } else if (action === "copy-all") {
     const sevEmoji = ["✅", "💡", "⚠️", "🔴", "🚨"];
-    const intentLabel: Record<string, string> = {
-      "full-scan": "🔍 전체 스캔",
-      "accessibility": "♿ 접근성",
-      "copy-rewrite": "✍️ 카피 리라이팅",
-      "ab-variant": "🔀 A/B 변형",
-      "analyze-axis": "📊 축 분석",
-      "competitor-compare": "🔎 경쟁사 비교",
-      "suggestion": "💡 개선 제안",
-      "usability": "🧪 사용성 검증",
-      "visual": "🎨 시각 분석",
-      "cta": "🎯 CTA 분석",
-      "state-audit": "🗂 상태 감사",
-      "text-consistency": "🔤 텍스트 일관성",
-      "typography-hierarchy": "🔠 타이포 위계",
-      "first-impression": "👁 5초 첫인상",
-      "cognitive-load": "🧠 인지 부하",
-      "conversion-friction": "⚡ 전환 마찰",
-      "dark-pattern": "🕳 다크 패턴",
-      "tone-consistency": "🗣 톤 일관성",
-      "color-contrast": "🌗 색상 대비",
-    };
     const frameName = contextStack.frames[0]?.nodeName ?? "선택된 프레임";
     const lines: string[] = [
       `# Simulo 분석 리포트 — ${frameName}`,
@@ -2957,13 +3079,20 @@ function handleChatAction(action: string) {
     ];
     for (const turn of contextStack.results) {
       if (!turn.output) continue;
-      lines.push(`## ${intentLabel[turn.intent] ?? `📄 ${turn.intent}`}`);
+      lines.push(`## ${INTENT_LABEL[turn.intent] ?? `📄 ${turn.intent}`}`);
       lines.push(turn.output.quickSummary);
       lines.push("");
       for (const f of turn.output.findings) {
         const e = sevEmoji[Math.min(4, f.severity)];
-        lines.push(`${e} **[${f.criterion}]** ${f.oneLineFinding}`);
-        lines.push(`→ ${f.fix}`);
+        if (f.v1 !== undefined && f.v2 !== undefined) {
+          const verdictMark = f.verdict === "improved" ? "↑" : f.verdict === "degraded" ? "↓" : "→";
+          lines.push(`${e} **[${f.criterion}]** ${verdictMark} ${f.delta ?? ""}`);
+          lines.push(`  v1: ${f.v1}`);
+          lines.push(`  v2: ${f.v2}`);
+        } else {
+          lines.push(`${e} **[${f.criterion}]** ${f.oneLineFinding ?? ""}`);
+          lines.push(`→ ${f.fix ?? ""}`);
+        }
       }
       lines.push("");
     }

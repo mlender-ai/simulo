@@ -381,6 +381,17 @@
     .mini-finding-collapsed .mini-finding-detail,
     .mini-finding-collapsed .mini-finding-fix { display: none; }
 
+    /* ── Iteration compare findings ── */
+    .mini-finding-iter .mini-finding-header { margin-bottom: 6px; }
+    .iter-verdict-badge { font-size: 9px; font-weight: 700; padding: 1px 7px; border-radius: 3px; margin-left: auto; }
+    .iter-improved { background: rgba(74,222,128,0.15); color: #4ade80; border: 1px solid rgba(74,222,128,0.3); }
+    .iter-degraded { background: rgba(248,113,113,0.15); color: #f87171; border: 1px solid rgba(248,113,113,0.3); }
+    .iter-same { background: rgba(156,163,175,0.12); color: #9ca3af; border: 1px solid rgba(156,163,175,0.25); }
+    .iter-compare-rows { display: flex; flex-direction: column; gap: 4px; }
+    .iter-row { display: flex; gap: 8px; align-items: flex-start; }
+    .iter-label { font-size: 9px; font-weight: 700; color: #555; padding: 1px 5px; background: #1a1a1a; border-radius: 2px; min-width: 18px; text-align: center; flex-shrink: 0; margin-top: 2px; }
+    .iter-text { font-size: 11px; color: #ccc; line-height: 1.5; }
+
     /* ── Live comment popup ── */
     .live-comment-overlay {
       position: fixed;
@@ -637,6 +648,50 @@
     .copy-md-btn:hover { color: #aaa; border-color: #444; }
     .copy-md-btn.copied { color: #4ade80; border-color: #166534; }
 
+    .intent-switch-btn {
+      display: inline-block;
+      margin-top: 4px;
+      margin-left: 4px;
+      padding: 3px 8px;
+      background: transparent;
+      border: 1px solid #333;
+      border-radius: 4px;
+      font-size: 10px;
+      font-family: monospace;
+      color: #888;
+      cursor: pointer;
+      transition: color 0.12s, border-color 0.12s;
+    }
+    .intent-switch-btn:hover { color: #ccc; border-color: #555; }
+
+    /* ── Star rating ── */
+    .rating-row { display: flex; gap: 4px; padding-top: 8px; }
+    .rating-star { font-size: 16px; color: #555; cursor: pointer; transition: color 0.1s; user-select: none; line-height: 1; }
+    .rating-star:hover { transform: scale(1.1); }
+    .intent-switch-dropdown {
+      position: relative;
+      background: #1a1a1a;
+      border: 1px solid #333;
+      border-radius: 6px;
+      padding: 4px 0;
+      min-width: 180px;
+      z-index: 100;
+      margin-top: 4px;
+    }
+    .intent-option {
+      display: block;
+      width: 100%;
+      text-align: left;
+      padding: 6px 12px;
+      font-size: 11px;
+      color: #ccc;
+      background: transparent;
+      border: none;
+      cursor: pointer;
+      font-family: inherit;
+    }
+    .intent-option:hover { background: #2a2a2a; color: #fff; }
+
     /* ── Hint chips ── */
     #hint-chips {
       display: flex;
@@ -648,7 +703,7 @@
     #hint-chips.hidden { display: none; }
     .hint-chip {
       background: #1a1a1a;
-      border: 1px solid #2a2a2a;
+      border: 1px solid #333;
       border-radius: 9999px;
       padding: 4px 12px;
       font-size: 12px;
@@ -657,7 +712,7 @@
       font-family: inherit;
       transition: background 0.12s, border-color 0.12s, color 0.12s;
     }
-    .hint-chip:hover { background: #222; border-color: #3a3a3a; color: #fff; }
+    .hint-chip:hover { background: #222; border-color: #555; color: #fff; }
   </style>
 </head>
 <body>
@@ -715,7 +770,7 @@
   </div>
 
   <!-- Hint chips (shown in empty state, before first user message) -->
-  <div id="hint-chips"></div>
+  <div id="hint-chips" class="hidden"></div>
 
   <!-- Chat input bar (always visible) -->
   <div class="chat-input-bar">
