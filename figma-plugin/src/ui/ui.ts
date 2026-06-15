@@ -91,6 +91,8 @@ interface ChatMessage {
   actions?: { id: string; label: string; primary?: boolean }[];
   streaming?: boolean;
   errorType?: "network" | "server" | "timeout";
+  sessionDbId?: string | null;
+  starRating?: number;
 }
 
 interface LiveMiniReport {
@@ -2479,6 +2481,39 @@ function renderMessages() {
     });
   });
 
+  container.querySelectorAll(".rating-star").forEach((star) => {
+    const el = star as HTMLElement;
+    const msgId = el.dataset.msgId!;
+    const value = parseInt(el.dataset.value!);
+    const row = el.parentElement!;
+    const siblings = Array.from(row.querySelectorAll(".rating-star")) as HTMLElement[];
+
+    el.addEventListener("mouseenter", () => {
+      const cur = chatMessages.find(m => m.id === msgId)?.starRating ?? 0;
+      siblings.forEach((s, i) => {
+        s.style.color = i < value ? "#f5c518" : (i < cur ? "#f5c518" : "#555");
+      });
+      siblings.forEach((s, i) => { s.style.color = i < value ? "#f5c518" : "#555"; });
+    });
+    el.addEventListener("mouseleave", () => {
+      const cur = chatMessages.find(m => m.id === msgId)?.starRating ?? 0;
+      siblings.forEach((s, i) => { s.style.color = i < cur ? "#f5c518" : "#555"; });
+    });
+    el.addEventListener("click", () => {
+      const msg = chatMessages.find(m => m.id === msgId);
+      if (!msg?.sessionDbId) return;
+      const prev = msg.starRating ?? 0;
+      updateMsg(msgId, { starRating: value });
+      fetch(`${getSimuloBaseUrl()}/api/sessions/rate`, {
+        method: "PATCH",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ sessionId: msg.sessionDbId, rating: value }),
+      }).catch(() => {
+        updateMsg(msgId, { starRating: prev || undefined });
+      });
+    });
+  });
+
   container.scrollTop = container.scrollHeight;
 }
 
@@ -2530,6 +2565,16 @@ function renderMsgHTML(msg: ChatMessage, lastAnalysisMsgId?: string | null): str
 
   if (msg.id === lastAnalysisMsgId && !chatAnalyzing && contextStack.frames.length > 0) {
     inner += `<button class="intent-switch-btn" data-msg-id="${msg.id}">다른 분석으로 전환 ▼</button>`;
+  }
+
+  if (msg.miniReport && !msg.streaming && !msg.errorType) {
+    const selected = msg.starRating ?? 0;
+    const stars = Array.from({ length: 5 }, (_, i) => {
+      const val = i + 1;
+      const color = val <= selected ? "#f5c518" : "#555";
+      return `<span class="rating-star" data-msg-id="${msg.id}" data-value="${val}" style="color:${color}">★</span>`;
+    }).join("");
+    inner += `<div class="rating-row">${stars}</div>`;
   }
 
   return `<div class="chat-msg ${cls}">${inner}</div>`;
@@ -2903,7 +2948,7 @@ async function startChatAnalysis(_categoryId: string, followUpContext: string) {
       timestamp: Date.now(),
     });
 
-    // Fire-and-forget: save session to DB
+    // Save session to DB and capture ID for star rating
     if (miniReport && contextStack.frames[0]) {
       const sessionPayload = {
         frameId:      contextStack.frames[0].nodeId || contextStack.frames[0].nodeName,
@@ -2912,11 +2957,17 @@ async function startChatAnalysis(_categoryId: string, followUpContext: string) {
         quickSummary: miniReport.quickSummary,
         findings:     miniReport.findings,
       };
+      const capturedMsgId = msgId;
       fetch(`${baseUrl}/api/chat/sessions`, {
         method: "POST",
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify(sessionPayload),
-      }).catch(() => { /* best-effort, ignore errors */ });
+      })
+        .then(r => r.json())
+        .then(data => {
+          if (data.id) updateMsg(capturedMsgId, { sessionDbId: data.id });
+        })
+        .catch(() => { /* best-effort, ignore errors */ });
     }
 
     const completedResults = contextStack.results.filter(r => r.output).length;
