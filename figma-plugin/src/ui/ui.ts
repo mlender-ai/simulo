@@ -2572,6 +2572,13 @@ function renderMsgHTML(msg: ChatMessage, lastAnalysisMsgId?: string | null): str
       if (msg.errorType && a.id === "retry") {
         return `<button class="retry-btn chat-action-btn" data-action="${a.id}">${escapeHtml(a.label)}</button>`;
       }
+      if (a.id === "reanalyze") {
+        if (!contextStack.frames.length) return "";
+        if (chatAnalyzing) {
+          return `<button class="chat-action-btn reanalyze-btn" data-action="${a.id}" disabled>분석 중...</button>`;
+        }
+        return `<button class="chat-action-btn reanalyze-btn" data-action="${a.id}">${escapeHtml(a.label)}</button>`;
+      }
       return `<button class="chat-action-btn${a.primary ? " primary" : ""}" data-action="${a.id}">${escapeHtml(a.label)}</button>`;
     }).join("")}</div>`;
   }
@@ -2997,6 +3004,7 @@ async function startChatAnalysis(_categoryId: string, followUpContext: string) {
         completedResults >= 2
           ? { id: "copy-all", label: "📋 전체 리포트 복사", primary: true }
           : { id: "comment",  label: "📋 결과 복사", primary: true },
+        { id: "reanalyze", label: "↺ 재분석" },
         { id: "rescan", label: "↩ 다시 분석" },
       ],
       labels: getLabelsForState(contextStack),
@@ -3055,6 +3063,12 @@ function handleChatAction(action: string) {
     // Remove the error message and retry
     chatMessages = chatMessages.filter((m) => m.role !== "bot" || (!m.actions?.some((a) => a.id === "retry")));
     renderMessages();
+    startChatAnalysis(contextStack.selectedCategory ?? "scan", contextStack.subContext ?? "");
+    return;
+  }
+
+  if (action === "reanalyze") {
+    if (!contextStack.frames.length || !contextStack.intent) return;
     startChatAnalysis(contextStack.selectedCategory ?? "scan", contextStack.subContext ?? "");
     return;
   }
