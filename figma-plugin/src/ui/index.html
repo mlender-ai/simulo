@@ -648,6 +648,25 @@
     .copy-md-btn:hover { color: #aaa; border-color: #444; }
     .copy-md-btn.copied { color: #4ade80; border-color: #166534; }
 
+    /* ── Collapse/Expand ── */
+    .chat-msg[data-collapsed="false"] .msg-preview { display: none; }
+    .chat-msg[data-collapsed="true"] .msg-full { display: none; }
+    .collapse-toggle {
+      display: inline-block;
+      margin-top: 4px;
+      padding: 2px 6px;
+      background: transparent;
+      border: none;
+      border-radius: 3px;
+      font-size: 10px;
+      font-family: monospace;
+      color: #555;
+      cursor: pointer;
+      transition: color 0.12s;
+      align-self: flex-start;
+    }
+    .collapse-toggle:hover { color: #aaa; }
+
     .intent-switch-btn {
       display: inline-block;
       margin-top: 4px;

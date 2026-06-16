@@ -2514,6 +2514,16 @@ function renderMessages() {
     });
   });
 
+  container.querySelectorAll(".collapse-toggle").forEach((btn) => {
+    (btn as HTMLElement).addEventListener("click", () => {
+      const msgEl = (btn as HTMLElement).closest(".chat-msg") as HTMLElement | null;
+      if (!msgEl) return;
+      const collapsed = msgEl.dataset.collapsed === "true";
+      msgEl.dataset.collapsed = String(!collapsed);
+      (btn as HTMLElement).textContent = collapsed ? "접기 ▲" : "… 더 보기 ▼";
+    });
+  });
+
   container.scrollTop = container.scrollHeight;
 }
 
@@ -2524,13 +2534,20 @@ function buildIntentSwitchDropdown(msgId: string): string {
   </div>`;
 }
 
+const COLLAPSE_THRESHOLD = 400;
+const PREVIEW_LENGTH = 120;
+
 function renderMsgHTML(msg: ChatMessage, lastAnalysisMsgId?: string | null): string {
   const cls = msg.role === "user" ? "chat-msg-user" : msg.role === "system" ? "chat-msg-system" : "chat-msg-bot";
+  const isCollapsible = msg.role === "bot" && !msg.streaming && !msg.errorType && msg.content.length > COLLAPSE_THRESHOLD;
   let inner = "";
   if (msg.streaming && !msg.content) {
     inner = `<div class="typing-indicator"><span class="typing-dot-plugin"></span><span class="typing-dot-plugin"></span><span class="typing-dot-plugin"></span></div>`;
   } else if (msg.errorType) {
     inner = `<div class="error-bubble">${escapeHtml(msg.content)}</div>`;
+  } else if (isCollapsible) {
+    const preview = escapeHtml(msg.content.slice(0, PREVIEW_LENGTH));
+    inner = `<div class="chat-bubble"><span class="msg-preview">${preview}…</span><span class="msg-full">${escapeHtml(msg.content)}</span></div><button class="collapse-toggle">접기 ▲</button>`;
   } else {
     inner = `<div class="chat-bubble${msg.streaming ? " streaming-cursor" : ""}">${escapeHtml(msg.content)}</div>`;
   }
@@ -2577,7 +2594,8 @@ function renderMsgHTML(msg: ChatMessage, lastAnalysisMsgId?: string | null): str
     inner += `<div class="rating-row">${stars}</div>`;
   }
 
-  return `<div class="chat-msg ${cls}">${inner}</div>`;
+  const collapsibleAttrs = isCollapsible ? ' data-collapsible="true" data-collapsed="false"' : '';
+  return `<div class="chat-msg ${cls}"${collapsibleAttrs}>${inner}</div>`;
 }
 
 function renderMiniReportHTML(report: LiveMiniReport): string {
